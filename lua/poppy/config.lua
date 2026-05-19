@@ -1,3 +1,4 @@
+---@diagnostic disable: duplicate-doc-field
 ---@class PoppyConfig
 ---@field width? number # Popup width as a ratio of terminal width (0.2 - 1.0). Default: 0.8
 ---@field height? number # Popup height as a ratio of terminal height (0.2 - 1.0). Default: 0.8
@@ -60,9 +61,12 @@ local clamp = function(val, min, max, default, key)
 	return val
 end
 
----@param exec string|string[]
+---@param exec string|string[]|function
 ---@return boolean
 local check_exec = function(exec)
+	if type(exec) == "function" then
+		return true
+	end
 	local cmd
 	if type(exec) == "table" then
 		cmd = exec[1]

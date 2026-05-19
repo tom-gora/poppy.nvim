@@ -6,9 +6,28 @@ local state = require("poppy.shared.state")
 ---@type PoppyConfig?
 local opts = nil
 
+local is_nested = function()
+	-- Check for nested Nvim
+	if os.getenv("NVIM") then
+		return true
+	end
+
+	-- Check for nested Poppy Tmux session
+	if os.getenv("TMUX") then
+		local handle = io.popen("tmux display-message -p '#{socket_path}' 2>/dev/null")
+		if handle then
+			local result = handle:read("*a")
+			handle:close()
+			if result and result:find("poppy", 1, true) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 local multiplexers = {
 	tmux = require("poppy.tmux"),
-	zellij = require("poppy.zellij"),
 	term = require("poppy.term"),
 }
 
@@ -16,7 +35,7 @@ M.get_state = function()
 	return state
 end
 
-local function validate_ipc(data)
+local validate_ipc = function(data)
 	return type(data) == "table" and type(data.action) == "string" and type(data.popup) == "string"
 end
 
@@ -37,16 +56,21 @@ M._sync_state = function(raw_popup_name, action)
 end
 
 local detect_env = function()
-    if opts.popups_backend then
-        return opts.popups_backend
-    end
-    if os.getenv("TMUX") then return "tmux" end
-    -- if os.getenv("ZELLIJ") then return "zellij" end
-    return "term"
+	if opts and opts.popups_backend then
+		return opts.popups_backend
+	end
+	if os.getenv("TMUX") and os.getenv("TMUX_PANE") then
+		return "tmux"
+	end
+	return "term"
 end
 
 ---@param popup_name string
 local open_popup = function(popup_name)
+	if is_nested() then
+		return
+	end
+
 	if not opts then
 		print("Poppy: Not initialized. Call setup() first.")
 		return
@@ -55,6 +79,14 @@ local open_popup = function(popup_name)
 	-- Deactivate current active popup
 	for name, p_state in pairs(state.popups) do
 		if p_state.active then
+			if name == popup_name then
+				local env = detect_env()
+				multiplexers[env].hide_session(name)
+				p_state.active = false
+				p_state.hidden = true
+				vim.cmd("redrawstatus")
+				return
+			end
 			local env = detect_env()
 			multiplexers[env].hide_session(name)
 			p_state.active = false
@@ -76,6 +108,10 @@ end
 
 ---@param user_opts? PoppyConfig
 M.setup = function(user_opts)
+	if is_nested() then
+		return
+	end
+
 	opts = config.merge(user_opts)
 
 	-- Ensure state file exists for watcher
@@ -86,17 +122,20 @@ M.setup = function(user_opts)
 
 	-- File watcher for IPC
 	local handle = vim.loop.new_fs_event()
+	if not handle then
+		return
+	end
 	handle:start(
 		state.STATE_FILE,
 		{},
-		vim.schedule_wrap(function(err, filename, events)
+		vim.schedule_wrap(function(err, _, _)
 			if err then
 				return
 			end
-			local f = io.open(state.STATE_FILE, "r")
-			if f then
-				local content = f:read("*a")
-				f:close()
+			local file_handle = io.open(state.STATE_FILE, "r")
+			if file_handle then
+				local content = file_handle:read("*a")
+				file_handle:close()
 
 				local success, data = pcall(vim.json.decode, content)
 				if success and validate_ipc(data) then
@@ -117,7 +156,7 @@ M.setup = function(user_opts)
 		open_popup(popup_name)
 	end, {
 		nargs = 1,
-		complete = function(_arg_lead, _cmd_line, _cursor_pos)
+		complete = function(_, _, _)
 			local keys = {}
 			if opts and opts.popups then
 				for k, _ in pairs(opts.popups) do
@@ -145,20 +184,6 @@ M.setup = function(user_opts)
 			multiplexers.tmux.kill_server()
 		end,
 	})
-
-	vim.keymap.set(
-		"n",
-		"<leader>1",
-		"<cmd>Poppy lazygit<cr>",
-		{ noremap = true, silent = true, desc = "Test Lazygit" }
-	)
-	vim.keymap.set(
-		"n",
-		"<leader>2",
-		"<cmd>Poppy lazydocker<cr>",
-		{ noremap = true, silent = true, desc = "Test Lazydocker" }
-	)
-	vim.keymap.set("n", "<leader>3", "<cmd>Poppy todos<cr>", { noremap = true, silent = true, desc = "Test Todos" })
 end
 
 return M

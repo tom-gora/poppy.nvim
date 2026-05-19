@@ -29,7 +29,7 @@ M.get_tmux_style_format = function(hl_group, force_bg_from_normal)
 	return table.concat(parts, ",")
 end
 
----@param popup_opts PopupConfig
+---@param popup_opts PoppyPopupConfig
 ---@param opts PoppyConfig
 ---@return string[]
 M.prepare_popup_styles = function(popup_opts, opts)
