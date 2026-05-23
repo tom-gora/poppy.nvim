@@ -8,7 +8,7 @@
 ---@field align_on_border? "left"|"centre"|"right" # Title/Footer alignment. Default: "centre"
 ---@field close_keymap? string # Keymap to close the popup. Default: "<C-q>"
 ---@field hide_keymap? string # Keymap to hide the popup. Default: "<C-d>"
----@field preferred_backend? "tmux" | "zellij" | "term"
+---@field preferred_backend? "tmux" | "term"
 ---@field popups? table<string, PoppyPopupConfig>
 
 ---@class PoppyPopupConfig
