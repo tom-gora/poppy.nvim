@@ -46,12 +46,12 @@ M.run = function(popup_name, opts)
 	-- Apply bindings and status hints
 	-- Simplified command construction using file-based IPC:
 	local hide_cmd = string.format(
-		'run-shell \'echo "{\\"action\\": \\"hide\\", \\"popup\\": \\"%s\\"}" > %s && tmux detach-client\'',
+		'run-shell \'echo "{\\"action\\": \\"hide\\", \\"popup\\": \\"%s\\"}" > "%s" && tmux detach-client\'',
 		popup_name,
 		shared_state.STATE_FILE
 	)
 	local close_cmd = string.format(
-		'run-shell \'echo "{\\"action\\": \\"close\\", \\"popup\\": \\"%s\\"}" > %s && tmux kill-window\'',
+		'run-shell \'echo "{\\"action\\": \\"close\\", \\"popup\\": \\"%s\\"}" > "%s" && tmux kill-window\'',
 		popup_name,
 		shared_state.STATE_FILE
 	)
@@ -93,7 +93,7 @@ M.run = function(popup_name, opts)
 
 	-- Attach to persistent session on the poppy server
 	cmd[#cmd + 1] = "-E"
-	cmd[#cmd + 1] = string.format("tmux -L poppy -f /dev/null attach-session -t %s", session_id)
+	cmd[#cmd + 1] = string.format("tmux -L %s -f /dev/null attach-session -t %s", state.SOCKET_NAME, session_id)
 
 	-- Use jobstart to run display-popup asynchronously
 	vim.fn.jobstart(cmd, {

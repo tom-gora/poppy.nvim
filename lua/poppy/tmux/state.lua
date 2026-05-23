@@ -1,13 +1,13 @@
 local M = {}
 
-local SOCKET_NAME = "poppy"
-M.SOCKET_PATH = "/tmp/tmux-" .. vim.loop.getuid() .. "/" .. SOCKET_NAME
+M.SOCKET_NAME = "poppy_" .. vim.fn.getpid()
+M.SOCKET_PATH = "/tmp/tmux-" .. vim.loop.getuid() .. "/" .. M.SOCKET_NAME
 
 ---@param cmd string[]
 ---@return string
 M.run = function(cmd)
 	-- Add -f /dev/null to force ignoring the main tmux.conf
-	local full_cmd = { "tmux", "-L", SOCKET_NAME, "-f", "/dev/null" }
+	local full_cmd = { "tmux", "-L", M.SOCKET_NAME, "-f", "/dev/null" }
 	for _, part in ipairs(cmd) do
 		table.insert(full_cmd, part)
 	end

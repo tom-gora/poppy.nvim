@@ -56,8 +56,14 @@ M._sync_state = function(raw_popup_name, action)
 end
 
 local detect_env = function()
-	if opts and opts.popups_backend then
-		return opts.popups_backend
+	if opts and opts.preferred_backend then
+		if opts.preferred_backend == "tmux" then
+			if os.getenv("TMUX") and os.getenv("TMUX_PANE") then
+				return "tmux"
+			end
+		else
+			return opts.preferred_backend
+		end
 	end
 	if os.getenv("TMUX") and os.getenv("TMUX_PANE") then
 		return "tmux"
@@ -113,6 +119,11 @@ M.setup = function(user_opts)
 	end
 
 	opts = config.merge(user_opts)
+
+	-- Ensure state directory exists
+	if vim.fn.isdirectory(state.STATE_DIR) == 0 then
+		vim.fn.mkdir(state.STATE_DIR, "p")
+	end
 
 	-- Ensure state file exists for watcher
 	local f = io.open(state.STATE_FILE, "a")
@@ -182,6 +193,9 @@ M.setup = function(user_opts)
 	vim.api.nvim_create_autocmd("VimLeavePre", {
 		callback = function()
 			multiplexers.tmux.kill_server()
+			if vim.fn.filereadable(state.STATE_FILE) == 1 then
+				os.remove(state.STATE_FILE)
+			end
 		end,
 	})
 end
