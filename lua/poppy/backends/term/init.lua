@@ -34,6 +34,7 @@ M.run = function(popup_name, opts)
 	local win_opts = style.get_win_opts(width, height, row, col, popup_opts, opts, align, hide_map, close_map)
 
 	win = vim.api.nvim_open_win(bufnr, true, win_opts)
+	vim.api.nvim_win_set_var(win, "poppy_popup_name", popup_name)
 	active_wins[popup_name] = win
 
 	-- Apply minimal UI settings

@@ -155,6 +155,17 @@ M.setup = function(user_opts)
 		local backend = executor.is_executable(opts.popups[popup_name].exec) and "term" or "float"
 		multiplexers[backend].hide_session(popup_name)
 	end, { nargs = 1 })
+
+	vim.api.nvim_create_autocmd({ "WinLeave" }, {
+		callback = function()
+			local win = vim.api.nvim_get_current_win()
+			local success, popup_name = pcall(vim.api.nvim_win_get_var, win, "poppy_popup_name")
+			if success and popup_name then
+				local backend = executor.is_executable(opts.popups[popup_name].exec) and "term" or "float"
+				multiplexers[backend].hide_session(popup_name)
+			end
+		end,
+	})
 end
 
 return M
