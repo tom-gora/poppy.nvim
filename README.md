@@ -1,10 +1,10 @@
 # poppy.nvim
 
-A personal neovim plugin for managing toggleable terminal popups.
+A personal neovim plugin for managing toggleable popups.
 
 ## About
 
-This plugin provides a declarative way to use and manage terminal popups. Can use tmux popups (dedicated session) or the native neovim terminal as a backend, makes sure these popups behave consistently and remain isolated instances, no matter where they are triggered.
+This plugin provides a declarative way to manage terminal and file popups. It uses native Neovim floating windows (`float` backend) for files and terminal buffers (`term` backend), ensuring popups remain isolated and consistent.
 
 The project is currently in an early stage with no clear further goals yet.
 The general philosophy is a focus on being simpler and more automated compared to plugins like toggleterm.nvim.
@@ -14,7 +14,7 @@ The general philosophy is a focus on being simpler and more automated compared t
 ```lua
 require("poppy").setup({
     -- Gobally configured preferences
-	popups_backend = "tmux", -- "tmux" | "term" # Choose to use tmux or nvim's term
+	popups_backend = "float", -- "float" | "term" # Choose backend: "float" for files, "term" for commands
     -- If preferred multiplexer but in non-multiplexed terminal will automatically fallback to term.
     width = 0.45, -- Popup width as a ratio of terminal width (0.2 - 1.0). Default: 0.8
     height = 0.9, -- Popup height as a ratio of terminal height (0.2 - 1.0). Default: 0.8
@@ -23,7 +23,7 @@ require("poppy").setup({
     close_keymap = "<C-q>", -- Keymap to close the popup. Default: "<C-q>"
     hide_keymap = "<C-d>", -- Keymap to hide the popup. Default: "<C-d>"
     title = "POPPY", -- Popup title. Default: ""
-    align_on_border = "right", -- Title/Footer alignment. Default: "centre" (foollows tmux naming convention)
+    align_on_border = "right", -- Title/Footer alignment. Default: "center"
     -- Declare popups/Override any of the above by popup
 	popups = {
         -- Executable tui example
@@ -48,7 +48,7 @@ require("poppy").setup({
 			close_keymap = "<C-q>",
 			hide_keymap = "<C-x>",
 			title = "GLOBAL TODOS",
-			align_on_border = "centre",
+			align_on_border = "center",
 		},
         -- Dynamic file path example
 		local_todos = {
@@ -73,7 +73,7 @@ require("poppy").setup({
 			close_keymap = "<C-q>",
 			hide_keymap = "<C-x>",
 			title = "PROJECT TODOS",
-			align_on_border = "centre",
+			align_on_border = "center",
 		},
 	},
 })
@@ -81,9 +81,9 @@ require("poppy").setup({
 
 ## Features
 
-- Declarative configuration for terminal popups.
-- Support for both tmux and native neovim terminal backends. Unless declared otherwise will spawn tmux popups tied to novim instance, if not in multiplexer will fallback to native term. However if tmux is configured but we happen to be in a regular non-multiplexed terminal a native backend will be used as fallback seamlessly so the plugin does not break with no tmux. It just orefers it (result of my preference).
-- If used for file editing neovim instances are nested and separate even inside of native term to improve isolation and reduce noise by disabling shada file for them. This prevents from cluttering :oldfiles, history and such with files that are intended for quick "scratchpad" access frequently but be disposable in nature (like various TODO files).
+- Declarative configuration for terminal and file popups.
+- Uses a hybrid backend: native Neovim floating windows (`float`) for files, and terminal buffers (`term`) for executable commands.
+- File popups use isolated buffers (`buflisted = false`) to keep them clean and avoid cluttering `:oldfiles` or history, making them ideal for quick scratchpads.
 - Persistent state via simple file based IPC.
 - Exposed a simple getter for this state so the popups in use or minimized can be displayed anywhere (I.E. in the statusline) easier.
 

@@ -5,12 +5,11 @@
 ---@field position? "center"|"left"|"right" # Popup position. Default: "center"
 ---@field border? "rounded"|"single"|"double"|"solid"|"none" # Border style. Default: "rounded"
 ---@field title? string # Popup title. Default: ""
----@field align_on_border? "left"|"centre"|"right" # Title/Footer alignment. Default: "centre"
+---@field align_on_border? "left"|"center"|"right" # Title/Footer alignment. Default: "center"
 ---@field close_keymap? string # Keymap to close the popup. Default: "<C-q>"
 ---@field hide_keymap? string # Keymap to hide the popup. Default: "<C-d>"
----@field preferred_backend? "tmux" | "term"
 ---@field popups? table<string, PoppyPopupConfig>
-
+---
 ---@class PoppyPopupConfig
 ---@field exec string|string[]
 ---@field width? number
@@ -20,8 +19,8 @@
 ---@field hide_keymap? string # Default hide keymap. Default: "<C-d>"
 ---@field close_keymap? string # Default close keymap. Default: "<C-q>"
 ---@field title? string
----@field align_on_border? "left" | "centre" | "right"
-
+---@field align_on_border? "left" | "center" | "right"
+---
 local default_opts = {
 	width = 0.8,
 	height = 0.8,
@@ -30,9 +29,9 @@ local default_opts = {
 	close_keymap = "<C-q>",
 	hide_keymap = "<C-d>",
 	title = "",
-	align_on_border = "centre",
-	preferred_backend = "tmux",
+	align_on_border = "center",
 }
+
 
 local M = {}
 

@@ -1,5 +1,18 @@
 local M = {}
 
+M.is_executable = function(exec)
+	if type(exec) == "function" then
+		exec = exec()
+	end
+	local cmd
+	if type(exec) == "table" then
+		cmd = exec[1]
+	else
+		cmd = vim.split(exec, " ")[1]
+	end
+	return vim.fn.executable(cmd) == 1
+end
+
 ---@param exec string|string[]|fun():string|string[]
 ---@return string
 M.prepare = function(exec)

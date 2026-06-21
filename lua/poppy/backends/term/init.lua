@@ -1,8 +1,8 @@
 local M = {}
 local executor = require("poppy.executor")
 local shared_state = require("poppy.shared.state")
-local utils = require("poppy.term.utils")
-local style = require("poppy.term.style")
+local utils = require("poppy.backends.term.utils")
+local style = require("poppy.backends.term.style")
 
 local active_wins = {}
 

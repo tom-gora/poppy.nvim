@@ -2,6 +2,7 @@ local M = {}
 
 local config = require("poppy.config")
 local state = require("poppy.shared.state")
+local executor = require("poppy.executor")
 
 ---@type PoppyConfig?
 local opts = nil
@@ -11,24 +12,12 @@ local is_nested = function()
 	if os.getenv("NVIM") then
 		return true
 	end
-
-	-- Check for nested Poppy Tmux session
-	if os.getenv("TMUX") then
-		local handle = io.popen("tmux display-message -p '#{socket_path}' 2>/dev/null")
-		if handle then
-			local result = handle:read("*a")
-			handle:close()
-			if result and result:find("poppy", 1, true) then
-				return true
-			end
-		end
-	end
 	return false
 end
 
 local multiplexers = {
-	tmux = require("poppy.tmux"),
-	term = require("poppy.term"),
+	term = require("poppy.backends.term"),
+	float = require("poppy.backends.float"),
 }
 
 M.get_state = function()
@@ -55,22 +44,6 @@ M._sync_state = function(raw_popup_name, action)
 	vim.cmd("redrawstatus")
 end
 
-local detect_env = function()
-	if opts and opts.preferred_backend then
-		if opts.preferred_backend == "tmux" then
-			if os.getenv("TMUX") and os.getenv("TMUX_PANE") then
-				return "tmux"
-			end
-		else
-			return opts.preferred_backend
-		end
-	end
-	if os.getenv("TMUX") and os.getenv("TMUX_PANE") then
-		return "tmux"
-	end
-	return "term"
-end
-
 ---@param popup_name string
 local open_popup = function(popup_name)
 	if is_nested() then
@@ -85,23 +58,16 @@ local open_popup = function(popup_name)
 	-- Deactivate current active popup
 	for name, p_state in pairs(state.popups) do
 		if p_state.active then
-			if name == popup_name then
-				local env = detect_env()
-				multiplexers[env].hide_session(name)
-				p_state.active = false
-				p_state.hidden = true
-				vim.cmd("redrawstatus")
-				return
-			end
-			local env = detect_env()
-			multiplexers[env].hide_session(name)
+			local backend = executor.is_executable(opts.popups[name].exec) and "term" or "float"
+			multiplexers[backend].hide_session(name)
 			p_state.active = false
 			p_state.hidden = true
+			vim.cmd("redrawstatus")
 		end
 	end
 
-	local env = detect_env()
-	multiplexers[env].run(popup_name, opts)
+	local backend = executor.is_executable(opts.popups[popup_name].exec) and "term" or "float"
+	multiplexers[backend].run(popup_name, opts)
 
 	if not state.popups[popup_name] then
 		state.popups[popup_name] = { active = true, hidden = false }
@@ -180,24 +146,15 @@ M.setup = function(user_opts)
 
 	vim.api.nvim_create_user_command("PoppyClose", function(cmd_opts)
 		local popup_name = cmd_opts.args
-		local env = detect_env()
-		multiplexers[env].close_session(popup_name)
+		local backend = executor.is_executable(opts.popups[popup_name].exec) and "term" or "float"
+		multiplexers[backend].close_session(popup_name)
 	end, { nargs = 1 })
 
 	vim.api.nvim_create_user_command("PoppyHide", function(cmd_opts)
 		local popup_name = cmd_opts.args
-		local env = detect_env()
-		multiplexers[env].hide_session(popup_name)
+		local backend = executor.is_executable(opts.popups[popup_name].exec) and "term" or "float"
+		multiplexers[backend].hide_session(popup_name)
 	end, { nargs = 1 })
-
-	vim.api.nvim_create_autocmd("VimLeavePre", {
-		callback = function()
-			multiplexers.tmux.kill_server()
-			if vim.fn.filereadable(state.STATE_FILE) == 1 then
-				os.remove(state.STATE_FILE)
-			end
-		end,
-	})
 end
 
 return M
