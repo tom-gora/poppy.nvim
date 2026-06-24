@@ -3,6 +3,8 @@ local M = {}
 local config = require("poppy.config")
 local state = require("poppy.shared.state")
 local executor = require("poppy.executor")
+local term = require("poppy.term")
+local float = require("poppy.float")
 
 ---@type PoppyConfig?
 local opts = nil
@@ -14,11 +16,6 @@ local is_nested = function()
 	end
 	return false
 end
-
-local multiplexers = {
-	term = require("poppy.backends.term"),
-	float = require("poppy.backends.float"),
-}
 
 M.get_state = function()
 	return state
@@ -58,16 +55,24 @@ local open_popup = function(popup_name)
 	-- Deactivate current active popup
 	for name, p_state in pairs(state.popups) do
 		if p_state.active then
-			local backend = executor.is_executable(opts.popups[name].exec) and "term" or "float"
-			multiplexers[backend].hide_session(name)
+			local is_term = executor.is_executable(opts.popups[name].exec)
+			if is_term then
+				term.hide_session(name)
+			else
+				float.hide_session(name)
+			end
 			p_state.active = false
 			p_state.hidden = true
 			vim.cmd("redrawstatus")
 		end
 	end
 
-	local backend = executor.is_executable(opts.popups[popup_name].exec) and "term" or "float"
-	multiplexers[backend].run(popup_name, opts)
+	local is_term = executor.is_executable(opts.popups[popup_name].exec)
+	if is_term then
+		term.run(popup_name, opts)
+	else
+		float.run(popup_name, opts)
+	end
 
 	if not state.popups[popup_name] then
 		state.popups[popup_name] = { active = true, hidden = false }
@@ -146,23 +151,32 @@ M.setup = function(user_opts)
 
 	vim.api.nvim_create_user_command("PoppyClose", function(cmd_opts)
 		local popup_name = cmd_opts.args
-		local backend = executor.is_executable(opts.popups[popup_name].exec) and "term" or "float"
-		multiplexers[backend].close_session(popup_name)
+		if executor.is_executable(opts.popups[popup_name].exec) then
+			term.close_session(popup_name)
+		else
+			float.close_session(popup_name)
+		end
 	end, { nargs = 1 })
 
 	vim.api.nvim_create_user_command("PoppyHide", function(cmd_opts)
 		local popup_name = cmd_opts.args
-		local backend = executor.is_executable(opts.popups[popup_name].exec) and "term" or "float"
-		multiplexers[backend].hide_session(popup_name)
+		if executor.is_executable(opts.popups[popup_name].exec) then
+			term.hide_session(popup_name)
+		else
+			float.hide_session(popup_name)
+		end
 	end, { nargs = 1 })
 
 	vim.api.nvim_create_autocmd({ "WinLeave" }, {
 		callback = function()
 			local win = vim.api.nvim_get_current_win()
-			local success, popup_name = pcall(vim.api.nvim_win_get_var, win, "poppy_popup_name")
+			local success, popup_name = pcall(vim.api.nvim_win_get_var, win, "poppy_win")
 			if success and popup_name then
-				local backend = executor.is_executable(opts.popups[popup_name].exec) and "term" or "float"
-				multiplexers[backend].hide_session(popup_name)
+				if executor.is_executable(opts.popups[popup_name].exec) then
+					term.hide_session(popup_name)
+				else
+					float.hide_session(popup_name)
+				end
 			end
 		end,
 	})
