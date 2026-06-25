@@ -1,75 +1,36 @@
 # Poppy.nvim Technical Summary
 
-Poppy.nvim is a Neovim plugin designed to manage floating windows that can either contain a terminal session or a file view. The project has been flattened to remove unnecessary backend multiplexer abstractions.
+Poppy.nvim is a declarative Neovim plugin designed to manage floating windows that can contain a terminal session, a file view, or a shell.
 
 ---
 
 ## `lua/poppy/init.lua`
-The main entry point for the plugin. It manages setup, user commands, and IPC communication.
-
-### Dependencies
-- `poppy.config`: For merging user configurations.
-- `poppy.shared.state`: For tracking the active state of popups.
-- `poppy.executor`: For determining if an `exec` is a terminal command or a file.
-- `poppy.term`: For handling terminal-based floating windows.
-- `poppy.float`: For handling file-based floating windows.
+The main entry point for the plugin. It manages setup, user commands, and orchestrates popup lifecycle.
 
 ### Key Functions
-- `M.setup(user_opts)`: Initializes the plugin, merges configuration, sets up the state directory, and starts a file watcher (via `vim.loop.new_fs_event`) to handle IPC updates from external processes.
-- `open_popup(popup_name)`: Orchestrates opening a popup.
-  - Deactivates current active popups.
-  - Determines if the popup is a terminal or file view using `executor.is_executable`.
-  - Calls `term.run` or `float.run`.
-- `M._sync_state(raw_popup_name, action)`: Syncs the internal state when an IPC message is received (e.g., 'hide' or 'close' from the running terminal process).
-- **User Commands**: Defines `Poppy`, `PoppyClose`, and `PoppyHide` to interact with popups.
-- **Autocommands**: Defines a `WinLeave` autocommand to automatically hide the popup when focus is lost.
+- `M.setup(user_opts)`: Initializes the plugin, merges configuration, sets up user commands, and registers shared autocmds.
+- `open_popup(popup_name)`: Orchestrates opening a popup by dispatching to the appropriate mode (`exec`, `file`, or `shell`).
 
 ---
 
-## `lua/poppy/term.lua`
-Handles floating windows that spawn a terminal process.
+## `lua/poppy/modes/`
+Encapsulates backend-specific logic.
 
-### Dependencies
-- `poppy.executor`: For preparing the execution command.
-- `poppy.shared.state`: For updating global popup state.
-- `poppy.utils`: For IPC communication (`send_ipc`) and process spawning (`spawn_term`).
-- `poppy.style`: For calculating window layout and options.
+### Shared Logic (`lua/poppy/modes/utils.lua`)
+- `M.spawn_term(command, opts)`: Handles terminal spawning (abstracting jobstart/termopen).
+- `M.title_fallback(mode, value)`: Generates smart titles based on mode and command/file path.
 
-### Key Functions
-- `M.run(popup_name, opts)`:
-  - Calculates layout using `style`.
-  - Creates a new buffer or uses an existing one if available.
-  - Opens a floating window with `vim.api.nvim_open_win`.
-  - Sets terminal keymaps for hiding/closing (`<C-d>`/`<C-q>`).
-  - Calls `utils.spawn_term` to start the terminal process, with an `on_exit` callback to clean up the buffer/window.
-- `M.close_session(popup_name)` and `M.hide_session(popup_name)`: Clean up the window/buffer and update state.
+### Mode Modules (`exec.lua`, `file.lua`, `shell.lua`)
+- Each module provides a `run(popup_name, opts)`, `close_session(popup_name)`, and `hide_session(popup_name)` function.
+- Responsible for window creation, buffer management, and keymap registration.
 
 ---
 
-## `lua/poppy/float.lua`
-Handles floating windows that display a file.
+## `lua/poppy/state.lua`
+Defines the global plugin state.
 
-### Dependencies
-- `poppy.shared.state`: For tracking active windows/buffers.
-- `poppy.style`: For layout calculations.
-- `poppy.executor`: For verifying execution parameters.
-
-### Key Functions
-- `M.run(popup_name, opts)`:
-  - Similar to `term.run`, but instead of a terminal process, it opens a file in the buffer using `vim.cmd("edit ...")` if the `exec` is a file path.
-- `M.close_session(popup_name)` and `M.hide_session(popup_name)`: Clean up the window/buffer and update state.
-
----
-
-## `lua/poppy/utils.lua`
-Low-level utility functions for IPC and terminal management.
-
-### Dependencies
-- `poppy.shared.state`: To access `STATE_FILE`.
-
-### Key Functions
-- `M.send_ipc(popup_name, action)`: Writes an IPC action (`hide`/`close`) to the state file in JSON format.
-- `M.spawn_term(command, opts)`: Wraps terminal spawning, using `jobstart` (for Neovim 0.11+) or `termopen` (for older versions).
+### Exported Data
+- `M.popups`: A table tracking `{ active = boolean, hidden = boolean, bufnr = number, win = number, title = string }`.
 
 ---
 
@@ -77,8 +38,8 @@ Low-level utility functions for IPC and terminal management.
 Handles UI-related calculations.
 
 ### Functions
-- `M.calculate_layout(popup_opts, opts)`: Computes width, height, row, col, and alignment based on screen dimensions and plugin configuration.
-- `M.get_win_opts(...)`: Generates the options table required by `vim.api.nvim_open_win`, including borders, titles, and footers.
+- `M.calculate_layout(popup_opts, opts)`: Computes width, height, row, col, and alignment.
+- `M.get_win_opts(...)`: Generates options for `vim.api.nvim_open_win`.
 
 ---
 
@@ -87,23 +48,19 @@ Handles configuration validation and merging.
 
 ### Functions
 - `M.merge(user_opts)`: Merges user-provided options with `default_opts`.
-- `sanitize(opts)`: Validates width, height, and popup executables, clamping values and removing invalid entries.
-- `check_exec(exec)`: Helper function to determine if a string or table is executable or a readable file.
+- `sanitize(opts)`: Validates configuration, enforces exclusive mode (`exec`/`file`/`shell`), and sets default titles via `utils.title_fallback`.
 
 ---
 
-## `lua/poppy/executor.lua`
-Responsible for interpreting and preparing the execution command.
-
-### Functions
-- `M.is_executable(exec)`: Checks if a string or table command is an executable.
-- `M.prepare(exec)`: Prepares the execution string. If it's a file, it wraps it in a minimal `nvim` instance with specific styling and settings (no shada, no swapfile).
-
----
-
-## `lua/poppy/shared/state.lua`
-Defines the global plugin state.
-
-### Exported Data
-- `M.popups`: A table tracking `{ active = boolean, hidden = boolean, bufnr = number, win = number }`.
-- `M.STATE_DIR` and `M.STATE_FILE`: Paths for the IPC communication file.
+## LATEST SESSION
+- **Refactored Architecture**:
+  - Removed all IPC mechanism (watcher, state files, utils.send_ipc).
+  - Adopted a native event-driven model completely within Neovim.
+  - Flattened structure: Moved state to `lua/poppy/state.lua`, created `lua/poppy/modes/` for backend-specific logic.
+- **Improved Configuration**:
+  - Replaced implicit detection with explicit mode definition (`exec`, `file`, `shell`).
+  - Added smart title fallback mechanism (`title_fallback`) in `modes/utils.lua`.
+  - Added `title` field to the global state tracker for better introspection.
+- **Maintenance**:
+  - Cleaned up obsolete modules (`executor.lua`, `term.lua`, `float.lua`, `shared/`).
+  - Improved error handling with fail-fast validation for mode configuration and graceful degradation for resource failures.
