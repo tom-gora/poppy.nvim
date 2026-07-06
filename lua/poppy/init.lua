@@ -4,12 +4,18 @@ local config = require("poppy.config")
 local state = require("poppy.state")
 local opts = nil
 
-local is_nested = function() return os.getenv("NVIM") and true or false end
+local is_nested = function()
+	return os.getenv("NVIM") and true or false
+end
 
-M.get_state = function() return state end
+M.get_state = function()
+	return state
+end
 
 local open_popup = function(popup_name)
-	if is_nested() then return end
+	if is_nested() then
+		return
+	end
 	if not opts then
 		print("Poppy: Not initialized. Call setup() first.")
 		return
@@ -52,11 +58,31 @@ local __temp_state_inspect = function()
 	end, { desc = "Poppy: Inspect state" })
 end
 
+local __temp_bring_up_ui_prototype = function()
+	vim.keymap.set("n", "<M-p><M-p>", function()
+		if type(_G.poppy_prototyping_dirty_switch) == "table" then
+			require("poppy.ui.router").dismiss()
+			return
+		end
+		-- Open without initial popup to show banner
+		local ww, sw_r, sw_l, cw = require("poppy.ui.manager").open(nil)
+		_G.poppy_prototyping_dirty_switch = { ww, sw_r, sw_l, cw }
+	end, { desc = "Poppy: Toggle New UI" })
+end
+
 M.setup = function(user_opts)
-	if is_nested() then return end
+	if is_nested() then
+		return
+	end
+	require("poppy.ui.style").setup()
 	opts = config.merge(user_opts)
 	setup_autocmds()
 	__temp_state_inspect()
+	__temp_bring_up_ui_prototype()
+
+	vim.api.nvim_create_user_command("PoppyUI", function()
+		require("poppy.ui.manager").open()
+	end, {})
 
 	vim.api.nvim_create_user_command("Poppy", function(cmd_opts)
 		if cmd_opts.args == "" then
@@ -69,7 +95,9 @@ M.setup = function(user_opts)
 		complete = function(_, _, _)
 			local keys = {}
 			if opts and opts.popups then
-				for k, _ in pairs(opts.popups) do table.insert(keys, k) end
+				for k, _ in pairs(opts.popups) do
+					table.insert(keys, k)
+				end
 			end
 			return keys
 		end,
@@ -84,6 +112,21 @@ M.setup = function(user_opts)
 		local mode = opts.popups[cmd_opts.args].mode
 		require("poppy.modes." .. mode).hide_session(cmd_opts.args)
 	end, { nargs = 1 })
+end
+
+M._get_opts = function()
+	return opts
+end
+
+M.get_sorted_popups = function()
+    local sorted = {}
+    if opts and opts.popups then
+        for name, p_config in pairs(opts.popups) do
+            table.insert(sorted, { name = name, config = p_config })
+        end
+        table.sort(sorted, function(a, b) return a.name < b.name end)
+    end
+    return sorted
 end
 
 return M
