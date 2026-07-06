@@ -30,7 +30,7 @@ M.render = function(bufnr, win)
 		table.insert(lines, string.rep(" ", h_padding) .. line)
 	end
 
-	vim.api.nvim_buf_set_option(bufnr, "modifiable", true)
+	vim.api.nvim_set_option_value("modifiable", true, { buf = bufnr })
 	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
 	vim.api.nvim_set_option_value("modifiable", false, { buf = bufnr })
 end

@@ -13,13 +13,7 @@ end
 
 -- Kill the current poppy
 M.kill_current = function()
-    local manager = require("poppy.ui.manager")
-    local target_name = manager.current_popup_name
-    if target_name then
-        local mode = poppy._get_opts().popups[target_name].mode
-        require("poppy.modes." .. mode).close_session(target_name)
-        manager.refresh(poppy.get_sorted_popups())
-    end
+    require("poppy.ui.manager").kill_current()
 end
 
 -- Dismiss the wrapper

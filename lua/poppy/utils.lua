@@ -1,5 +1,4 @@
 local M = {}
-local shared_state = require("poppy.shared.state")
 
 M.spawn_term = function(command, opts)
 	if vim.fn.has("nvim-0.11") == 1 then

@@ -23,7 +23,7 @@ local open_popup = function(popup_name)
 
 	-- Deactivate current active popup
 	for name, p_state in pairs(state.popups) do
-		if p_state.active then
+		if p_state.active and opts.popups and opts.popups[name] then
 			local mode = opts.popups[name].mode
 			require("poppy.modes." .. mode).hide_session(name)
 			p_state.active = false
@@ -33,6 +33,10 @@ local open_popup = function(popup_name)
 	end
 
 	local popup_opts = opts.popups[popup_name]
+	if not popup_opts then
+		print("Poppy: Unknown popup '" .. popup_name .. "'.")
+		return
+	end
 	require("poppy.modes." .. popup_opts.mode).run(popup_name, opts)
 	vim.cmd("redrawstatus")
 end
@@ -44,7 +48,7 @@ local setup_autocmds = function()
 		callback = function()
 			local win = vim.api.nvim_get_current_win()
 			local success, popup_name = pcall(vim.api.nvim_win_get_var, win, "poppy_win")
-			if success and popup_name then
+			if success and popup_name and opts and opts.popups and opts.popups[popup_name] then
 				local mode = opts.popups[popup_name].mode
 				require("poppy.modes." .. mode).hide_session(popup_name)
 			end
@@ -104,13 +108,17 @@ M.setup = function(user_opts)
 	})
 
 	vim.api.nvim_create_user_command("PoppyClose", function(cmd_opts)
-		local mode = opts.popups[cmd_opts.args].mode
-		require("poppy.modes." .. mode).close_session(cmd_opts.args)
+		local popup_opts = opts.popups[cmd_opts.args]
+		if popup_opts then
+			require("poppy.modes." .. popup_opts.mode).close_session(cmd_opts.args)
+		end
 	end, { nargs = 1 })
 
 	vim.api.nvim_create_user_command("PoppyHide", function(cmd_opts)
-		local mode = opts.popups[cmd_opts.args].mode
-		require("poppy.modes." .. mode).hide_session(cmd_opts.args)
+		local popup_opts = opts.popups[cmd_opts.args]
+		if popup_opts then
+			require("poppy.modes." .. popup_opts.mode).hide_session(cmd_opts.args)
+		end
 	end, { nargs = 1 })
 end
 
@@ -124,7 +132,13 @@ M.get_sorted_popups = function()
         for name, p_config in pairs(opts.popups) do
             table.insert(sorted, { name = name, config = p_config })
         end
-        table.sort(sorted, function(a, b) return a.name < b.name end)
+        local cat_order = { exec = 0, file = 1, shell = 2 }
+		table.sort(sorted, function(a, b)
+			local cat_a = cat_order[a.config.mode] or 99
+			local cat_b = cat_order[b.config.mode] or 99
+			if cat_a ~= cat_b then return cat_a < cat_b end
+			return a.name < b.name
+		end)
     end
     return sorted
 end

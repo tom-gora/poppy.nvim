@@ -28,14 +28,22 @@ end
 
 M.update = function(buf, sorted_popups)
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
-	
+
 	local lines = { " Configured Popups:", "" }
-	
-	for i, item in ipairs(sorted_popups) do
+	local prev_cat = nil
+	local display_idx = 0
+
+	for _, item in ipairs(sorted_popups) do
+		local cat = item.config.mode
+		if prev_cat and cat ~= prev_cat then
+			table.insert(lines, "")
+		end
+		prev_cat = cat
+		display_idx = display_idx + 1
 		local title = item.config.title or item.name
-		table.insert(lines, string.format(" [%d] %s", i, title))
+		table.insert(lines, string.format(" [%d] %s", display_idx, title))
 	end
-	
+
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 end
 

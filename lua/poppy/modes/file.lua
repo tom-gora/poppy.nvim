@@ -4,7 +4,7 @@ local style = require("poppy.style")
 
 local active_wins = {}
 
-M.run = function(popup_name, opts)
+M.run = function(popup_name, opts, parent_win)
 	local popup_opts = opts.popups[popup_name]
 	if not popup_opts then return end
 
@@ -32,25 +32,24 @@ M.run = function(popup_name, opts)
 		vim.bo[bufnr].swapfile = false
 	end
 
-	local win_opts = style.get_win_opts(
-		width, height, row, col, popup_opts, opts, align,
-		popup_opts.close_keymap or opts.close_keymap,
-		popup_opts.hide_keymap or opts.hide_keymap
-	)
-
-	local win = vim.api.nvim_open_win(bufnr, true, win_opts)
-	vim.api.nvim_win_set_var(win, "poppy_win", popup_name)
-	active_wins[popup_name] = win
-
-	vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:NormalFloat,SignColumn:NormalFloat"
-
 	local hide_map = popup_opts.hide_keymap or opts.hide_keymap
 	local close_map = popup_opts.close_keymap or opts.close_keymap
+
+	if parent_win then
+		vim.api.nvim_win_set_buf(parent_win, bufnr)
+		active_wins[popup_name] = parent_win
+	else
+		local win_opts = style.get_win_opts(width, height, row, col, popup_opts, opts, align, close_map, hide_map)
+		local win = vim.api.nvim_open_win(bufnr, true, win_opts)
+		vim.api.nvim_win_set_var(win, "poppy_win", popup_name)
+		active_wins[popup_name] = win
+		vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:NormalFloat,SignColumn:NormalFloat"
+	end
 
 	vim.keymap.set("n", hide_map, function() M.hide_session(popup_name) end, { buffer = bufnr, noremap = true, silent = true })
 	vim.keymap.set("n", close_map, function() M.close_session(popup_name) end, { buffer = bufnr, noremap = true, silent = true })
 
-	state.popups[popup_name] = { active = true, hidden = false, bufnr = bufnr, win = win, title = popup_opts.title }
+	state.popups[popup_name] = { active = true, hidden = false, bufnr = bufnr, win = active_wins[popup_name], title = popup_opts.title }
 	vim.cmd("redrawstatus")
 end
 
