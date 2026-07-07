@@ -12,66 +12,26 @@ M.get_state = function()
 	return state
 end
 
-local open_popup = function(popup_name)
-	if is_nested() then
-		return
+M.toggle = function()
+	local manager = require("poppy.ui.manager")
+	if manager.is_open() then
+		require("poppy.ui.router").dismiss()
+	else
+		manager.open()
 	end
-	if not opts then
-		print("Poppy: Not initialized. Call setup() first.")
-		return
-	end
-
-	-- Deactivate current active popup
-	for name, p_state in pairs(state.popups) do
-		if p_state.active and opts.popups and opts.popups[name] then
-			local mode = opts.popups[name].mode
-			require("poppy.modes." .. mode).hide_session(name)
-			p_state.active = false
-			p_state.hidden = true
-			vim.cmd("redrawstatus")
-		end
-	end
-
-	local popup_opts = opts.popups[popup_name]
-	if not popup_opts then
-		print("Poppy: Unknown popup '" .. popup_name .. "'.")
-		return
-	end
-	require("poppy.modes." .. popup_opts.mode).run(popup_name, opts)
-	vim.cmd("redrawstatus")
 end
 
-local setup_autocmds = function()
-	local group = vim.api.nvim_create_augroup("poppy_group", { clear = true })
-	vim.api.nvim_create_autocmd({ "WinLeave" }, {
-		group = group,
-		callback = function()
-			local win = vim.api.nvim_get_current_win()
-			local success, popup_name = pcall(vim.api.nvim_win_get_var, win, "poppy_win")
-			if success and popup_name and opts and opts.popups and opts.popups[popup_name] then
-				local mode = opts.popups[popup_name].mode
-				require("poppy.modes." .. mode).hide_session(popup_name)
-			end
-		end,
-	})
+M.open = function(poppy_name)
+	local manager = require("poppy.ui.manager")
+	if not manager.is_open() then
+		manager.open(poppy_name)
+	elseif poppy_name then
+		manager.switch(poppy_name)
+	end
 end
 
-local __temp_state_inspect = function()
-	vim.keymap.set("n", "<F1>", function()
-		print(vim.inspect(require("poppy").get_state()))
-	end, { desc = "Poppy: Inspect state" })
-end
-
-local __temp_bring_up_ui_prototype = function()
-	vim.keymap.set("n", "<M-p><M-p>", function()
-		if type(_G.poppy_prototyping_dirty_switch) == "table" then
-			require("poppy.ui.router").dismiss()
-			return
-		end
-		-- Open without initial popup to show banner
-		local ww, sw_r, sw_l, cw = require("poppy.ui.manager").open(nil)
-		_G.poppy_prototyping_dirty_switch = { ww, sw_r, sw_l, cw }
-	end, { desc = "Poppy: Toggle New UI" })
+M.close = function()
+	require("poppy.ui.router").dismiss()
 end
 
 M.setup = function(user_opts)
@@ -80,67 +40,70 @@ M.setup = function(user_opts)
 	end
 	require("poppy.ui.style").setup()
 	opts = config.merge(user_opts)
-	setup_autocmds()
-	__temp_state_inspect()
-	__temp_bring_up_ui_prototype()
 
-	vim.api.nvim_create_user_command("PoppyUI", function()
-		require("poppy.ui.manager").open()
-	end, {})
+	vim.api.nvim_create_augroup("poppy_group", { clear = true })
+	vim.api.nvim_create_autocmd("BufUnload", {
+		group = "poppy_group",
+		callback = function(ctx)
+			local ok, poppy_name = pcall(vim.api.nvim_buf_get_var, ctx.buf, "poppy_popup")
+			if not ok or not poppy_name or not state.poppies[poppy_name] then
+				return
+			end
+
+			local manager = require("poppy.ui.manager")
+			state.poppies[poppy_name] = nil
+			if manager.is_open() and manager.current_poppy_name == poppy_name then
+				manager._recover()
+			end
+		end,
+	})
 
 	vim.api.nvim_create_user_command("Poppy", function(cmd_opts)
-		if cmd_opts.args == "" then
-			print("Poppy: Please specify a popup name.")
-			return
+		local args = cmd_opts.args
+		if args == "" or args == "toggle" then
+			M.toggle()
+		elseif args == "close" then
+			M.close()
+		elseif args:sub(1, 5) == "open " then
+			M.open(args:sub(6))
+		else
+			M.toggle()
 		end
-		open_popup(cmd_opts.args)
 	end, {
-		nargs = 1,
+		nargs = "?",
 		complete = function(_, _, _)
-			local keys = {}
-			if opts and opts.popups then
-				for k, _ in pairs(opts.popups) do
-					table.insert(keys, k)
+			local keys = { "toggle", "open ", "close" }
+			if opts and opts.poppies then
+				for k, _ in pairs(opts.poppies) do
+					table.insert(keys, "open " .. k)
 				end
 			end
 			return keys
 		end,
 	})
-
-	vim.api.nvim_create_user_command("PoppyClose", function(cmd_opts)
-		local popup_opts = opts.popups[cmd_opts.args]
-		if popup_opts then
-			require("poppy.modes." .. popup_opts.mode).close_session(cmd_opts.args)
-		end
-	end, { nargs = 1 })
-
-	vim.api.nvim_create_user_command("PoppyHide", function(cmd_opts)
-		local popup_opts = opts.popups[cmd_opts.args]
-		if popup_opts then
-			require("poppy.modes." .. popup_opts.mode).hide_session(cmd_opts.args)
-		end
-	end, { nargs = 1 })
 end
 
 M._get_opts = function()
 	return opts
 end
 
-M.get_sorted_popups = function()
-    local sorted = {}
-    if opts and opts.popups then
-        for name, p_config in pairs(opts.popups) do
-            table.insert(sorted, { name = name, config = p_config })
-        end
-        local cat_order = { exec = 0, file = 1, shell = 2 }
+M.get_sorted_poppies = function()
+	local sorted = {}
+	if opts and opts.poppies then
+		for name, p_config in pairs(opts.poppies) do
+			table.insert(sorted, { name = name, config = p_config })
+		end
+		local cat_order = { exec = 0, file = 1, shell = 2 }
 		table.sort(sorted, function(a, b)
 			local cat_a = cat_order[a.config.mode] or 99
 			local cat_b = cat_order[b.config.mode] or 99
-			if cat_a ~= cat_b then return cat_a < cat_b end
+			if cat_a ~= cat_b then
+				return cat_a < cat_b
+			end
 			return a.name < b.name
 		end)
-    end
-    return sorted
+	end
+	return sorted
 end
 
 return M
