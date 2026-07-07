@@ -1,5 +1,5 @@
 local M = {}
-local style = require("poppy.ui.style")
+local style = require("poppy.core.ui.style")
 
 M.create = function(poppy_opts)
 	poppy_opts = poppy_opts or {}
@@ -7,7 +7,9 @@ M.create = function(poppy_opts)
 	local width = math.floor(vim.o.columns - 2)
 
 	local raw = poppy_opts.win_height
-	if type(raw) == "function" then raw = raw() end
+	if type(raw) == "function" then
+		raw = raw()
+	end
 	raw = raw or 0.75
 
 	local height
@@ -17,7 +19,10 @@ M.create = function(poppy_opts)
 			vim.notify(string.format("Poppy: win_height %d too small, minimum is %d", raw, min_h), vim.log.levels.WARN)
 			raw = min_h
 		elseif raw > vim.o.lines then
-			vim.notify(string.format("Poppy: win_height %d exceeds screen height %d", raw, vim.o.lines), vim.log.levels.WARN)
+			vim.notify(
+				string.format("Poppy: win_height %d exceeds screen height %d", raw, vim.o.lines),
+				vim.log.levels.WARN
+			)
 			raw = vim.o.lines
 		end
 		height = math.floor(raw)
@@ -55,3 +60,4 @@ M.create = function(poppy_opts)
 end
 
 return M
+

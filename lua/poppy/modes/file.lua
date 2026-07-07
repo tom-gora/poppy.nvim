@@ -1,13 +1,13 @@
 local M = {}
-local state = require("poppy.state")
-
-local active_wins = {}
+local session = require("poppy.core.session")
 
 M.run = function(poppy_name, opts, parent_win)
 	local poppy_opts = opts.poppies[poppy_name]
-	if not poppy_opts or not parent_win then return end
+	if not poppy_opts or not parent_win then
+		return
+	end
 
-	local p_state = state.poppies[poppy_name]
+	local p_state = session.poppies[poppy_name]
 	local bufnr
 	if p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
 		bufnr = p_state.bufnr
@@ -31,36 +31,37 @@ M.run = function(poppy_name, opts, parent_win)
 	end
 
 	vim.api.nvim_win_set_buf(parent_win, bufnr)
-	active_wins[poppy_name] = parent_win
 
-	state.poppies[poppy_name] = { active = true, hidden = false, bufnr = bufnr, win = active_wins[poppy_name], title = poppy_opts.title }
-	vim.cmd("redrawstatus")
+	session.poppies[poppy_name] =
+		{ active = true, hidden = false, bufnr = bufnr, win = parent_win, title = poppy_opts.title }
 end
 
 M.close_session = function(poppy_name)
-	local win = active_wins[poppy_name]
+	local p_state = session.poppies[poppy_name]
+	local win = p_state and p_state.win
 	if win and vim.api.nvim_win_is_valid(win) then
-		if #vim.api.nvim_list_wins() == 1 then vim.cmd("enew") end
+		if #vim.api.nvim_list_wins() == 1 then
+			vim.cmd("enew")
+		end
 		vim.api.nvim_win_close(win, true)
 	end
-	local p_state = state.poppies[poppy_name]
 	if p_state and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
 		vim.api.nvim_buf_delete(p_state.bufnr, { force = true })
 	end
-	state.poppies[poppy_name] = nil
-	active_wins[poppy_name] = nil
-	vim.cmd("redrawstatus")
+	session.poppies[poppy_name] = nil
 end
 
 M.hide_session = function(poppy_name)
-	local win = active_wins[poppy_name]
-	if win and vim.api.nvim_win_is_valid(win) then vim.api.nvim_win_close(win, true) end
-	if state.poppies[poppy_name] then
-		state.poppies[poppy_name].active = false
-		state.poppies[poppy_name].hidden = true
+	local p_state = session.poppies[poppy_name]
+	local win = p_state and p_state.win
+	if win and vim.api.nvim_win_is_valid(win) then
+		vim.api.nvim_win_close(win, true)
 	end
-	active_wins[poppy_name] = nil
-	vim.cmd("redrawstatus")
+	if p_state then
+		p_state.active = false
+		p_state.hidden = true
+	end
 end
 
 return M
+

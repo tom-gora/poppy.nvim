@@ -1,18 +1,20 @@
 local M = {}
-local style = require("poppy.ui.style")
-local poppy_state = require("poppy.state")
-local namespace = vim.api.nvim_create_namespace("poppy_sidebar_right")
+local style = require("poppy.core.ui.style")
+local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
+local sb_width = 25
 
 M.create = function(wrapper_win, width)
-	M.width = width or 25
+	if width then
+		sb_width = width
+	end
 	local buf = vim.api.nvim_create_buf(false, true)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
 
 	local config = {
 		relative = "win",
-		width = M.width,
+		width = sb_width,
 		height = wrapper_conf.height,
-		col = wrapper_conf.width - M.width,
+		col = wrapper_conf.width - sb_width,
 		row = 0,
 		style = "minimal",
 		border = "none",
@@ -22,7 +24,7 @@ M.create = function(wrapper_win, width)
 	}
 
 	local win = vim.api.nvim_open_win(buf, false, config)
-	style.apply_right_sidebar_style(win)
+	style.apply_list_panel_style(win)
 	return win, buf
 end
 
@@ -47,22 +49,22 @@ local trim_title = function(title, display_idx, width)
 	return title
 end
 
-M.update = function(buf, sorted_poppies)
+M.update = function(buf, sorted_poppies, poppies)
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 
-	local lines = { "", " Configured Poppies:", "" }
+	local lines = { "" }
 	local prev_cat = nil
 	local display_idx = 0
 	local rows = {}
 
 	for _, item in ipairs(sorted_poppies) do
-		local cat = item.config.mode
+		local cat = item.config.cat or item.config.mode
 		if prev_cat and cat ~= prev_cat then
 			table.insert(lines, "")
 		end
 		prev_cat = cat
 		display_idx = display_idx + 1
-		local title = trim_title(item.config.title or item.name, display_idx, M.width)
+		local title = trim_title(item.config.title or item.name, display_idx, sb_width)
 		table.insert(lines, string.format(" [%d] %s", display_idx, title))
 		table.insert(rows, { row = #lines - 1, name = item.name })
 	end
@@ -70,7 +72,7 @@ M.update = function(buf, sorted_poppies)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
 	for _, entry in ipairs(rows) do
-		local ps = poppy_state.poppies[entry.name]
+		local ps = poppies[entry.name]
 		local hl = nil
 		if ps then
 			if ps.active then
@@ -91,4 +93,3 @@ M.update = function(buf, sorted_poppies)
 end
 
 return M
-

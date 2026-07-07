@@ -24,8 +24,11 @@ M.title_fallback = function(mode, value)
 			return vim.fs.basename(value[1])
 		end
 		return vim.fs.basename(vim.split(value, " ")[1])
-	elseif mode == "shell" then
-		return vim.fs.basename(os.getenv("SHELL") or "shell")
+	elseif mode == "term" then
+		if type(value) == "table" then
+			return vim.fs.basename(value[1])
+		end
+		return vim.fs.basename(vim.split(value, " ")[1])
 	end
 	return "POPPY"
 end
