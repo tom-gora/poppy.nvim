@@ -12,23 +12,23 @@ local state = {
 	hidden = false,
 }
 
-local function resize_content(win, col, width)
+local function resize_content(win, height)
 	if not win or not vim.api.nvim_win_is_valid(win) then
 		return
 	end
 	local cur = vim.api.nvim_win_get_config(win)
 	vim.api.nvim_win_set_config(win, {
 		relative = cur.relative,
-		width = width,
-		height = cur.height,
-		col = col,
+		width = cur.width,
+		height = height,
+		col = cur.col,
 		row = cur.row,
 		win = cur.win,
 	})
 end
 
 M.create = function(wrapper_win, sw)
-	local hints_win, hints_buf = hints_panel.create(wrapper_win, sw)
+	local hints_win, hints_buf = hints_panel.create(wrapper_win)
 	local list_win, list_buf = list_panel.create(wrapper_win, sw)
 	state.wrapper_win = wrapper_win
 	state.hints_win = hints_win
@@ -56,7 +56,7 @@ M.hide = function(content_win)
 	state.hints_win = nil
 	state.list_win = nil
 	state.hidden = true
-	resize_content(content_win, 0, wc.width - 2)
+	resize_content(content_win, wc.height - 1)
 end
 
 M.show = function(content_win)
@@ -66,10 +66,10 @@ M.show = function(content_win)
 	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
 	local sw = state.sw
 
-	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, sw)
+	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf)
 	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, sw)
 	state.hidden = false
-	resize_content(content_win, sw + 1, wc.width - sw * 2 - 4)
+	resize_content(content_win, wc.height - 3)
 end
 
 M.toggle = function(content_win)

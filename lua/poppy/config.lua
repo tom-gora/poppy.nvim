@@ -1,6 +1,6 @@
 ---@class PoppyConfig
 ---@field prefix_bind? string # Prefix for all poppy keybinds. Default: "<M-p>"
----@field sidebars_width? number # Width of left/right sidebars. Default: 25
+---@field sidebar_width? number # Width of side panels. Default: 25
 ---@field win_height? number|function # Height ratio of screen (0.2-1.0), or function returning same. Default: 0.75
 ---@field win_location? "center"|"top"|"bottom" # Vertical position of the wrapper. Default: "center"
 ---@field whichkey_disable? boolean # If true, set desc to "which_key_ignore". Default: false
@@ -14,7 +14,7 @@
 ---
 local default_opts = {
 	prefix_bind = "<M-p>",
-	sidebars_width = 25,
+	sidebar_width = 25,
 	win_height = 0.75,
 	win_location = "center",
 	whichkey_disable = false,

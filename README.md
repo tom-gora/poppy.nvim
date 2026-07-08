@@ -13,7 +13,7 @@ The general philosophy is simplicity and automation over plugins like toggleterm
 ```lua
 require("poppy").setup({
     prefix_bind = "<M-p>",     -- Prefix for all poppy keybinds. Default: "<M-p>"
-    sidebars_width = 25,       -- Width of left/right sidebars. Default: 25
+    sidebar_width = 25,       -- Width of the side panels. Default: 25
     win_height = 0.75,         -- Height ratio of screen (0.2-1.0) or absolute pixels. Default: 0.75
     win_location = "center",   -- "center" | "top" | "bottom". Default: "center"
     whichkey_disable = false,  -- If true, set desc to "which_key_ignore" for WhichKey compat.

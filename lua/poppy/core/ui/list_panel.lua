@@ -2,6 +2,7 @@ local M = {}
 local style = require("poppy.core.ui.style")
 local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
 local sb_width = 25
+local list_win = nil
 
 M.create = function(wrapper_win, width)
 	if width then
@@ -20,17 +21,19 @@ M.recreate = function(wrapper_win, buf, width)
 	local config = {
 		relative = "win",
 		width = sb_width,
-		height = wrapper_conf.height,
-		col = wrapper_conf.width - sb_width,
-		row = 0,
+		height = 1,
+		col = wrapper_conf.width,
+		row = wrapper_conf.height - 1,
+		anchor = "SE",
 		style = "minimal",
 		border = "none",
-		zindex = 201,
+		zindex = 203,
 		focusable = false,
 		win = wrapper_win,
 	}
 
 	local win = vim.api.nvim_open_win(buf, false, config)
+	list_win = win
 	style.apply_list_panel_style(win)
 	return win
 end
@@ -59,7 +62,7 @@ end
 M.update = function(buf, sorted_poppies, poppies)
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 
-	local lines = { "" }
+	local entries = { "" }
 	local prev_cat = nil
 	local display_idx = 0
 	local rows = {}
@@ -67,16 +70,31 @@ M.update = function(buf, sorted_poppies, poppies)
 	for _, item in ipairs(sorted_poppies) do
 		local cat = item.config.cat or item.config.mode
 		if prev_cat and cat ~= prev_cat then
-			table.insert(lines, "")
+			table.insert(entries, "")
 		end
 		prev_cat = cat
 		display_idx = display_idx + 1
 		local title = trim_title(item.config.title or item.name, display_idx, sb_width)
-		table.insert(lines, string.format(" [%d] %s", display_idx, title))
-		table.insert(rows, { row = #lines - 1, name = item.name })
+		table.insert(entries, string.format(" [%d] %s", display_idx, title))
+		table.insert(rows, { name = item.name, row = #entries - 1 })
 	end
 
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	table.insert(entries, "")
+
+	if list_win and vim.api.nvim_win_is_valid(list_win) then
+		local cur = vim.api.nvim_win_get_config(list_win)
+		vim.api.nvim_win_set_config(list_win, {
+			relative = cur.relative,
+			anchor = cur.anchor,
+			width = cur.width,
+			height = #entries,
+			col = cur.col,
+			row = cur.row,
+			win = cur.win,
+		})
+	end
+
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, entries)
 
 	for _, entry in ipairs(rows) do
 		local ps = poppies[entry.name]

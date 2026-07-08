@@ -53,8 +53,7 @@ M._watch_content_window = function(win_id, sidebars_width)
 			if not M.is_open() then
 				return
 			end
-			local pw = panels.is_hidden() and 0 or sw
-			local c_win, c_buf = content.create(M.wrapper_win, pw, pw)
+			local c_win, c_buf = content.create(M.wrapper_win)
 			M.content_win = c_win
 			M.content_buf = c_buf
 			M._watch_content_window(c_win, sw)
@@ -72,9 +71,11 @@ M._watch_content_window = function(win_id, sidebars_width)
 end
 
 M.refresh = function(sorted_poppies)
+	local sw = (opts and opts.sidebar_width) or 25
+	local wrapper_width = vim.o.columns - 2
 	if not panels.is_hidden() then
 		list_panel.update(panels.get_list_buf(), sorted_poppies, M.poppies)
-		hints_panel.update(panels.get_hints_buf(), M._prefix(), #sorted_poppies)
+		hints_panel.update(panels.get_hints_buf(), M._prefix(), #sorted_poppies, wrapper_width - sw, wrapper_width)
 	end
 end
 
@@ -88,11 +89,11 @@ end
 
 M.open = function(poppy_name)
 	local sorted_poppies = M.get_sorted_poppies()
-	local sw = (opts and opts.sidebars_width) or 25
+	local sw = (opts and opts.sidebar_width) or 25
 	local last_poppy = M.current_poppy_name
 
 	local win, wbuf = wrapper.create(opts)
-	local c_win, c_buf = content.create(win, sw, sw)
+	local c_win, c_buf = content.create(win)
 	panels.create(win, sw)
 
 	M._watch_content_window(c_win, sw)
