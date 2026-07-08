@@ -24,6 +24,10 @@ M.setup = function(buf, sorted_poppies, prefix, whichkey_disable, skip_kill)
 			require("poppy.core.session").kill_current()
 		end, { buffer = buf, desc = desc("Kill current poppy") })
 	end
+
+	map({ "n", "t" }, prefix .. "h", function()
+		require("poppy.core.session").toggle_panels()
+	end, { buffer = buf, desc = desc("Toggle panels") })
 end
 
 return M

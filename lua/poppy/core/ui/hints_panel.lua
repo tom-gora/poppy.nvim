@@ -8,6 +8,13 @@ M.create = function(wrapper_win, width)
 		sb_width = width
 	end
 	local buf = vim.api.nvim_create_buf(false, true)
+	return M.recreate(wrapper_win, buf, width), buf
+end
+
+M.recreate = function(wrapper_win, buf, width)
+	if width then
+		sb_width = width
+	end
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
 
 	local config = {
@@ -25,7 +32,7 @@ M.create = function(wrapper_win, width)
 
 	local win = vim.api.nvim_open_win(buf, false, config)
 	style.apply_hints_panel_style(win)
-	return win, buf
+	return win
 end
 
 M.update = function(buf, prefix, count)
@@ -38,6 +45,7 @@ M.update = function(buf, prefix, count)
 		"",
 		" " .. range .. "   Switch",
 		" k       Kill",
+		" h       Hide UI",
 	}
 
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)

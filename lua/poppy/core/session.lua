@@ -1,8 +1,9 @@
 local M = {}
 
 local wrapper = require("poppy.core.ui.wrapper")
-local list_panel = require("poppy.core.ui.list_panel")
+local panels = require("poppy.core.ui.panels")
 local hints_panel = require("poppy.core.ui.hints_panel")
+local list_panel = require("poppy.core.ui.list_panel")
 local content = require("poppy.core.ui.content")
 local input = require("poppy.core.input")
 local banner = require("poppy.core.ui.banner")
@@ -52,7 +53,8 @@ M._watch_content_window = function(win_id, sidebars_width)
 			if not M.is_open() then
 				return
 			end
-			local c_win, c_buf = content.create(M.wrapper_win, sw, sw)
+			local pw = panels.is_hidden() and 0 or sw
+			local c_win, c_buf = content.create(M.wrapper_win, pw, pw)
 			M.content_win = c_win
 			M.content_buf = c_buf
 			M._watch_content_window(c_win, sw)
@@ -70,8 +72,10 @@ M._watch_content_window = function(win_id, sidebars_width)
 end
 
 M.refresh = function(sorted_poppies)
-	list_panel.update(vim.api.nvim_win_get_buf(M.list_panel_win), sorted_poppies, M.poppies)
-	hints_panel.update(vim.api.nvim_win_get_buf(M.hints_panel_win), M._prefix(), #sorted_poppies)
+	if not panels.is_hidden() then
+		list_panel.update(panels.get_list_buf(), sorted_poppies, M.poppies)
+		hints_panel.update(panels.get_hints_buf(), M._prefix(), #sorted_poppies)
+	end
 end
 
 M._prefix = function()
@@ -88,18 +92,13 @@ M.open = function(poppy_name)
 	local last_poppy = M.current_poppy_name
 
 	local win, wbuf = wrapper.create(opts)
-	local hints_win, hints_buf = hints_panel.create(win, sw)
-	local list_win, list_buf = list_panel.create(win, sw)
 	local c_win, c_buf = content.create(win, sw, sw)
+	panels.create(win, sw)
 
 	M._watch_content_window(c_win, sw)
 
 	M.wrapper_win = win
 	M.wrapper_buf = wbuf
-	M.list_panel_win = list_win
-	M.list_panel_buf = list_buf
-	M.hints_panel_win = hints_win
-	M.hints_panel_buf = hints_buf
 	M.content_win = c_win
 	M.content_buf = c_buf
 	M.current_poppy_name = nil
@@ -115,7 +114,15 @@ M.open = function(poppy_name)
 
 	M.refresh(sorted_poppies)
 
-	return M.wrapper_win, M.list_panel_win, M.hints_panel_win, M.content_win
+	return M.wrapper_win, M.content_win
+end
+
+M.toggle_panels = function()
+	panels.toggle(M.content_win)
+	local sorted = M.get_sorted_poppies()
+	if not panels.is_hidden() then
+		M.refresh(sorted)
+	end
 end
 
 M.switch = function(poppy_name)
@@ -213,14 +220,15 @@ M.cleanup = function()
 		end
 	end
 
-	local buffers = { M.wrapper_buf, M.list_panel_buf, M.hints_panel_buf, M.content_buf }
-	local windows = { M.wrapper_win, M.list_panel_win, M.hints_panel_win, M.content_win }
+	panels.destroy()
 
-	for _, win in ipairs(windows) do
+	for _, win in ipairs({ M.wrapper_win, M.content_win }) do
 		if win and vim.api.nvim_win_is_valid(win) then
 			vim.api.nvim_win_close(win, true)
 		end
 	end
+
+	local buffers = { M.wrapper_buf, panels.get_hints_buf(), panels.get_list_buf(), M.content_buf }
 	for _, buf in ipairs(buffers) do
 		if buf and vim.api.nvim_buf_is_valid(buf) then
 			vim.api.nvim_buf_delete(buf, { force = true })
@@ -266,6 +274,8 @@ M.setup = function(user_opts)
 			M.toggle()
 		elseif args == "close" then
 			M.close()
+		elseif args == "panels" then
+			M.toggle_panels()
 		elseif args:sub(1, 5) == "open " then
 			M.open(args:sub(6))
 		else
@@ -274,7 +284,7 @@ M.setup = function(user_opts)
 	end, {
 		nargs = "?",
 		complete = function(_, _, _)
-			local keys = { "toggle", "open ", "close" }
+			local keys = { "toggle", "open ", "close", "panels" }
 			if opts and opts.poppies then
 				for k, _ in pairs(opts.poppies) do
 					table.insert(keys, "open " .. k)
@@ -286,4 +296,3 @@ M.setup = function(user_opts)
 end
 
 return M
-

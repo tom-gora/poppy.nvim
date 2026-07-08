@@ -6,15 +6,16 @@ M.create = function(wrapper_win, hints_panel_width, list_panel_width)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
 
 	local width = wrapper_conf.width - hints_panel_width - list_panel_width
+	local col = hints_panel_width > 0 and hints_panel_width + 1 or 0
 
 	local config = {
 		relative = "win",
 		width = width - 2,
-		height = wrapper_conf.height,
-		col = hints_panel_width + 1,
+		height = wrapper_conf.height - 2,
+		col = col,
 		row = 0,
 		style = "minimal",
-		border = "none",
+		border = "solid",
 		zindex = 202,
 		focusable = true,
 		win = wrapper_win,
@@ -26,4 +27,3 @@ M.create = function(wrapper_win, hints_panel_width, list_panel_width)
 end
 
 return M
-
