@@ -53,7 +53,7 @@ M._watch_content_window = function(win_id, sidebars_width)
 			if not M.is_open() then
 				return
 			end
-			local c_win, c_buf = content.create(M.wrapper_win)
+			local c_win, c_buf = content.create(M.wrapper_win, sw)
 			M.content_win = c_win
 			M.content_buf = c_buf
 			M._watch_content_window(c_win, sw)
@@ -93,7 +93,7 @@ M.open = function(poppy_name)
 	local last_poppy = M.current_poppy_name
 
 	local win, wbuf = wrapper.create(opts)
-	local c_win, c_buf = content.create(win)
+	local c_win, c_buf = content.create(win, sw)
 	panels.create(win, sw)
 
 	M._watch_content_window(c_win, sw)

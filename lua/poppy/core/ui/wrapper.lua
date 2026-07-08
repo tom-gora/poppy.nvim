@@ -4,7 +4,8 @@ local style = require("poppy.core.ui.style")
 M.create = function(poppy_opts)
 	poppy_opts = poppy_opts or {}
 
-	local width = math.floor(vim.o.columns - 2)
+	-- local width = vim.o.columns
+	local width = math.floor(vim.o.columns * 0.8)
 
 	local raw = poppy_opts.win_height
 	if type(raw) == "function" then
@@ -60,4 +61,3 @@ M.create = function(poppy_opts)
 end
 
 return M
-
