@@ -4,6 +4,7 @@ local namespace = vim.api.nvim_create_namespace("poppy_hints_bar")
 
 M.create = function(wrapper_win)
 	local buf = vim.api.nvim_create_buf(false, true)
+	vim.bo[buf].modifiable = false
 	return M.recreate(wrapper_win, buf), buf
 end
 
@@ -28,28 +29,35 @@ M.recreate = function(wrapper_win, buf)
 	return win
 end
 
-M.update = function(buf, prefix, count, prefix_col, wrapper_width)
+M.update = function(buf, prefix, count, wrapper_width, mode)
 	local range = count > 0 and ("[1-%d]"):format(count) or ""
-	local segments = {
-		{ text = " Switch " .. range .. " ", hl = "HighlightPoppyUIPanel" },
-		{ text = " ", hl = nil },
-		{ text = " Kill k ", hl = "HighlightPoppyUIPanel" },
-		{ text = " ", hl = nil },
-		{ text = " Hide UI h ", hl = "HighlightPoppyUIPanel" },
-		{ text = " ", hl = nil },
-	}
+
+	local segments
+	if mode == "landing" then
+		segments = {
+			{ text = " Switch " .. range .. " ", hl = "HighlightPoppyUIPanel" },
+			{ text = " ", hl = nil },
+		}
+	else
+		segments = {
+			{ text = " Switch " .. range .. " ", hl = "HighlightPoppyUIPanel" },
+			{ text = " ", hl = nil },
+			{ text = " Kill k ", hl = "HighlightPoppyUIPanel" },
+			{ text = " ", hl = nil },
+			{ text = " Hide UI h ", hl = "HighlightPoppyUIPanel" },
+			{ text = " ", hl = nil },
+		}
+	end
 
 	local left_len = 0
 	for _, seg in ipairs(segments) do
 		left_len = left_len + #seg.text
 	end
 
-	local padding = math.max(1, prefix_col - left_len)
-	table.insert(segments, { text = string.rep(" ", padding), hl = nil })
-
 	local prefix_text = " Poppy Prefix " .. prefix .. " "
-	local prefix_end_pad = math.max(0, wrapper_width - prefix_col - #prefix_text)
-	table.insert(segments, { text = prefix_text .. string.rep(" ", prefix_end_pad), hl = "HighlightPoppyUIPanel" })
+	local padding = math.max(1, wrapper_width - left_len - #prefix_text)
+	table.insert(segments, { text = string.rep(" ", padding), hl = nil })
+	table.insert(segments, { text = prefix_text, hl = "HighlightPoppyUIPanel" })
 
 	local line = {}
 	for _, seg in ipairs(segments) do
@@ -58,7 +66,9 @@ M.update = function(buf, prefix, count, prefix_col, wrapper_width)
 	local line_str = table.concat(line)
 
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
+	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, { line_str })
+	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
 	local col = 0
 	for _, seg in ipairs(segments) do

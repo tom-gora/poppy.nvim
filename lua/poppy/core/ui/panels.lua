@@ -46,6 +46,26 @@ M.create = function(wrapper_win, sw)
 	}
 end
 
+M.create_landing = function(wrapper_win)
+	local wc = vim.api.nvim_win_get_config(wrapper_win)
+	local list_win, list_buf = list_panel.create(wrapper_win, wc.width, true)
+	local hints_win, hints_buf = hints_panel.create(wrapper_win)
+	state.wrapper_win = wrapper_win
+	state.hints_win = hints_win
+	state.hints_buf = hints_buf
+	state.list_win = list_win
+	state.list_buf = list_buf
+	state.sw = wc.width
+	state.hidden = false
+
+	return {
+		hints_win = hints_win,
+		hints_buf = hints_buf,
+		list_win = list_win,
+		list_buf = list_buf,
+	}
+end
+
 M.hide = function(content_win)
 	if state.hidden then
 		return
@@ -100,6 +120,10 @@ end
 
 M.get_list_buf = function()
 	return state.list_buf
+end
+
+M.get_list_win = function()
+	return state.list_win
 end
 
 return M

@@ -3,15 +3,22 @@ local style = require("poppy.core.ui.style")
 local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
 local sb_width = 25
 
-M.create = function(wrapper_win, width)
+M.create = function(wrapper_win, width, focusable)
 	if width then
 		sb_width = width
 	end
 	local buf = vim.api.nvim_create_buf(false, true)
-	return M.recreate(wrapper_win, buf, width), buf
+	vim.bo[buf].modifiable = false
+	vim.api.nvim_create_autocmd("InsertEnter", {
+		buffer = buf,
+		callback = function()
+			vim.cmd("stopinsert")
+		end,
+	})
+	return M.recreate(wrapper_win, buf, width, focusable), buf
 end
 
-M.recreate = function(wrapper_win, buf, width)
+M.recreate = function(wrapper_win, buf, width, focusable)
 	if width then
 		sb_width = width
 	end
@@ -26,7 +33,7 @@ M.recreate = function(wrapper_win, buf, width)
 		style = "minimal",
 		border = "none",
 		zindex = 201,
-		focusable = false,
+		focusable = focusable == true,
 		win = wrapper_win,
 	}
 
@@ -76,7 +83,9 @@ M.update = function(buf, sorted_poppies, poppies)
 		table.insert(rows, { row = #lines - 1, name = item.name })
 	end
 
+	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
 	for _, entry in ipairs(rows) do
 		local ps = poppies[entry.name]

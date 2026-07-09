@@ -1,11 +1,35 @@
 local M = {}
 local style = require("poppy.core.ui.style")
 
-M.create = function(poppy_opts)
+M.create = function(poppy_opts, width_override)
 	poppy_opts = poppy_opts or {}
 
-	-- local width = vim.o.columns
-	local width = math.floor(vim.o.columns * 0.8)
+	local raw = poppy_opts.win_width
+	if type(raw) == "function" then
+		raw = raw()
+	end
+	raw = raw or 0.8
+
+	local width
+	if width_override then
+		width = width_override
+	elseif raw > 1 then
+		local min_w = math.floor(vim.o.columns / 3)
+		if raw < min_w then
+			vim.notify(string.format("Poppy: win_width %d too small, minimum is %d", raw, min_w), vim.log.levels.WARN)
+			raw = min_w
+		elseif raw > vim.o.columns then
+			vim.notify(
+				string.format("Poppy: win_width %d exceeds screen width %d", raw, vim.o.columns),
+				vim.log.levels.WARN
+			)
+			raw = vim.o.columns
+		end
+		width = math.floor(raw)
+	else
+		local ratio = math.min(math.max(raw, 0.2), 1.0)
+		width = math.floor(vim.o.columns * ratio)
+	end
 
 	local raw = poppy_opts.win_height
 	if type(raw) == "function" then

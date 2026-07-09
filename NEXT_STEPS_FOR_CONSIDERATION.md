@@ -12,13 +12,13 @@ Set in `create()`, read in `update()`. Fragile if `create` is called again with 
 
 *Resolved: Panel lifecycle moved to `panels.lua`; `recreate()` takes buffer + wrapper config. Width managed via local upvalues + panels state, not on `M`.*
 
+### 2. & 3. Banner removed, replaced with landing view
+Banner was an ugly ASCII art placeholder that overflowed on narrow windows. Replaced with a clean landing view: a narrow centered window showing only the poppy list + minimal hints. Width auto-computed from content. No kill/hide hints in landing mode.
+
+### 11. `_watch_content_window` autocmd cascade
+When recovering to landing mode, closing the content window triggered `WinClosed` which recreated it, leaving an orphaned floating window. Fixed with `M._suppress_watch` flag.
+
 ## Remaining Issues
-
-### 2. Get rid of ASCII banner
-Temporary solution to show SOMETHING upon opening, but it's ugly and gets in the way of a responsive/flexible layout. Needs to go — replace with a clean empty/content-aware idle state.
-
-### 3. Banner overflows on narrow windows
-ASCII art is fixed-width. Will break on small content areas. Add width guard / fallback to banner render.
 
 ### 4. No tests, CI, or doc help file
 Acceptable for personal MVP, but notable. Optionally add basic tests.
@@ -40,3 +40,9 @@ Only `config.lua` has basic `---@class` blocks. Missing annotations on `mode`, `
 
 ### 10. `M.poppies` / `opts.poppies` naming collision
 `M.poppies` (runtime state) clashes with `opts.poppies` (config). Rename `M.poppies` → `M.active` or `M.state`.
+
+### 12. `poppy_popup` typo
+Buffer variable is named `poppy_popup` but should be `poppy_poppy` (or `poppy_name`). Cosmetic but inconsistent.
+
+### 13. No `plugin/` directory for auto-loading
+User must call `require("poppy").setup()` manually. No `plugin/poppy.vim` to auto-register `:Poppy` command or set defaults on startup. Fine for a personal plugin but worth noting for distribution.

@@ -1,7 +1,8 @@
 ---@class PoppyConfig
 ---@field prefix_bind? string # Prefix for all poppy keybinds. Default: "<M-p>"
 ---@field sidebar_width? number # Width of side panels. Default: 25
----@field win_height? number|function # Height ratio of screen (0.2-1.0), or function returning same. Default: 0.75
+---@field win_height? number|function # Height ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.75
+---@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.8
 ---@field win_location? "center"|"top"|"bottom" # Vertical position of the wrapper. Default: "center"
 ---@field whichkey_disable? boolean # If true, set desc to "which_key_ignore". Default: false
 ---@field poppies? table<string, PoppyItemConfig>
@@ -16,6 +17,7 @@ local default_opts = {
 	prefix_bind = "<M-p>",
 	sidebar_width = 25,
 	win_height = 0.75,
+	win_width = 0.8,
 	win_location = "center",
 	whichkey_disable = false,
 }
@@ -38,8 +40,25 @@ local sanitize_win_height = function(val)
 	return 0.75
 end
 
+local sanitize_win_width = function(val)
+	if val == nil then
+		return 0.8
+	end
+	if type(val) == "function" then
+		return val
+	end
+	if type(val) == "number" then
+		if val > 1 then
+			return val
+		end
+		return math.min(math.max(val, 0.2), 1.0)
+	end
+	return 0.8
+end
+
 local sanitize = function(opts)
 	opts.win_height = sanitize_win_height(opts.win_height)
+	opts.win_width = sanitize_win_width(opts.win_width)
 
 	local valid_locations = { center = true, top = true, bottom = true }
 	if not valid_locations[opts.win_location] then
