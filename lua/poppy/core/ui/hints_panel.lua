@@ -8,6 +8,42 @@ M.create = function(wrapper_win)
 	return M.recreate(wrapper_win, buf), buf
 end
 
+M.create_bottom_right = function(parent_win, keys)
+	local buf = vim.api.nvim_create_buf(false, true)
+	vim.bo[buf].modifiable = false
+
+	local text = " " .. keys.poppy_action .. " Menu "
+	local pw = vim.api.nvim_win_get_config(parent_win)
+	local row = math.max(0, pw.height - 1)
+	local col = math.max(0, pw.width - #text)
+
+	local config = {
+		relative = "win",
+		width = #text,
+		height = 1,
+		col = col,
+		row = row,
+		style = "minimal",
+		border = "none",
+		zindex = 201,
+		focusable = false,
+		win = parent_win,
+	}
+
+	local win = vim.api.nvim_open_win(buf, false, config)
+	style.apply_hints_panel_style(win)
+
+	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, { text })
+	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+	vim.api.nvim_buf_set_extmark(buf, namespace, 0, 0, {
+		end_col = #text,
+		hl_group = "HighlightPoppyUIPanel",
+	})
+
+	return win, buf
+end
+
 M.recreate = function(wrapper_win, buf, width_override, col_override, row_override, height_override)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
 	local row = row_override or (wrapper_conf.height - 1)
@@ -57,13 +93,12 @@ M.update = function(buf, keys, count, wrapper_width, mode)
 		line_specs = {
 			{
 				{ text = " " .. keys.select .. " Select ", hl = "HighlightPoppyUIPanel" },
-				{ text = "  ", hl = nil },
-				{ text = keys.kill .. " Kill ", hl = "HighlightPoppyUIPanel" },
 			},
 			{
-				{ text = " " .. keys.dismiss_menu .. " Hide Menu ", hl = "HighlightPoppyUIPanel" },
-				{ text = "  ", hl = nil },
-				{ text = keys.poppy_action .. " Toggle Off ", hl = "HighlightPoppyUIPanel" },
+				{ text = " " .. keys.kill .. " Kill ", hl = "HighlightPoppyUIPanel" },
+			},
+			{
+				{ text = " " .. keys.poppy_action .. " Toggle Off ", hl = "HighlightPoppyUIPanel" },
 			},
 		}
 	else

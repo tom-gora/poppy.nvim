@@ -59,11 +59,20 @@ local max_index_width = function(count)
 	return #tostring(count)
 end
 
+local function make_title_lines(width)
+	local title = "POPPY"
+	local sep = string.rep("─", width)
+	local title_col = math.max(0, math.floor((width - #title) / 2))
+	local title_line = string.rep(" ", title_col) .. title
+	return title_line, sep
+end
+
 M.update = function(buf, sorted_poppies, poppies, icons)
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 
-	local lines = {}
-	local rows = {}
+	local title_line, sep = make_title_lines(sb_width)
+	local all_lines = { title_line, sep }
+	local list_rows = {}
 	local idx_width = max_index_width(#sorted_poppies)
 
 	for display_idx, item in ipairs(sorted_poppies) do
@@ -75,7 +84,7 @@ M.update = function(buf, sorted_poppies, poppies, icons)
 		local is_active = ps and ps.active
 		local dot = (is_active or is_hidden) and "•" or " "
 		local line = string.format(" %s %s %" .. idx_width .. "d %s", dot, icon, display_idx, title)
-		table.insert(lines, line)
+		table.insert(all_lines, line)
 
 		local hl = nil
 		if is_hidden then
@@ -83,18 +92,27 @@ M.update = function(buf, sorted_poppies, poppies, icons)
 		else
 			hl = cat_hl[cat]
 		end
-		table.insert(rows, { row = #lines - 1, hl = hl, name = item.name })
+		table.insert(list_rows, { row = #all_lines - 1, hl = hl, name = item.name })
 	end
 
-	if #lines == 0 then
-		table.insert(lines, "")
+	if #all_lines == 2 then
+		table.insert(all_lines, "")
 	end
 
 	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, all_lines)
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
-	for _, entry in ipairs(rows) do
+	vim.api.nvim_buf_set_extmark(buf, namespace, 0, 0, {
+		end_col = #title_line,
+		hl_group = "NormalPoppyUIPanel",
+	})
+	vim.api.nvim_buf_set_extmark(buf, namespace, 1, 0, {
+		end_col = #sep,
+		hl_group = "PoppyBorder",
+	})
+
+	for _, entry in ipairs(list_rows) do
 		if entry.hl then
 			vim.api.nvim_buf_set_extmark(buf, namespace, entry.row, 0, {
 				end_row = entry.row,

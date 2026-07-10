@@ -15,6 +15,8 @@ local opts = nil
 M.landing_view_width = nil
 M.is_landing = false
 M.menu_focused = false
+M.autohide_hint_win = nil
+M.autohide_hint_buf = nil
 
 M.set_opts = function(merged)
 	opts = merged
@@ -186,6 +188,11 @@ M.toggle_menu = function()
 	local sorted = M.get_sorted_poppies()
 
 	if panels.is_autohidden() then
+		if M.autohide_hint_win and vim.api.nvim_win_is_valid(M.autohide_hint_win) then
+			vim.api.nvim_win_close(M.autohide_hint_win, true)
+		end
+		M.autohide_hint_win = nil
+		M.autohide_hint_buf = nil
 		panels.show_for_autohide(M.content_win)
 		M.menu_focused = true
 		local list_win = panels.get_list_win()
@@ -225,6 +232,14 @@ M.dismiss_menu = function()
 	M.menu_focused = false
 	if opts and opts.menu_autohide then
 		panels.hide_for_autohide(M.content_win)
+		if M.autohide_hint_win and vim.api.nvim_win_is_valid(M.autohide_hint_win) then
+			vim.api.nvim_win_close(M.autohide_hint_win, true)
+		end
+		M.autohide_hint_win = nil
+		M.autohide_hint_buf = nil
+		if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
+			M.autohide_hint_win, M.autohide_hint_buf = hints_panel.create_bottom_right(M.content_win, opts.keys)
+		end
 	else
 		panels.unfocus_sidebar()
 	end
@@ -280,6 +295,14 @@ M.switch = function(poppy_name)
 	M.menu_focused = false
 	if opts.menu_autohide then
 		panels.hide_for_autohide(M.content_win)
+		if M.autohide_hint_win and vim.api.nvim_win_is_valid(M.autohide_hint_win) then
+			vim.api.nvim_win_close(M.autohide_hint_win, true)
+		end
+		M.autohide_hint_win = nil
+		M.autohide_hint_buf = nil
+		if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
+			M.autohide_hint_win, M.autohide_hint_buf = hints_panel.create_bottom_right(M.content_win, opts.keys)
+		end
 	else
 		panels.unfocus_sidebar()
 	end
@@ -442,6 +465,12 @@ M.cleanup = function()
 		end
 	end
 
+	if M.autohide_hint_win and vim.api.nvim_win_is_valid(M.autohide_hint_win) then
+		vim.api.nvim_win_close(M.autohide_hint_win, true)
+	end
+	M.autohide_hint_win = nil
+	M.autohide_hint_buf = nil
+
 	panels.destroy()
 
 	for _, win in ipairs({ M.wrapper_win, M.content_win }) do
@@ -484,6 +513,8 @@ M.setup = function(user_opts)
 	M.menu_focused = false
 	M.current_poppy_name = nil
 	M.wrapper_win = nil
+	M.autohide_hint_win = nil
+	M.autohide_hint_buf = nil
 
 	require("poppy.core.ui.style").setup()
 	M.set_opts(require("poppy.config").merge(user_opts))
