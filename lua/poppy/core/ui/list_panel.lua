@@ -3,7 +3,7 @@ local style = require("poppy.core.ui.style")
 local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
 local sb_width = 25
 
-M.create = function(wrapper_win, width, focusable)
+M.create = function(wrapper_win, width, focusable, hint_lines)
 	if width then
 		sb_width = width
 	end
@@ -15,19 +15,20 @@ M.create = function(wrapper_win, width, focusable)
 			vim.cmd("stopinsert")
 		end,
 	})
-	return M.recreate(wrapper_win, buf, width, focusable), buf
+	return M.recreate(wrapper_win, buf, width, focusable, hint_lines), buf
 end
 
-M.recreate = function(wrapper_win, buf, width, focusable)
+M.recreate = function(wrapper_win, buf, width, focusable, hint_lines)
 	if width then
 		sb_width = width
 	end
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
+	local h = math.max(1, (hint_lines and (wrapper_conf.height - hint_lines) or (wrapper_conf.height - 1)))
 
 	local config = {
 		relative = "win",
 		width = sb_width,
-		height = wrapper_conf.height - 1,
+		height = h,
 		col = wrapper_conf.width - sb_width,
 		row = 0,
 		style = "minimal",
@@ -42,45 +43,51 @@ M.recreate = function(wrapper_win, buf, width, focusable)
 	return win
 end
 
-local trim_title = function(title, display_idx, width)
-	local prefix = string.format(" [%d] ", display_idx)
-	local max_title = (width - 1) - #prefix
-	if max_title < 4 then
-		return ""
-	end
-	if #title > max_title then
-		local trimmed = title:sub(1, max_title - 3)
-		local last_space = trimmed:match("^.*()%s+")
-		if last_space and last_space > math.floor(max_title * 0.4) then
-			trimmed = trimmed:sub(1, last_space - 1)
-		end
-		trimmed = trimmed:gsub("[^%w]+$", "")
-		if #trimmed == 0 then
-			trimmed = title:sub(1, max_title - 3):gsub("[^%w]+$", "")
-		end
-		return trimmed .. " ..."
-	end
-	return title
+local cat_hl = {
+	file = "PoppyFile",
+	exec = "PoppyExec",
+	shell = "PoppyShell",
+}
+
+local cat_hl_hidden = {
+	file = "PoppyFileHidden",
+	exec = "PoppyExecHidden",
+	shell = "PoppyShellHidden",
+}
+
+local max_index_width = function(count)
+	return #tostring(count)
 end
 
-M.update = function(buf, sorted_poppies, poppies)
+M.update = function(buf, sorted_poppies, poppies, icons)
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 
-	local lines = { "" }
-	local prev_cat = nil
-	local display_idx = 0
+	local lines = {}
 	local rows = {}
+	local idx_width = max_index_width(#sorted_poppies)
 
-	for _, item in ipairs(sorted_poppies) do
+	for display_idx, item in ipairs(sorted_poppies) do
+		local icon = (icons and icons[item.config.cat]) or " "
 		local cat = item.config.cat or item.config.mode
-		if prev_cat and cat ~= prev_cat then
-			table.insert(lines, "")
+		local title = item.config.title or item.name
+		local ps = poppies[item.name]
+		local is_hidden = ps and ps.hidden
+		local is_active = ps and ps.active
+		local dot = (is_active or is_hidden) and "•" or " "
+		local line = string.format(" %s %s %" .. idx_width .. "d %s", dot, icon, display_idx, title)
+		table.insert(lines, line)
+
+		local hl = nil
+		if is_hidden then
+			hl = cat_hl_hidden[cat]
+		else
+			hl = cat_hl[cat]
 		end
-		prev_cat = cat
-		display_idx = display_idx + 1
-		local title = trim_title(item.config.title or item.name, display_idx, sb_width)
-		table.insert(lines, string.format(" [%d] %s", display_idx, title))
-		table.insert(rows, { row = #lines - 1, name = item.name })
+		table.insert(rows, { row = #lines - 1, hl = hl, name = item.name })
+	end
+
+	if #lines == 0 then
+		table.insert(lines, "")
 	end
 
 	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
@@ -88,21 +95,10 @@ M.update = function(buf, sorted_poppies, poppies)
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
 	for _, entry in ipairs(rows) do
-		local ps = poppies[entry.name]
-		local hl = nil
-		if ps then
-			if ps.active then
-				hl = "PoppyActive"
-			elseif ps.hidden then
-				hl = nil
-			end
-		else
-			hl = "PoppyInactive"
-		end
-		if hl then
+		if entry.hl then
 			vim.api.nvim_buf_set_extmark(buf, namespace, entry.row, 0, {
 				end_row = entry.row,
-				line_hl_group = hl,
+				line_hl_group = entry.hl,
 			})
 		end
 	end

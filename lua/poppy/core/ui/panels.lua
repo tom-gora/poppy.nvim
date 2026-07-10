@@ -10,6 +10,8 @@ local state = {
 	list_buf = nil,
 	sw = 25,
 	hidden = false,
+	autohidden = false,
+	hint_lines = 1,
 }
 
 local function resize_content(win, width, height)
@@ -27,9 +29,13 @@ local function resize_content(win, width, height)
 	})
 end
 
-M.create = function(wrapper_win, sw)
-	local hints_win, hints_buf = hints_panel.create(wrapper_win)
-	local list_win, list_buf = list_panel.create(wrapper_win, sw)
+M.create = function(wrapper_win, sw, hint_lines)
+	local wc = vim.api.nvim_win_get_config(wrapper_win)
+	local hl = hint_lines or 1
+	local list_win, list_buf = list_panel.create(wrapper_win, sw, false, hl)
+	local hints_buf = vim.api.nvim_create_buf(false, true)
+	vim.bo[hints_buf].modifiable = false
+	local hints_win = hints_panel.recreate(wrapper_win, hints_buf, sw, wc.width - sw, wc.height - hl)
 	state.wrapper_win = wrapper_win
 	state.hints_win = hints_win
 	state.hints_buf = hints_buf
@@ -37,6 +43,8 @@ M.create = function(wrapper_win, sw)
 	state.list_buf = list_buf
 	state.sw = sw
 	state.hidden = false
+	state.autohidden = false
+	state.hint_lines = hl
 
 	return {
 		hints_win = hints_win,
@@ -57,6 +65,8 @@ M.create_landing = function(wrapper_win)
 	state.list_buf = list_buf
 	state.sw = wc.width
 	state.hidden = false
+	state.autohidden = false
+	state.hint_lines = 1
 
 	return {
 		hints_win = hints_win,
@@ -85,10 +95,12 @@ M.show = function(content_win)
 	end
 	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
 	local sw = state.sw
+	local hl = 1
 
-	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf)
-	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, sw)
+	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, sw, false, hl)
+	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, sw, wc.width - sw, wc.height - hl, hl)
 	state.hidden = false
+	state.hint_lines = hl
 	resize_content(content_win, wc.width - sw - 2, wc.height - 3)
 end
 
@@ -98,6 +110,64 @@ M.toggle = function(content_win)
 	else
 		M.hide(content_win)
 	end
+end
+
+M.focus_sidebar = function()
+	if state.autohidden or state.hidden then
+		return
+	end
+	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
+	local sw = state.sw
+	local hl = 2
+
+	vim.api.nvim_win_close(state.hints_win, true)
+	vim.api.nvim_win_close(state.list_win, true)
+	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, sw, true, hl)
+	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, sw, wc.width - sw, wc.height - hl, hl)
+	state.hint_lines = hl
+end
+
+M.unfocus_sidebar = function()
+	if state.autohidden or state.hidden then
+		return
+	end
+	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
+	local sw = state.sw
+	local hl = 1
+
+	vim.api.nvim_win_close(state.hints_win, true)
+	vim.api.nvim_win_close(state.list_win, true)
+	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, sw, false, hl)
+	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, sw, wc.width - sw, wc.height - hl, hl)
+	state.hint_lines = hl
+end
+
+M.hide_for_autohide = function(content_win)
+	if state.hidden or state.autohidden then
+		return
+	end
+	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
+	vim.api.nvim_win_close(state.hints_win, true)
+	vim.api.nvim_win_close(state.list_win, true)
+	state.hints_win = nil
+	state.list_win = nil
+	state.autohidden = true
+	resize_content(content_win, wc.width - 2, wc.height - 1)
+end
+
+M.show_for_autohide = function(content_win)
+	if not state.autohidden then
+		return
+	end
+	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
+	local sw = state.sw
+	local hl = 2
+
+	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, sw, true, hl)
+	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, sw, wc.width - sw, wc.height - hl, hl)
+	state.autohidden = false
+	state.hint_lines = hl
+	resize_content(content_win, wc.width - sw - 2, wc.height - 3)
 end
 
 M.destroy = function()
@@ -114,6 +184,10 @@ M.is_hidden = function()
 	return state.hidden
 end
 
+M.is_autohidden = function()
+	return state.autohidden
+end
+
 M.get_hints_buf = function()
 	return state.hints_buf
 end
@@ -124,6 +198,10 @@ end
 
 M.get_list_win = function()
 	return state.list_win
+end
+
+M.get_hints_win = function()
+	return state.hints_win
 end
 
 return M

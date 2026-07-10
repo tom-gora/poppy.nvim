@@ -1,10 +1,11 @@
 ---@class PoppyConfig
----@field prefix_bind? string # Prefix for all poppy keybinds. Default: "<M-p>"
+---@field keys? table<string, string> # Keybindings: poppy_action, select, kill, dismiss_menu. Default: { poppy_action = "<C-_>", select = "<CR>", kill = "d", dismiss_menu = "<Esc>" }
+---@field icons? table<string, string> # Icons per poppy type: exec, shell, file. Default: { exec = "🛠", shell = "$", file = "🗋" }
+---@field menu_autohide? boolean # If true, hide sidebar after selecting a poppy. Default: false
 ---@field sidebar_width? number # Width of side panels. Default: 25
 ---@field win_height? number|function # Height ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.75
 ---@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.8
 ---@field win_location? "center"|"top"|"bottom" # Vertical position of the wrapper. Default: "center"
----@field whichkey_disable? boolean # If true, set desc to "which_key_ignore". Default: false
 ---@field poppies? table<string, PoppyItemConfig>
 ---
 ---@class PoppyItemConfig
@@ -14,12 +15,13 @@
 ---@field title? string
 ---
 local default_opts = {
-	prefix_bind = "<M-p>",
+	keys = { poppy_action = "<C-_>", select = "<CR>", kill = "d", dismiss_menu = "<Esc>" },
+	icons = { exec = "🛠", shell = "$", file = "🗋" },
+	menu_autohide = false,
 	sidebar_width = 25,
 	win_height = 0.75,
 	win_width = 0.8,
 	win_location = "center",
-	whichkey_disable = false,
 }
 
 local M = {}
@@ -69,6 +71,30 @@ local sanitize = function(opts)
 		opts.win_location = default_opts.win_location
 	end
 
+	if not opts.keys or type(opts.keys) ~= "table" then
+		opts.keys = default_opts.keys
+	else
+		for _, k in ipairs({ "poppy_action", "select", "kill", "dismiss_menu" }) do
+			if type(opts.keys[k]) ~= "string" or opts.keys[k] == "" then
+				opts.keys[k] = default_opts.keys[k]
+			end
+		end
+	end
+
+	if not opts.icons or type(opts.icons) ~= "table" then
+		opts.icons = default_opts.icons
+	else
+		for _, k in ipairs({ "exec", "shell", "file" }) do
+			if type(opts.icons[k]) ~= "string" then
+				opts.icons[k] = default_opts.icons[k]
+			end
+		end
+	end
+
+	if opts.menu_autohide ~= true then
+		opts.menu_autohide = false
+	end
+
 	if opts.poppies then
 		for name, poppy in pairs(opts.poppies) do
 			local modes = 0
@@ -113,4 +139,3 @@ M.merge = function(user_opts)
 end
 
 return M
-
