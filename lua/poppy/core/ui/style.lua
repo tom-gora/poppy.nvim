@@ -22,10 +22,17 @@ local function desaturate(color, factor)
 end
 
 M.setup = function()
-	vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "StatusLine" })
 	vim.api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
 
 	local nf = vim.api.nvim_get_hl(0, { name = "NormalFloat" })
+	if nf.bg then
+		vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { bg = lighten(nf.bg, 0.10), fg = nf.fg })
+	else
+		vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "StatusLine" })
+	end
+	local panel_hl = vim.api.nvim_get_hl(0, { name = "NormalPoppyUIPanel" })
+	local err = vim.api.nvim_get_hl(0, { name = "ErrorMsg" })
+	vim.api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = panel_hl.bg })
 	local str = vim.api.nvim_get_hl(0, { name = "Label" })
 	vim.api.nvim_set_hl(0, "PoppyBorder", { fg = str.fg, bg = nf.bg })
 
@@ -33,10 +40,6 @@ M.setup = function()
 	local comment = vim.api.nvim_get_hl(0, { name = "Comment" })
 	vim.api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = sl.bg })
 	vim.api.nvim_set_hl(0, "PoppyActive", { link = "IncSearch" })
-
-	if sl.bg then
-		vim.api.nvim_set_hl(0, "HighlightPoppyUIPanel", { bg = lighten(sl.bg, 0.1) })
-	end
 
 	local type_hl = vim.api.nvim_get_hl(0, { name = "Type" })
 	local string_hl = vim.api.nvim_get_hl(0, { name = "String" })
@@ -47,17 +50,17 @@ M.setup = function()
 	vim.api.nvim_set_hl(0, "PoppyShell", { fg = func_hl.fg })
 
 	if type_hl.fg then
-		vim.api.nvim_set_hl(0, "PoppyFileHidden", { fg = desaturate(type_hl.fg, 0.4) })
+		vim.api.nvim_set_hl(0, "PoppyFileHidden", { fg = desaturate(type_hl.fg, 0.6) })
 	else
 		vim.api.nvim_set_hl(0, "PoppyFileHidden", { link = "Comment" })
 	end
 	if string_hl.fg then
-		vim.api.nvim_set_hl(0, "PoppyExecHidden", { fg = desaturate(string_hl.fg, 0.4) })
+		vim.api.nvim_set_hl(0, "PoppyExecHidden", { fg = desaturate(string_hl.fg, 0.6) })
 	else
 		vim.api.nvim_set_hl(0, "PoppyExecHidden", { link = "Comment" })
 	end
 	if func_hl.fg then
-		vim.api.nvim_set_hl(0, "PoppyShellHidden", { fg = desaturate(func_hl.fg, 0.4) })
+		vim.api.nvim_set_hl(0, "PoppyShellHidden", { fg = desaturate(func_hl.fg, 0.6) })
 	else
 		vim.api.nvim_set_hl(0, "PoppyShellHidden", { link = "Comment" })
 	end

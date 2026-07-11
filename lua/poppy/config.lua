@@ -2,6 +2,7 @@
 ---@field keys? table<string, string> # Keybindings: poppy_action, select, kill, dismiss_menu. Default: { poppy_action = "<C-_>", select = "<CR>", kill = "d", dismiss_menu = "<Esc>" }
 ---@field icons? table<string, string> # Icons per poppy type: exec, shell, file. Default: { exec = "🛠", shell = "$", file = "🗋" }
 ---@field menu_autohide? boolean # If true, hide sidebar after selecting a poppy. Default: false
+---@field title_header? boolean # Show "POPPY" header panel above list. Default: true
 ---@field sidebar_width? number # Width of side panels. Default: 25
 ---@field win_height? number|function # Height ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.75
 ---@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.8
@@ -18,6 +19,7 @@ local default_opts = {
 	keys = { poppy_action = "<C-_>", select = "<CR>", kill = "d", dismiss_menu = "<Esc>" },
 	icons = { exec = "🛠", shell = "$", file = "🗋" },
 	menu_autohide = false,
+	title_header = true,
 	sidebar_width = 25,
 	win_height = 0.75,
 	win_width = 0.8,
@@ -93,6 +95,10 @@ local sanitize = function(opts)
 
 	if opts.menu_autohide ~= true then
 		opts.menu_autohide = false
+	end
+
+	if opts.title_header ~= false then
+		opts.title_header = true
 	end
 
 	if opts.poppies then

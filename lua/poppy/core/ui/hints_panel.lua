@@ -14,8 +14,8 @@ M.create_bottom_right = function(parent_win, keys)
 
 	local text = " " .. keys.poppy_action .. " Menu "
 	local pw = vim.api.nvim_win_get_config(parent_win)
-	local row = math.max(0, pw.height - 1)
-	local col = math.max(0, pw.width - #text)
+	local row = math.max(0, pw.height)
+	local col = math.max(0, pw.width + 1)
 
 	local config = {
 		relative = "win",
@@ -23,9 +23,10 @@ M.create_bottom_right = function(parent_win, keys)
 		height = 1,
 		col = col,
 		row = row,
+		anchor = "NE",
 		style = "minimal",
 		border = "none",
-		zindex = 201,
+		zindex = 204,
 		focusable = false,
 		win = parent_win,
 	}
@@ -36,30 +37,27 @@ M.create_bottom_right = function(parent_win, keys)
 	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, { text })
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
-	vim.api.nvim_buf_set_extmark(buf, namespace, 0, 0, {
-		end_col = #text,
-		hl_group = "HighlightPoppyUIPanel",
-	})
 
 	return win, buf
 end
 
 M.recreate = function(wrapper_win, buf, width_override, col_override, row_override, height_override)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local row = row_override or (wrapper_conf.height - 1)
-	local col = col_override or 0
+	local row = row_override or wrapper_conf.height - 1
+	local col = col_override or wrapper_conf.width
 	local width = width_override or wrapper_conf.width
 	local height = height_override or 1
 
 	local config = {
 		relative = "win",
 		width = width,
-		height = height,
+		height = height + 3,
 		col = col,
 		row = row,
+		anchor = "SE",
 		style = "minimal",
 		border = "none",
-		zindex = 201,
+		zindex = 203,
 		focusable = false,
 		win = wrapper_win,
 	}
@@ -73,32 +71,32 @@ M.update = function(buf, keys, count, wrapper_width, mode)
 	if not keys then
 		return
 	end
-
+	local sep = " " .. string.rep("─", wrapper_width - 2) .. " "
 	local line_specs
 	if mode == "landing" then
 		line_specs = {
 			{
-				{ text = " " .. keys.select .. " Select ", hl = "HighlightPoppyUIPanel" },
+				{ text = " " .. keys.select .. " Select ", hl = nil },
 				{ text = "  ", hl = nil },
-				{ text = keys.poppy_action .. " Toggle Off ", hl = "HighlightPoppyUIPanel" },
+				{ text = keys.poppy_action .. " Toggle Off ", hl = nil },
 			},
 		}
-	elseif mode == "active_sidebar" then
+	elseif mode == "active_sidebar" or mode == "active_focused" then
 		line_specs = {
 			{
-				{ text = " " .. keys.poppy_action .. " Menu ", hl = "HighlightPoppyUIPanel" },
-			},
-		}
-	elseif mode == "active_focused" then
-		line_specs = {
-			{
-				{ text = " " .. keys.select .. " Select ", hl = "HighlightPoppyUIPanel" },
+				{ text = sep, hl = nil },
 			},
 			{
-				{ text = " " .. keys.kill .. " Kill ", hl = "HighlightPoppyUIPanel" },
+				{ text = " " .. keys.select .. " Select ", hl = nil },
 			},
 			{
-				{ text = " " .. keys.poppy_action .. " Toggle Off ", hl = "HighlightPoppyUIPanel" },
+				{ text = " " .. keys.kill .. " Kill ", hl = nil },
+			},
+			{
+				{ text = " " .. keys.dismiss_menu .. " Dismmiss ", hl = nil },
+			},
+			{
+				{ text = " " .. keys.poppy_action .. " Toggle off ", hl = nil },
 			},
 		}
 	else

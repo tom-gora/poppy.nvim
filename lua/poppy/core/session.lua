@@ -4,6 +4,7 @@ local wrapper = require("poppy.core.ui.wrapper")
 local panels = require("poppy.core.ui.panels")
 local hints_panel = require("poppy.core.ui.hints_panel")
 local list_panel = require("poppy.core.ui.list_panel")
+local header_panel = require("poppy.core.ui.header_panel")
 local content = require("poppy.core.ui.content")
 local input = require("poppy.core.input")
 
@@ -11,6 +12,10 @@ M.poppies = {}
 M._suppress_watch = false
 
 local opts = nil
+
+local function header_lines()
+	return (opts and opts.title_header ~= false) and header_panel.HEIGHT or 0
+end
 
 M.landing_view_width = nil
 M.is_landing = false
@@ -78,7 +83,7 @@ M._watch_content_window = function(win_id, sidebars_width)
 			if not M.is_open() or M._suppress_watch then
 				return
 			end
-			local c_win, c_buf = content.create(M.wrapper_win, sw)
+			local c_win, c_buf = content.create(M.wrapper_win, sw, header_lines(), 4)
 			M.content_win = c_win
 			M.content_buf = c_buf
 			M._watch_content_window(c_win, sw)
@@ -136,9 +141,10 @@ M.open = function(poppy_name)
 
 	if poppy_name or (last_poppy and M.poppies[last_poppy]) then
 		local sw = (opts and opts.sidebar_width) or 25
+		local hdr = header_lines()
 		local win, wbuf = wrapper.create(opts)
-		local c_win, c_buf = content.create(win, sw)
-		panels.create(win, sw, 1)
+		local c_win, c_buf = content.create(win, sw, hdr, 4)
+		panels.create(win, sw, 4, hdr)
 		M._watch_content_window(c_win, sw)
 
 		M.wrapper_win = win
@@ -158,8 +164,7 @@ M.open = function(poppy_name)
 			M.landing_view_width = M.compute_landing_view_width()
 		end
 		local win, wbuf = wrapper.create(opts, M.landing_view_width)
-		panels.create_landing(win)
-
+		panels.create_landing(win, header_lines())
 		M.wrapper_win = win
 		M.wrapper_buf = wbuf
 		M.content_win = nil
@@ -274,8 +279,9 @@ M.switch = function(poppy_name)
 			col = math.floor((vim.o.columns - full_width) / 2),
 			row = wc.row,
 		})
-		local c_win, c_buf = content.create(M.wrapper_win, sw)
-		panels.create(M.wrapper_win, sw, 1)
+		local hdr = header_lines()
+		local c_win, c_buf = content.create(M.wrapper_win, sw, hdr, 4)
+		panels.create(M.wrapper_win, sw, 4, hdr)
 		M._watch_content_window(c_win, sw)
 		M.content_win = c_win
 		M.content_buf = c_buf
@@ -419,6 +425,11 @@ M._recover = function()
 			M.switch(fallback_name)
 		else
 			panels.destroy()
+			if M.autohide_hint_win then
+				vim.api.nvim_win_close(M.autohide_hint_win, true)
+			end
+			M.autohide_hint_win = nil
+			M.autohide_hint_buf = nil
 			M._suppress_watch = true
 			if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
 				vim.api.nvim_win_close(M.content_win, true)
@@ -438,7 +449,7 @@ M._recover = function()
 				col = math.floor((vim.o.columns - M.landing_view_width) / 2),
 				row = wc.row,
 			})
-			panels.create_landing(M.wrapper_win)
+			panels.create_landing(M.wrapper_win, header_lines())
 			M.is_landing = true
 
 			local sorted = M.get_sorted_poppies()

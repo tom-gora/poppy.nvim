@@ -1,0 +1,49 @@
+local M = {}
+M.HEIGHT = 3
+local style = require("poppy.core.ui.style")
+local namespace = vim.api.nvim_create_namespace("poppy_header_panel")
+
+M.create = function(wrapper_win, width_override, col_override)
+	local buf = vim.api.nvim_create_buf(false, true)
+	vim.bo[buf].modifiable = false
+	return M.recreate(wrapper_win, buf, width_override, col_override), buf
+end
+
+M.recreate = function(wrapper_win, buf, width_override, col_override)
+	local wc = vim.api.nvim_win_get_config(wrapper_win)
+	local width = width_override or wc.width
+	local col = col_override or 0
+
+	local config = {
+		relative = "win",
+		width = width,
+		height = 3,
+		col = col,
+		row = 0,
+		style = "minimal",
+		border = "none",
+		zindex = 201,
+		focusable = false,
+		win = wrapper_win,
+	}
+
+	local win = vim.api.nvim_open_win(buf, false, config)
+	style.apply_list_panel_style(win)
+
+	local title = "P◉PPY.NVIM"
+	local title_col = math.max(0, math.ceil((width - #title) / 2))
+	local sep = " " .. string.rep("─", width - 2) .. " "
+	local title_line = string.rep(" ", title_col) .. title
+
+	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "", title_line, sep })
+	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+
+	vim.api.nvim_buf_set_extmark(buf, namespace, 1, 0, { end_col = #title_line, hl_group = "NormalPoppyUIPanel" })
+	local dot_start = title_col + 1
+	local dot_end = dot_start + 3
+	vim.api.nvim_buf_set_extmark(buf, namespace, 1, dot_start, { end_col = dot_end, hl_group = "PoppyRed" })
+	return win
+end
+
+return M
