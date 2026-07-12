@@ -1,7 +1,7 @@
 local M = {}
 
 local PANELS_BG_LIGHTEN_FACTOR = 0.10
-local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.5
+local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.4
 
 local function adjust_brightness(color, factor)
 	local target = factor >= 0 and 255 or 0
@@ -20,7 +20,11 @@ M.setup = function()
 
 	local nf = vim.api.nvim_get_hl(0, { name = "NormalFloat" })
 	if nf.bg then
-		vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { bg = adjust_brightness(nf.bg, PANELS_BG_LIGHTEN_FACTOR), fg = nf.fg })
+		vim.api.nvim_set_hl(
+			0,
+			"NormalPoppyUIPanel",
+			{ bg = adjust_brightness(nf.bg, PANELS_BG_LIGHTEN_FACTOR), fg = nf.fg }
+		)
 	else
 		vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "StatusLine" })
 	end
@@ -44,19 +48,53 @@ M.setup = function()
 	vim.api.nvim_set_hl(0, "PoppyShell", { fg = func_hl.fg })
 
 	if type_hl.fg then
-		vim.api.nvim_set_hl(0, "PoppyFileHidden", { fg = adjust_brightness(type_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) })
+		vim.api.nvim_set_hl(
+			0,
+			"PoppyFileHidden",
+			{ fg = adjust_brightness(type_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) }
+		)
 	else
 		vim.api.nvim_set_hl(0, "PoppyFileHidden", { link = "Comment" })
 	end
 	if string_hl.fg then
-		vim.api.nvim_set_hl(0, "PoppyExecHidden", { fg = adjust_brightness(string_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) })
+		vim.api.nvim_set_hl(
+			0,
+			"PoppyExecHidden",
+			{ fg = adjust_brightness(string_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) }
+		)
 	else
 		vim.api.nvim_set_hl(0, "PoppyExecHidden", { link = "Comment" })
 	end
 	if func_hl.fg then
-		vim.api.nvim_set_hl(0, "PoppyShellHidden", { fg = adjust_brightness(func_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) })
+		vim.api.nvim_set_hl(
+			0,
+			"PoppyShellHidden",
+			{ fg = adjust_brightness(func_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) }
+		)
 	else
 		vim.api.nvim_set_hl(0, "PoppyShellHidden", { link = "Comment" })
+	end
+
+	vim.api.nvim_set_hl(0, "PoppyCurrentRowFile", { bg = type_hl.fg, fg = nf.bg })
+	vim.api.nvim_set_hl(0, "PoppyCurrentRowExec", { bg = string_hl.fg, fg = nf.bg })
+	vim.api.nvim_set_hl(0, "PoppyCurrentRowShell", { bg = func_hl.fg, fg = nf.bg })
+	if string_hl.fg then
+		vim.api.nvim_set_hl(
+			0,
+			"PoppyExecHidden",
+			{ fg = adjust_brightness(string_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR), bold = true }
+		)
+	else
+		vim.api.nvim_set_hl(0, "PoppyExecHidden", { link = "Comment", bold = true })
+	end
+	if func_hl.fg then
+		vim.api.nvim_set_hl(
+			0,
+			"PoppyShellHidden",
+			{ fg = adjust_brightness(func_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR), bold = true }
+		)
+	else
+		vim.api.nvim_set_hl(0, "PoppyShellHidden", { link = "Comment", bold = true })
 	end
 
 	vim.api.nvim_set_hl(0, "PoppyActiveDot", { link = "Normal" })
@@ -67,7 +105,7 @@ M.apply_hints_panel_style = function(win)
 end
 
 M.apply_list_panel_style = function(win)
-	vim.api.nvim_set_option_value("winhl", "Normal:NormalPoppyUIPanel", { win = win })
+	vim.api.nvim_set_option_value("winhl", "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel", { win = win })
 end
 
 M.apply_content_style = function(win)

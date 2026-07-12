@@ -5,7 +5,7 @@ local namespace = vim.api.nvim_create_namespace("poppy_hints_bar")
 local PADDING = { landing = 1, sidebar = 3 }
 local ROW_OFFSET = { landing = 0, sidebar = -1 }
 local CONTENT_LINES = { landing = 3, sidebar = 4 }
-local INDENT = "   "
+local INDENT = "  "
 local KEY_COL = 5
 local COL_GAP = "  "
 
