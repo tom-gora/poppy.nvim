@@ -3,7 +3,7 @@ local M = {}
 local PANELS_BG_LIGHTEN_FACTOR = 0.10
 local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.4
 
-local function adjust_brightness(color, factor)
+local adjust_brightness = function(color, factor)
 	local target = factor >= 0 and 255 or 0
 	local f = math.abs(factor)
 	local r = math.floor(color / 65536)

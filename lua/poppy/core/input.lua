@@ -36,18 +36,4 @@ M.setup_content = function(buf, keys)
 	end, { buffer = buf, desc = "Poppy: Toggle menu" })
 end
 
-M.teardown = function(buf)
-	if not buf or not vim.api.nvim_buf_is_valid(buf) then
-		return
-	end
-	for _, mode in ipairs({ "n", "t" }) do
-		local maps = vim.api.nvim_buf_get_keymap(buf, mode)
-		for _, m in ipairs(maps) do
-			if m.desc and m.desc:sub(1, 7) == "Poppy: " then
-				pcall(vim.api.nvim_buf_del_keymap, buf, m.mode, m.lhs)
-			end
-		end
-	end
-end
-
 return M

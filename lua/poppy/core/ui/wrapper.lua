@@ -1,7 +1,7 @@
 local M = {}
 local style = require("poppy.core.ui.style")
 
-local function compute_geometry(poppy_opts, width_override)
+local compute_geometry = function(poppy_opts, width_override)
 	poppy_opts = poppy_opts or {}
 
 	local raw_w = poppy_opts.win_width
@@ -69,7 +69,7 @@ local function compute_geometry(poppy_opts, width_override)
 	return width, height, row
 end
 
-local function open_with(buf, poppy_opts, width_override)
+local open_with = function(buf, poppy_opts, width_override)
 	local width, height, row = compute_geometry(poppy_opts, width_override)
 	local config = {
 		relative = "editor",

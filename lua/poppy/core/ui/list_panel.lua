@@ -5,7 +5,7 @@ local sb_width = 25
 
 local sign_group = "poppy_list"
 
-local function define_poppy_signs()
+local define_poppy_signs = function()
 	local signs = {
 		{ name = "PoppyDotFileA", text = "•", hl = "PoppyFile" },
 		{ name = "PoppyDotFileH", text = "•", hl = "PoppyFileHidden" },
@@ -25,7 +25,7 @@ end
 
 define_poppy_signs()
 
-local function pick_sign(dot, cat, is_active, is_hidden)
+local pick_sign = function(dot, cat, is_active, is_hidden)
 	if dot == " " then
 		return "PoppyDotNone"
 	end
@@ -98,7 +98,7 @@ local max_index_width = function(count)
 	return #tostring(count)
 end
 
-local function trim_title(title, max_width)
+local trim_title = function(title, max_width)
 	if vim.fn.strdisplaywidth(title) <= max_width then
 		return title
 	end

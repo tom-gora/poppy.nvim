@@ -18,11 +18,11 @@ local state = {
 	header_lines = 0,
 }
 
-local function valid_buf(b)
+local valid_buf = function(b)
 	return b and vim.api.nvim_buf_is_valid(b)
 end
 
-local function resize_content(win, width, height, row)
+local resize_content = function(win, width, height, row)
 	if not win or not vim.api.nvim_win_is_valid(win) then
 		return
 	end
@@ -37,13 +37,13 @@ local function resize_content(win, width, height, row)
 	})
 end
 
-local function close_panel(win)
+local close_panel = function(win)
 	if win and vim.api.nvim_win_is_valid(win) then
 		vim.api.nvim_win_close(win, true)
 	end
 end
 
-local function rebuild(hl, focusable)
+local rebuild = function(hl, focusable)
 	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
 	local sw = state.sw
 	local hdr = state.header_lines
@@ -155,7 +155,7 @@ M.create_landing = function(wrapper_win, header_lines)
 	return { hints_win = hints_win, hints_buf = hints_buf, list_win = list_win, list_buf = list_buf }
 end
 
-M.hide = function(content_win)
+local hide = function(content_win)
 	if state.hidden then
 		return
 	end
@@ -170,7 +170,7 @@ M.hide = function(content_win)
 	resize_content(content_win, wc.width - 2, wc.height - 2, 0)
 end
 
-M.show = function(content_win)
+local show = function(content_win)
 	if not state.hidden then
 		return
 	end
@@ -180,11 +180,11 @@ M.show = function(content_win)
 	resize_content(content_win, wc.width - state.sw - 2, wc.height - 2)
 end
 
-M.toggle = function(content_win)
+local toggle = function(content_win)
 	if state.hidden then
-		M.show(content_win)
+		show(content_win)
 	else
-		M.hide(content_win)
+		hide(content_win)
 	end
 end
 
@@ -251,7 +251,7 @@ end
 M.get_list_win = function()
 	return state.list_win
 end
-M.get_hints_win = function()
+local get_hints_win = function()
 	return state.hints_win
 end
 M.get_header_buf = function()

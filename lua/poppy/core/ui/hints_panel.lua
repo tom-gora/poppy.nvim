@@ -9,7 +9,7 @@ local INDENT = "  "
 local KEY_COL = 5
 local COL_GAP = "  "
 
-local function fmt_hint(key, label)
+local fmt_hint = function(key, label)
 	local padded = key .. string.rep(" ", math.max(0, KEY_COL - #key))
 	return INDENT .. padded .. COL_GAP .. label .. " "
 end

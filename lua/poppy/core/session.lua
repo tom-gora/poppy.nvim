@@ -9,19 +9,27 @@ local content = require("poppy.core.ui.content")
 local input = require("poppy.core.input")
 
 M.poppies = {}
-M._suppress_watch = false
 
+local _suppress_watch = false
 local opts = nil
+local landing_view_width = nil
+local is_landing = false
+local menu_focused = false
+local autohide_hint_win = nil
+local autohide_hint_buf = nil
+local wrapper_buf = nil
+local wrapper_win = nil
+local content_buf = nil
+local content_win = nil
+local current_poppy_name = nil
 
-local function header_lines()
+-- forward declarations for mutual references
+local _recover
+local _watch_content_window
+
+local header_lines = function()
 	return (opts and opts.title_header ~= false) and header_panel.HEIGHT or 0
 end
-
-M.landing_view_width = nil
-M.is_landing = false
-M.menu_focused = false
-M.autohide_hint_win = nil
-M.autohide_hint_buf = nil
 
 M.set_opts = function(merged)
 	opts = merged
@@ -31,7 +39,7 @@ M.get_opts = function()
 	return opts
 end
 
-M.get_sorted_poppies = function()
+local get_sorted_poppies = function()
 	local sorted = {}
 	if opts and opts.poppies then
 		for name, p_config in pairs(opts.poppies) do
@@ -50,8 +58,8 @@ M.get_sorted_poppies = function()
 	return sorted
 end
 
-M.compute_landing_view_width = function()
-	local sorted = M.get_sorted_poppies()
+local compute_landing_view_width = function()
+	local sorted = get_sorted_poppies()
 	local max_line = 0
 	for i, item in ipairs(sorted) do
 		local icon = (opts and opts.icons and opts.icons[item.config.cat]) or " "
@@ -67,10 +75,10 @@ M.compute_landing_view_width = function()
 end
 
 M.is_open = function()
-	return M.wrapper_win ~= nil and vim.api.nvim_win_is_valid(M.wrapper_win)
+	return wrapper_win ~= nil and vim.api.nvim_win_is_valid(wrapper_win)
 end
 
-M._watch_content_window = function(win_id, sidebars_width)
+_watch_content_window = function(win_id, sidebars_width)
 	if not win_id then
 		return
 	end
@@ -80,30 +88,30 @@ M._watch_content_window = function(win_id, sidebars_width)
 		once = true,
 		group = vim.api.nvim_create_augroup("poppy_ui", { clear = false }),
 		callback = function()
-			if not M.is_open() or M._suppress_watch then
+			if not M.is_open() or _suppress_watch then
 				return
 			end
-			local c_win, c_buf = content.create(M.wrapper_win, sw, header_lines(), 4)
-			M.content_win = c_win
-			M.content_buf = c_buf
-			M._watch_content_window(c_win, sw)
-			if M.current_poppy_name then
+			local c_win, c_buf = content.create(wrapper_win, sw, header_lines(), 4)
+			content_win = c_win
+			content_buf = c_buf
+			_watch_content_window(c_win, sw)
+			if current_poppy_name then
 				M.kill_current()
 			else
-				M._recover()
+				_recover()
 			end
 		end,
 	})
 end
 
-M.refresh = function(sorted_poppies)
-	if M.is_landing then
+local refresh = function(sorted_poppies)
+	if is_landing then
 		list_panel.update(panels.get_list_buf(), sorted_poppies, M.poppies, opts and opts.icons)
 		hints_panel.update(
 			panels.get_hints_buf(),
 			opts and opts.keys,
 			#sorted_poppies,
-			vim.api.nvim_win_get_width(M.wrapper_win),
+			vim.api.nvim_win_get_width(wrapper_win),
 			"landing",
 			"landing"
 		)
@@ -114,7 +122,7 @@ M.refresh = function(sorted_poppies)
 	end
 	local sw = (opts and opts.sidebar_width) or 25
 	list_panel.update(panels.get_list_buf(), sorted_poppies, M.poppies, opts and opts.icons)
-	local mode = M.menu_focused and "active_focused" or "active_sidebar"
+	local mode = menu_focused and "active_focused" or "active_sidebar"
 		hints_panel.update(
 			panels.get_hints_buf(),
 			opts and opts.keys,
@@ -125,7 +133,7 @@ M.refresh = function(sorted_poppies)
 		)
 end
 
-M._active_width = function()
+local _active_width = function()
 	local raw = opts and opts.win_width
 	if type(raw) == "function" then
 		raw = raw()
@@ -142,31 +150,31 @@ M.open = function(poppy_name)
 		if poppy_name then
 			M.switch(poppy_name)
 		end
-		return M.wrapper_win
+		return wrapper_win
 	end
-	local sorted_poppies = M.get_sorted_poppies()
-	local last_poppy = M.current_poppy_name
+	local sorted_poppies = get_sorted_poppies()
+	local last_poppy = current_poppy_name
 
 	if poppy_name or (last_poppy and M.poppies[last_poppy]) then
 		local sw = (opts and opts.sidebar_width) or 25
 		local hdr = header_lines()
 		local win, wbuf
-		if M.wrapper_buf and vim.api.nvim_buf_is_valid(M.wrapper_buf) then
-			wbuf = M.wrapper_buf
+		if wrapper_buf and vim.api.nvim_buf_is_valid(wrapper_buf) then
+			wbuf = wrapper_buf
 			win = wrapper.recreate(wbuf, opts)
 		else
 			win, wbuf = wrapper.create(opts)
-			M.wrapper_buf = wbuf
+			wrapper_buf = wbuf
 		end
 		local c_win, c_buf = content.create(win, sw, hdr, 4)
 		panels.create(win, sw, 4, hdr)
-		M._watch_content_window(c_win, sw)
+		_watch_content_window(c_win, sw)
 
-		M.wrapper_win = win
-		M.content_win = c_win
-		M.content_buf = c_buf
-		M.current_poppy_name = nil
-		M.is_landing = false
+		wrapper_win = win
+		content_win = c_win
+		content_buf = c_buf
+		current_poppy_name = nil
+		is_landing = false
 
 		if poppy_name then
 			M.switch(poppy_name)
@@ -176,23 +184,23 @@ M.open = function(poppy_name)
 
 		input.setup_sidebar(panels.get_list_buf(), opts and opts.keys)
 	else
-		if not M.landing_view_width then
-			M.landing_view_width = M.compute_landing_view_width()
+		if not landing_view_width then
+			landing_view_width = compute_landing_view_width()
 		end
 		local win, wbuf
-		if M.wrapper_buf and vim.api.nvim_buf_is_valid(M.wrapper_buf) then
-			wbuf = M.wrapper_buf
-			win = wrapper.recreate(wbuf, opts, M.landing_view_width)
+		if wrapper_buf and vim.api.nvim_buf_is_valid(wrapper_buf) then
+			wbuf = wrapper_buf
+			win = wrapper.recreate(wbuf, opts, landing_view_width)
 		else
-			win, wbuf = wrapper.create(opts, M.landing_view_width)
-			M.wrapper_buf = wbuf
+			win, wbuf = wrapper.create(opts, landing_view_width)
+			wrapper_buf = wbuf
 		end
 		panels.create_landing(win, header_lines())
-		M.wrapper_win = win
-		M.content_win = nil
-		M.content_buf = nil
-		M.current_poppy_name = nil
-		M.is_landing = true
+		wrapper_win = win
+		content_win = nil
+		content_buf = nil
+		current_poppy_name = nil
+		is_landing = true
 
 		local list_buf = panels.get_list_buf()
 		vim.bo[list_buf].filetype = "poppy_menu"
@@ -203,40 +211,40 @@ M.open = function(poppy_name)
 		end
 	end
 
-	M.refresh(sorted_poppies)
+	refresh(sorted_poppies)
 
-	return M.wrapper_win
+	return wrapper_win
 end
 
 M.toggle_menu = function()
-	if M.is_landing or not M.is_open() then
+	if is_landing or not M.is_open() then
 		return
 	end
-	local sorted = M.get_sorted_poppies()
+	local sorted = get_sorted_poppies()
 
 	if panels.is_autohidden() then
-		if M.autohide_hint_win and vim.api.nvim_win_is_valid(M.autohide_hint_win) then
-			vim.api.nvim_win_close(M.autohide_hint_win, true)
+		if autohide_hint_win and vim.api.nvim_win_is_valid(autohide_hint_win) then
+			vim.api.nvim_win_close(autohide_hint_win, true)
 		end
-		M.autohide_hint_win = nil
-		M.autohide_hint_buf = nil
-		panels.show_for_autohide(M.content_win)
-		M.menu_focused = true
+		autohide_hint_win = nil
+		autohide_hint_buf = nil
+		panels.show_for_autohide(content_win)
+		menu_focused = true
 		local list_win = panels.get_list_win()
 		if list_win and vim.api.nvim_win_is_valid(list_win) then
 			vim.api.nvim_set_current_win(list_win)
 		end
-		M.refresh(sorted)
+		refresh(sorted)
 	elseif panels.is_hidden() then
-		panels.show(M.content_win)
-		M.menu_focused = false
-		M.refresh(sorted)
-		if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
-			vim.api.nvim_set_current_win(M.content_win)
+		panels.show(content_win)
+		menu_focused = false
+		refresh(sorted)
+		if content_win and vim.api.nvim_win_is_valid(content_win) then
+			vim.api.nvim_set_current_win(content_win)
 		end
 	else
-		M.menu_focused = not M.menu_focused
-		if M.menu_focused then
+		menu_focused = not menu_focused
+		if menu_focused then
 			panels.focus_sidebar()
 			local list_win = panels.get_list_win()
 			if list_win and vim.api.nvim_win_is_valid(list_win) then
@@ -244,35 +252,35 @@ M.toggle_menu = function()
 			end
 		else
 			panels.unfocus_sidebar()
-			if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
-				vim.api.nvim_set_current_win(M.content_win)
+			if content_win and vim.api.nvim_win_is_valid(content_win) then
+				vim.api.nvim_set_current_win(content_win)
 			end
 		end
-		M.refresh(sorted)
+		refresh(sorted)
 	end
 end
 
 M.dismiss_menu = function()
-	if not M.menu_focused or M.is_landing then
+	if not menu_focused or is_landing then
 		return
 	end
-	M.menu_focused = false
+	menu_focused = false
 	if opts and opts.menu_autohide then
-		panels.hide_for_autohide(M.content_win)
-		if M.autohide_hint_win and vim.api.nvim_win_is_valid(M.autohide_hint_win) then
-			vim.api.nvim_win_close(M.autohide_hint_win, true)
+		panels.hide_for_autohide(content_win)
+		if autohide_hint_win and vim.api.nvim_win_is_valid(autohide_hint_win) then
+			vim.api.nvim_win_close(autohide_hint_win, true)
 		end
-		M.autohide_hint_win = nil
-		M.autohide_hint_buf = nil
-		if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
-			M.autohide_hint_win, M.autohide_hint_buf = hints_panel.create_bottom_right(M.content_win, opts.keys)
+		autohide_hint_win = nil
+		autohide_hint_buf = nil
+		if content_win and vim.api.nvim_win_is_valid(content_win) then
+			autohide_hint_win, autohide_hint_buf = hints_panel.create_bottom_right(content_win, opts.keys)
 		end
 	else
 		panels.unfocus_sidebar()
 	end
-	M.refresh(M.get_sorted_poppies())
-	if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
-		vim.api.nvim_set_current_win(M.content_win)
+	refresh(get_sorted_poppies())
+	if content_win and vim.api.nvim_win_is_valid(content_win) then
+		vim.api.nvim_set_current_win(content_win)
 	end
 end
 
@@ -281,20 +289,20 @@ M.switch = function(poppy_name)
 		return
 	end
 
-	if M.current_poppy_name then
-		local cur_state = M.poppies[M.current_poppy_name]
+	if current_poppy_name then
+		local cur_state = M.poppies[current_poppy_name]
 		if cur_state then
 			cur_state.active = false
 			cur_state.hidden = true
 		end
 	end
 
-	if M.is_landing then
+	if is_landing then
 		panels.destroy()
 		local sw = (opts and opts.sidebar_width) or 25
-		local wc = vim.api.nvim_win_get_config(M.wrapper_win)
-		local full_width = M._active_width()
-		vim.api.nvim_win_set_config(M.wrapper_win, {
+		local wc = vim.api.nvim_win_get_config(wrapper_win)
+		local full_width = _active_width()
+		vim.api.nvim_win_set_config(wrapper_win, {
 			relative = wc.relative,
 			width = full_width,
 			height = wc.height,
@@ -302,49 +310,49 @@ M.switch = function(poppy_name)
 			row = wc.row,
 		})
 		local hdr = header_lines()
-		local c_win, c_buf = content.create(M.wrapper_win, sw, hdr, 4)
-		panels.create(M.wrapper_win, sw, 4, hdr)
-		M._watch_content_window(c_win, sw)
-		M.content_win = c_win
-		M.content_buf = c_buf
-		M.is_landing = false
+		local c_win, c_buf = content.create(wrapper_win, sw, hdr, 4)
+		panels.create(wrapper_win, sw, 4, hdr)
+		_watch_content_window(c_win, sw)
+		content_win = c_win
+		content_buf = c_buf
+		is_landing = false
 		input.setup_sidebar(panels.get_list_buf(), opts and opts.keys)
 	end
 
 	local poppy_opts = opts.poppies[poppy_name]
-	M.current_poppy_name = poppy_name
-	local sorted_poppies = M.get_sorted_poppies()
+	current_poppy_name = poppy_name
+	local sorted_poppies = get_sorted_poppies()
 
 	local mode = poppy_opts.mode
-	require("poppy.modes." .. mode).run(poppy_name, opts, M.content_win)
+	require("poppy.modes." .. mode).run(poppy_name, opts, content_win)
 
-	input.setup_content(vim.api.nvim_win_get_buf(M.content_win), opts and opts.keys)
+	input.setup_content(vim.api.nvim_win_get_buf(content_win), opts and opts.keys)
 
-	M.menu_focused = false
+	menu_focused = false
 	if opts.menu_autohide then
-		panels.hide_for_autohide(M.content_win)
-		if M.autohide_hint_win and vim.api.nvim_win_is_valid(M.autohide_hint_win) then
-			vim.api.nvim_win_close(M.autohide_hint_win, true)
+		panels.hide_for_autohide(content_win)
+		if autohide_hint_win and vim.api.nvim_win_is_valid(autohide_hint_win) then
+			vim.api.nvim_win_close(autohide_hint_win, true)
 		end
-		M.autohide_hint_win = nil
-		M.autohide_hint_buf = nil
-		if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
-			M.autohide_hint_win, M.autohide_hint_buf = hints_panel.create_bottom_right(M.content_win, opts.keys)
+		autohide_hint_win = nil
+		autohide_hint_buf = nil
+		if content_win and vim.api.nvim_win_is_valid(content_win) then
+			autohide_hint_win, autohide_hint_buf = hints_panel.create_bottom_right(content_win, opts.keys)
 		end
 	else
 		panels.unfocus_sidebar()
 	end
 
-	M.refresh(sorted_poppies)
-	vim.api.nvim_set_current_win(M.content_win)
+	refresh(sorted_poppies)
+	vim.api.nvim_set_current_win(content_win)
 
-	if vim.bo[vim.api.nvim_win_get_buf(M.content_win)].buftype == "terminal" then
+	if vim.bo[vim.api.nvim_win_get_buf(content_win)].buftype == "terminal" then
 		vim.cmd("startinsert")
 	end
 end
 
 M.switch_by_index = function(index)
-	local sorted = M.get_sorted_poppies()
+	local sorted = get_sorted_poppies()
 	local item = sorted[index]
 	if item then
 		M.switch(item.name)
@@ -365,35 +373,35 @@ M.switch_by_cursor = function()
 end
 
 M.kill_current = function()
-	if not M.current_poppy_name then
+	if not current_poppy_name then
 		return
 	end
-	local target = M.current_poppy_name
+	local target = current_poppy_name
 	local p_state = M.poppies[target]
 	local target_bufnr = p_state and p_state.bufnr
 
 	M.poppies[target] = nil
-	M.current_poppy_name = nil
-	M._recover()
+	current_poppy_name = nil
+	_recover()
 
 	if target_bufnr and vim.api.nvim_buf_is_valid(target_bufnr) then
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
 	end
 
-	if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
-		pcall(vim.api.nvim_set_current_win, M.content_win)
+	if content_win and vim.api.nvim_win_is_valid(content_win) then
+		pcall(vim.api.nvim_set_current_win, content_win)
 	end
 end
 
 M.kill_by_index = function(index)
-	local sorted = M.get_sorted_poppies()
+	local sorted = get_sorted_poppies()
 	local item = sorted[index]
 	if not item then
 		return
 	end
 	local name = item.name
 
-	if name == M.current_poppy_name then
+	if name == current_poppy_name then
 		M.kill_current()
 		return
 	end
@@ -410,8 +418,8 @@ M.kill_by_index = function(index)
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
 	end
 
-	if M.is_open() and not M.is_landing then
-		M.refresh(M.get_sorted_poppies())
+	if M.is_open() and not is_landing then
+		refresh(get_sorted_poppies())
 	end
 end
 
@@ -428,10 +436,10 @@ M.kill_by_cursor = function()
 	end
 end
 
-M._recover = function()
-	M.current_poppy_name = nil
+_recover = function()
+	current_poppy_name = nil
 	vim.schedule(function()
-		if not M.is_open() or M.is_landing or M.current_poppy_name then
+		if not M.is_open() or is_landing or current_poppy_name then
 			return
 		end
 
@@ -447,38 +455,38 @@ M._recover = function()
 			M.switch(fallback_name)
 		else
 			panels.destroy()
-			if M.autohide_hint_win then
-				vim.api.nvim_win_close(M.autohide_hint_win, true)
+			if autohide_hint_win then
+				vim.api.nvim_win_close(autohide_hint_win, true)
 			end
-			M.autohide_hint_win = nil
-			M.autohide_hint_buf = nil
-			M._suppress_watch = true
-			if M.content_win and vim.api.nvim_win_is_valid(M.content_win) then
-				vim.api.nvim_win_close(M.content_win, true)
+			autohide_hint_win = nil
+			autohide_hint_buf = nil
+			_suppress_watch = true
+			if content_win and vim.api.nvim_win_is_valid(content_win) then
+				vim.api.nvim_win_close(content_win, true)
 			end
-			M.content_win = nil
-			M.content_buf = nil
-			M._suppress_watch = false
+			content_win = nil
+			content_buf = nil
+			_suppress_watch = false
 
-			if not M.landing_view_width then
-				M.landing_view_width = M.compute_landing_view_width()
+			if not landing_view_width then
+				landing_view_width = compute_landing_view_width()
 			end
-			local wc = vim.api.nvim_win_get_config(M.wrapper_win)
-			vim.api.nvim_win_set_config(M.wrapper_win, {
+			local wc = vim.api.nvim_win_get_config(wrapper_win)
+			vim.api.nvim_win_set_config(wrapper_win, {
 				relative = wc.relative,
-				width = M.landing_view_width,
+				width = landing_view_width,
 				height = wc.height,
-				col = math.floor((vim.o.columns - M.landing_view_width) / 2),
+				col = math.floor((vim.o.columns - landing_view_width) / 2),
 				row = wc.row,
 			})
-			panels.create_landing(M.wrapper_win, header_lines())
-			M.is_landing = true
+			panels.create_landing(wrapper_win, header_lines())
+			is_landing = true
 
-			local sorted = M.get_sorted_poppies()
+			local sorted = get_sorted_poppies()
 			local list_buf = panels.get_list_buf()
 			vim.bo[list_buf].filetype = "poppy_menu"
 			input.setup_sidebar(list_buf, opts and opts.keys)
-			M.refresh(sorted)
+			refresh(sorted)
 
 			local list_win = panels.get_list_win()
 			if list_win and vim.api.nvim_win_is_valid(list_win) then
@@ -488,9 +496,9 @@ M._recover = function()
 	end)
 end
 
-M.cleanup = function()
-	if M.current_poppy_name then
-		local ps = M.poppies[M.current_poppy_name]
+local cleanup = function()
+	if current_poppy_name then
+		local ps = M.poppies[current_poppy_name]
 		if ps then
 			ps.active = false
 			ps.hidden = true
@@ -498,26 +506,26 @@ M.cleanup = function()
 		end
 	end
 
-	if M.autohide_hint_win and vim.api.nvim_win_is_valid(M.autohide_hint_win) then
-		vim.api.nvim_win_close(M.autohide_hint_win, true)
+	if autohide_hint_win and vim.api.nvim_win_is_valid(autohide_hint_win) then
+		vim.api.nvim_win_close(autohide_hint_win, true)
 	end
-	M.autohide_hint_win = nil
-	M.autohide_hint_buf = nil
+	autohide_hint_win = nil
+	autohide_hint_buf = nil
 
 	panels.destroy()
 
-	M._suppress_watch = true
-	for _, win in ipairs({ M.wrapper_win, M.content_win }) do
+	_suppress_watch = true
+	for _, win in ipairs({ wrapper_win, content_win }) do
 		if win and vim.api.nvim_win_is_valid(win) then
 			vim.api.nvim_win_close(win, true)
 		end
 	end
-	M._suppress_watch = false
+	_suppress_watch = false
 
 	local has_running_popies = next(M.poppies) ~= nil
-	local buffers = { M.content_buf }
+	local buffers = { content_buf }
 	if not has_running_popies then
-		table.insert(buffers, M.wrapper_buf)
+		table.insert(buffers, wrapper_buf)
 		table.insert(buffers, panels.get_hints_buf())
 		table.insert(buffers, panels.get_list_buf())
 		local hbuf = panels.get_header_buf()
@@ -532,49 +540,45 @@ M.cleanup = function()
 		end
 	end
 
-	M.wrapper_win = nil
-	M.content_win = nil
-	M.content_buf = nil
-	M.is_landing = false
-	M.menu_focused = false
+	wrapper_win = nil
+	content_win = nil
+	content_buf = nil
+	is_landing = false
+	menu_focused = false
 end
 
-M.hard_cleanup = function()
+local hard_cleanup = function()
 	for _, p_state in pairs(M.poppies) do
 		if p_state and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
 			vim.api.nvim_buf_delete(p_state.bufnr, { force = true })
 		end
 	end
 	M.poppies = {}
-	M.current_poppy_name = nil
-	M.cleanup()
+	current_poppy_name = nil
+	cleanup()
 end
 
 M.close = function()
-	M.hard_cleanup()
+	hard_cleanup()
 end
 
 M.toggle = function()
 	if M.is_open() then
-		M.cleanup()
+		cleanup()
 	else
 		M.open()
 	end
 end
 
-M.close = function()
-	M.cleanup()
-end
-
 M.setup = function(user_opts)
 	M.poppies = {}
-	M.landing_view_width = nil
-	M.is_landing = false
-	M.menu_focused = false
-	M.current_poppy_name = nil
-	M.wrapper_win = nil
-	M.autohide_hint_win = nil
-	M.autohide_hint_buf = nil
+	landing_view_width = nil
+	is_landing = false
+	menu_focused = false
+	current_poppy_name = nil
+	wrapper_win = nil
+	autohide_hint_win = nil
+	autohide_hint_buf = nil
 
 	require("poppy.core.ui.style").setup()
 	M.set_opts(require("poppy.config").merge(user_opts))
@@ -591,8 +595,8 @@ M.setup = function(user_opts)
 			end
 
 			M.poppies[poppy_name] = nil
-			if M.is_open() and M.current_poppy_name == poppy_name then
-				M._recover()
+			if M.is_open() and current_poppy_name == poppy_name then
+				_recover()
 			end
 		end,
 	})
@@ -632,5 +636,24 @@ M.setup = function(user_opts)
 		end,
 	})
 end
+
+M.current_poppy_name = nil
+M.poppies = {}
+
+setmetatable(M, {
+	__index = function(_, k)
+		if k == "current_poppy_name" then
+			return current_poppy_name
+		end
+		return nil
+	end,
+	__newindex = function(_, k, v)
+		if k == "current_poppy_name" then
+			current_poppy_name = v
+			return
+		end
+		rawset(M, k, v)
+	end,
+})
 
 return M
