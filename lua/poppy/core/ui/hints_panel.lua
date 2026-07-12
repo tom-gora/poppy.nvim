@@ -2,10 +2,23 @@ local M = {}
 local style = require("poppy.core.ui.style")
 local namespace = vim.api.nvim_create_namespace("poppy_hints_bar")
 
-M.create = function(wrapper_win)
+local PADDING = { landing = 1, sidebar = 3 }
+local ROW_OFFSET = { landing = 0, sidebar = -1 }
+local CONTENT_LINES = { landing = 3, sidebar = 4 }
+local INDENT = "   "
+local KEY_COL = 5
+local COL_GAP = "  "
+
+local function fmt_hint(key, label)
+	local padded = key .. string.rep(" ", math.max(0, KEY_COL - #key))
+	return INDENT .. padded .. COL_GAP .. label .. " "
+end
+
+M.create = function(wrapper_win, layout)
+	layout = layout or "sidebar"
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
-	return M.recreate(wrapper_win, buf), buf
+	return M.recreate(wrapper_win, buf, nil, nil, nil, nil, layout), buf
 end
 
 M.create_bottom_right = function(parent_win, keys)
@@ -41,17 +54,18 @@ M.create_bottom_right = function(parent_win, keys)
 	return win, buf
 end
 
-M.recreate = function(wrapper_win, buf, width_override, col_override, row_override, height_override)
+M.recreate = function(wrapper_win, buf, width_override, col_override, row_override, height_override, layout)
+	layout = layout or "sidebar"
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local row = row_override or wrapper_conf.height - 1
+	local row = row_override or (wrapper_conf.height + ROW_OFFSET[layout])
 	local col = col_override or wrapper_conf.width
 	local width = width_override or wrapper_conf.width
-	local height = height_override or 1
+	local height = height_override or CONTENT_LINES[layout]
 
 	local config = {
 		relative = "win",
 		width = width,
-		height = height + 3,
+		height = height + PADDING[layout],
 		col = col,
 		row = row,
 		anchor = "SE",
@@ -67,18 +81,23 @@ M.recreate = function(wrapper_win, buf, width_override, col_override, row_overri
 	return win
 end
 
-M.update = function(buf, keys, count, wrapper_width, mode)
+M.update = function(buf, keys, count, wrapper_width, layout, mode)
 	if not keys then
 		return
 	end
-	local sep = " " .. string.rep("─", wrapper_width - 2) .. " "
+	layout = layout or "sidebar"
+	local sep = INDENT .. string.rep("─", math.max(0, wrapper_width - #INDENT - 1)) .. " "
 	local line_specs
-	if mode == "landing" then
+	if layout == "landing" then
 		line_specs = {
 			{
-				{ text = " " .. keys.select .. " Select ", hl = nil },
-				{ text = "  ", hl = nil },
-				{ text = keys.poppy_action .. " Toggle Off ", hl = nil },
+				{ text = sep, hl = nil },
+			},
+			{
+				{ text = fmt_hint(keys.select, "Select"), hl = nil },
+			},
+			{
+				{ text = fmt_hint(keys.poppy_action, "Toggle Off"), hl = nil },
 			},
 		}
 	elseif mode == "active_sidebar" or mode == "active_focused" then
@@ -87,16 +106,16 @@ M.update = function(buf, keys, count, wrapper_width, mode)
 				{ text = sep, hl = nil },
 			},
 			{
-				{ text = " " .. keys.select .. " Select ", hl = nil },
+				{ text = fmt_hint(keys.select, "Select"), hl = nil },
 			},
 			{
-				{ text = " " .. keys.kill .. " Kill ", hl = nil },
+				{ text = fmt_hint(keys.kill, "Kill"), hl = nil },
 			},
 			{
-				{ text = " " .. keys.dismiss_menu .. " Dismmiss ", hl = nil },
+				{ text = fmt_hint(keys.dismiss_menu, "Dismmiss"), hl = nil },
 			},
 			{
-				{ text = " " .. keys.poppy_action .. " Toggle off ", hl = nil },
+				{ text = fmt_hint(keys.poppy_action, "Toggle off"), hl = nil },
 			},
 		}
 	else

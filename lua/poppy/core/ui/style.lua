@@ -1,24 +1,18 @@
 local M = {}
 
-local function lighten(color, factor)
-	local r = math.floor(color / 65536)
-	local g = math.floor((color % 65536) / 256)
-	local b = color % 256
-	r = math.min(255, math.floor(r + (255 - r) * factor))
-	g = math.min(255, math.floor(g + (255 - g) * factor))
-	b = math.min(255, math.floor(b + (255 - b) * factor))
-	return r * 65536 + g * 256 + b
-end
+local PANELS_BG_LIGHTEN_FACTOR = 0.10
+local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.5
 
-local function desaturate(color, factor)
+local function adjust_brightness(color, factor)
+	local target = factor >= 0 and 255 or 0
+	local f = math.abs(factor)
 	local r = math.floor(color / 65536)
 	local g = math.floor((color % 65536) / 256)
 	local b = color % 256
-	local gray = math.floor(0.299 * r + 0.587 * g + 0.114 * b)
-	r = math.floor(r + (gray - r) * factor)
-	g = math.floor(g + (gray - g) * factor)
-	b = math.floor(b + (gray - b) * factor)
-	return math.max(0, r) * 65536 + math.max(0, g) * 256 + math.max(0, b)
+	r = math.max(0, math.min(255, math.floor(r + (target - r) * f)))
+	g = math.max(0, math.min(255, math.floor(g + (target - g) * f)))
+	b = math.max(0, math.min(255, math.floor(b + (target - b) * f)))
+	return r * 65536 + g * 256 + b
 end
 
 M.setup = function()
@@ -26,7 +20,7 @@ M.setup = function()
 
 	local nf = vim.api.nvim_get_hl(0, { name = "NormalFloat" })
 	if nf.bg then
-		vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { bg = lighten(nf.bg, 0.10), fg = nf.fg })
+		vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { bg = adjust_brightness(nf.bg, PANELS_BG_LIGHTEN_FACTOR), fg = nf.fg })
 	else
 		vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "StatusLine" })
 	end
@@ -50,17 +44,17 @@ M.setup = function()
 	vim.api.nvim_set_hl(0, "PoppyShell", { fg = func_hl.fg })
 
 	if type_hl.fg then
-		vim.api.nvim_set_hl(0, "PoppyFileHidden", { fg = desaturate(type_hl.fg, 0.6) })
+		vim.api.nvim_set_hl(0, "PoppyFileHidden", { fg = adjust_brightness(type_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) })
 	else
 		vim.api.nvim_set_hl(0, "PoppyFileHidden", { link = "Comment" })
 	end
 	if string_hl.fg then
-		vim.api.nvim_set_hl(0, "PoppyExecHidden", { fg = desaturate(string_hl.fg, 0.6) })
+		vim.api.nvim_set_hl(0, "PoppyExecHidden", { fg = adjust_brightness(string_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) })
 	else
 		vim.api.nvim_set_hl(0, "PoppyExecHidden", { link = "Comment" })
 	end
 	if func_hl.fg then
-		vim.api.nvim_set_hl(0, "PoppyShellHidden", { fg = desaturate(func_hl.fg, 0.6) })
+		vim.api.nvim_set_hl(0, "PoppyShellHidden", { fg = adjust_brightness(func_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) })
 	else
 		vim.api.nvim_set_hl(0, "PoppyShellHidden", { link = "Comment" })
 	end
