@@ -51,33 +51,11 @@ M.setup = function()
 		vim.api.nvim_set_hl(
 			0,
 			"PoppyFileHidden",
-			{ fg = adjust_brightness(type_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) }
+			{ fg = adjust_brightness(type_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR), bold = true }
 		)
 	else
-		vim.api.nvim_set_hl(0, "PoppyFileHidden", { link = "Comment" })
+		vim.api.nvim_set_hl(0, "PoppyFileHidden", { link = "Comment", bold = true })
 	end
-	if string_hl.fg then
-		vim.api.nvim_set_hl(
-			0,
-			"PoppyExecHidden",
-			{ fg = adjust_brightness(string_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) }
-		)
-	else
-		vim.api.nvim_set_hl(0, "PoppyExecHidden", { link = "Comment" })
-	end
-	if func_hl.fg then
-		vim.api.nvim_set_hl(
-			0,
-			"PoppyShellHidden",
-			{ fg = adjust_brightness(func_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR) }
-		)
-	else
-		vim.api.nvim_set_hl(0, "PoppyShellHidden", { link = "Comment" })
-	end
-
-	vim.api.nvim_set_hl(0, "PoppyCurrentRowFile", { bg = type_hl.fg, fg = nf.bg })
-	vim.api.nvim_set_hl(0, "PoppyCurrentRowExec", { bg = string_hl.fg, fg = nf.bg })
-	vim.api.nvim_set_hl(0, "PoppyCurrentRowShell", { bg = func_hl.fg, fg = nf.bg })
 	if string_hl.fg then
 		vim.api.nvim_set_hl(
 			0,
@@ -97,7 +75,19 @@ M.setup = function()
 		vim.api.nvim_set_hl(0, "PoppyShellHidden", { link = "Comment", bold = true })
 	end
 
+	vim.api.nvim_set_hl(0, "PoppyCurrentRowFile", { bg = type_hl.fg, fg = nf.bg })
+	vim.api.nvim_set_hl(0, "PoppyCurrentRowExec", { bg = string_hl.fg, fg = nf.bg })
+	vim.api.nvim_set_hl(0, "PoppyCurrentRowShell", { bg = func_hl.fg, fg = nf.bg })
+
 	vim.api.nvim_set_hl(0, "PoppyActiveDot", { link = "Normal" })
+
+	vim.api.nvim_create_augroup("poppy_style", { clear = true })
+	vim.api.nvim_create_autocmd("ColorScheme", {
+		group = "poppy_style",
+		callback = function()
+			M.setup()
+		end,
+	})
 end
 
 M.apply_hints_panel_style = function(win)
