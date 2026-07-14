@@ -1,5 +1,5 @@
 ---@class PoppyConfig
----@field keys? table<string, string> # Keybindings: poppy_action, select, kill, dismiss_menu. Default: { poppy_action = "<C-_>", select = "<CR>", kill = "d", dismiss_menu = "<Esc>" }
+---@field keys? table<string, string> # Keybindings: poppy_action, select, kill, exit_menu. Default: { poppy_action = "<C-_>", select = "<CR>", kill = "d", exit_menu = "<Esc>" }
 ---@field icons? table<string, string> # Icons per poppy type: exec, shell, file. Default: { exec = "🛠", shell = "$", file = "🗋" }
 ---@field menu_autohide? boolean # If true, hide sidebar after selecting a poppy. Default: false
 ---@field title_header? boolean # Show "POPPY" header panel above list. Default: true
@@ -16,7 +16,7 @@
 ---@field title? string
 ---
 local default_opts = {
-	keys = { poppy_action = "<C-_>", select = "<CR>", kill = "d", dismiss_menu = "<Esc>" },
+	keys = { poppy_action = "<C-_>", select = "<CR>", kill = "d", exit_menu = "<Esc>" },
 	icons = { exec = "🛠", shell = "$", file = "🗋" },
 	menu_autohide = false,
 	title_header = true,
@@ -76,7 +76,7 @@ local sanitize = function(opts)
 	if not opts.keys or type(opts.keys) ~= "table" then
 		opts.keys = default_opts.keys
 	else
-		for _, k in ipairs({ "poppy_action", "select", "kill", "dismiss_menu" }) do
+		for _, k in ipairs({ "poppy_action", "select", "kill", "exit_menu" }) do
 			if type(opts.keys[k]) ~= "string" or opts.keys[k] == "" then
 				opts.keys[k] = default_opts.keys[k]
 			end

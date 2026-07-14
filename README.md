@@ -73,6 +73,7 @@ Each poppy must have exactly one of:
 | Close manager | `:Poppy close` | — |
 | Switch to poppy N | — | `<M-p>1`–`<M-p>N` |
 | Kill current poppy | — | `<M-p>k` |
+| Exit menu (return to current poppy) | — | `<Esc>` |
 
 The `:Poppy` command has tab-completion for all configured poppies.
 

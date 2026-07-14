@@ -91,7 +91,7 @@ _watch_content_window = function(win_id, sidebars_width)
 			if not M.is_open() or _suppress_watch then
 				return
 			end
-			local c_win, c_buf = content.create(wrapper_win, sw, header_lines(), 4)
+			local c_win, c_buf = content.create(wrapper_win, sw)
 			content_win = c_win
 			content_buf = c_buf
 			_watch_content_window(c_win, sw)
@@ -166,7 +166,7 @@ M.open = function(poppy_name)
 			win, wbuf = wrapper.create(opts)
 			wrapper_buf = wbuf
 		end
-		local c_win, c_buf = content.create(win, sw, hdr, 4)
+		local c_win, c_buf = content.create(win, sw)
 		panels.create(win, sw, 4, hdr)
 		_watch_content_window(c_win, sw)
 
@@ -260,7 +260,7 @@ M.toggle_menu = function()
 	end
 end
 
-M.dismiss_menu = function()
+M.exit_menu = function()
 	if not menu_focused or is_landing then
 		return
 	end
@@ -281,6 +281,10 @@ M.dismiss_menu = function()
 	refresh(get_sorted_poppies())
 	if content_win and vim.api.nvim_win_is_valid(content_win) then
 		vim.api.nvim_set_current_win(content_win)
+		local cbuf = vim.api.nvim_win_get_buf(content_win)
+		if vim.bo[cbuf].buftype == "terminal" then
+			vim.cmd("startinsert")
+		end
 	end
 end
 
@@ -310,7 +314,7 @@ M.switch = function(poppy_name)
 			row = wc.row,
 		})
 		local hdr = header_lines()
-		local c_win, c_buf = content.create(wrapper_win, sw, hdr, 4)
+		local c_win, c_buf = content.create(wrapper_win, sw)
 		panels.create(wrapper_win, sw, 4, hdr)
 		_watch_content_window(c_win, sw)
 		content_win = c_win
@@ -601,14 +605,16 @@ M.setup = function(user_opts)
 		end,
 	})
 
-	vim.api.nvim_create_autocmd("CursorHold", {
-		group = "poppy_group",
-		callback = function()
-			if vim.bo.filetype == "poppy_menu" then
-				M.dismiss_menu()
-			end
-		end,
-	})
+	if opts.menu_autohide then
+		vim.api.nvim_create_autocmd("CursorHold", {
+			group = "poppy_group",
+			callback = function()
+				if vim.bo.filetype == "poppy_menu" then
+					M.exit_menu()
+				end
+			end,
+		})
+	end
 
 	vim.api.nvim_create_user_command("Poppy", function(cmd_opts)
 		local args = cmd_opts.args

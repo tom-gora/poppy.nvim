@@ -1,6 +1,6 @@
 local M = {}
 
-local PANELS_BG_LIGHTEN_FACTOR = 0.10
+local PANELS_BG_LIGHTEN_FACTOR = 0.04
 local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.4
 
 local adjust_brightness = function(color, factor)
@@ -16,8 +16,6 @@ local adjust_brightness = function(color, factor)
 end
 
 M.setup = function()
-	vim.api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
-
 	local nf = vim.api.nvim_get_hl(0, { name = "NormalFloat" })
 	if nf.bg then
 		vim.api.nvim_set_hl(
@@ -25,8 +23,10 @@ M.setup = function()
 			"NormalPoppyUIPanel",
 			{ bg = adjust_brightness(nf.bg, PANELS_BG_LIGHTEN_FACTOR), fg = nf.fg }
 		)
+		vim.api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
 	else
-		vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "StatusLine" })
+		vim.api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "NormalFloat" })
+		vim.api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
 	end
 	local panel_hl = vim.api.nvim_get_hl(0, { name = "NormalPoppyUIPanel" })
 	local err = vim.api.nvim_get_hl(0, { name = "ErrorMsg" })
@@ -34,9 +34,8 @@ M.setup = function()
 	local str = vim.api.nvim_get_hl(0, { name = "Label" })
 	vim.api.nvim_set_hl(0, "PoppyBorder", { fg = str.fg, bg = nf.bg })
 
-	local sl = vim.api.nvim_get_hl(0, { name = "StatusLine" })
 	local comment = vim.api.nvim_get_hl(0, { name = "Comment" })
-	vim.api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = sl.bg })
+	vim.api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = nf.bg })
 	vim.api.nvim_set_hl(0, "PoppyActive", { link = "IncSearch" })
 
 	local type_hl = vim.api.nvim_get_hl(0, { name = "Type" })

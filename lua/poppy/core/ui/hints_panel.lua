@@ -112,7 +112,7 @@ M.update = function(buf, keys, count, wrapper_width, layout, mode)
 				{ text = fmt_hint(keys.kill, "Kill"), hl = nil },
 			},
 			{
-				{ text = fmt_hint(keys.dismiss_menu, "Dismmiss"), hl = nil },
+				{ text = fmt_hint(keys.exit_menu, "Exit menu"), hl = nil },
 			},
 			{
 				{ text = fmt_hint(keys.poppy_action, "Toggle off"), hl = nil },

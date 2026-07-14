@@ -1,18 +1,16 @@
 local M = {}
 local style = require("poppy.core.ui.style")
 
-M.create = function(wrapper_win, list_panel_width, header_lines, hint_lines)
+M.create = function(wrapper_win, list_panel_width)
 	local buf = vim.api.nvim_create_buf(false, true)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local hdr = header_lines or 0
-	local hnt = hint_lines or 0
 
 	local config = {
 		relative = "win",
 		width = wrapper_conf.width - list_panel_width - 2,
-		height = wrapper_conf.height,
+		height = wrapper_conf.height - 2,
 		col = 0,
-		row = hdr,
+		row = 0,
 		style = "minimal",
 		border = "solid",
 		zindex = 202,

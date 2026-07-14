@@ -25,9 +25,9 @@ M.setup_sidebar = function(buf, keys)
 		end
 	end, { buffer = buf, desc = "Poppy: Kill" })
 
-	vim.keymap.set({ "n", "t" }, keys.dismiss_menu, function()
-		require("poppy.core.session").dismiss_menu()
-	end, { buffer = buf, desc = "Poppy: Dismiss menu" })
+	vim.keymap.set({ "n", "t" }, keys.exit_menu, function()
+		require("poppy.core.session").exit_menu()
+	end, { buffer = buf, desc = "Poppy: Exit menu" })
 end
 
 M.setup_content = function(buf, keys)
