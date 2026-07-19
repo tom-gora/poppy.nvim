@@ -15,6 +15,30 @@ local adjust_brightness = function(color, factor)
 	return r * 65536 + g * 256 + b
 end
 
+-- Sign definitions. Defined at module scope (above M.setup) so the
+-- M.setup closure can call it. `pcall` wraps each `sign_define` so a
+-- misconfigured theme (an unrecognized highlight group name) doesn't
+-- abort the plugin. The signs are re-defined on every call to M.setup
+-- (initial setup + every ColorScheme event), so sign text colors stay
+-- in sync with the just-redefined highlight groups.
+local function define_poppy_signs()
+	local signs = {
+		{ name = "PoppyDotFileA", text = "•", hl = "PoppyFile" },
+		{ name = "PoppyDotFileH", text = "•", hl = "PoppyFileHidden" },
+		{ name = "PoppyDotExecA", text = "•", hl = "PoppyExec" },
+		{ name = "PoppyDotExecH", text = "•", hl = "PoppyExecHidden" },
+		{ name = "PoppyDotShellA", text = "•", hl = "PoppyShell" },
+		{ name = "PoppyDotShellH", text = "•", hl = "PoppyShellHidden" },
+		{ name = "PoppyDotCurrentFile", text = "•", hl = "PoppyCurrentRowFile" },
+		{ name = "PoppyDotCurrentExec", text = "•", hl = "PoppyCurrentRowExec" },
+		{ name = "PoppyDotCurrentShell", text = "•", hl = "PoppyCurrentRowShell" },
+		{ name = "PoppyDotNone", text = " ", hl = "NormalPoppyUIPanel" },
+	}
+	for _, s in ipairs(signs) do
+		pcall(vim.fn.sign_define, s.name, { text = s.text, texthl = s.hl })
+	end
+end
+
 M.setup = function()
 	local nf = vim.api.nvim_get_hl(0, { name = "NormalFloat" })
 	if nf.bg then
@@ -79,6 +103,9 @@ M.setup = function()
 	vim.api.nvim_set_hl(0, "PoppyCurrentRowShell", { bg = func_hl.fg, fg = nf.bg })
 
 	vim.api.nvim_set_hl(0, "PoppyActiveDot", { link = "Normal" })
+
+	-- Re-define signs so they pick up the just-set highlight groups.
+	define_poppy_signs()
 
 	vim.api.nvim_create_augroup("poppy_style", { clear = true })
 	vim.api.nvim_create_autocmd("ColorScheme", {

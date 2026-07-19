@@ -5,26 +5,6 @@ local sb_width = 25
 
 local sign_group = "poppy_list"
 
-local define_poppy_signs = function()
-	local signs = {
-		{ name = "PoppyDotFileA", text = "•", hl = "PoppyFile" },
-		{ name = "PoppyDotFileH", text = "•", hl = "PoppyFileHidden" },
-		{ name = "PoppyDotExecA", text = "•", hl = "PoppyExec" },
-		{ name = "PoppyDotExecH", text = "•", hl = "PoppyExecHidden" },
-		{ name = "PoppyDotShellA", text = "•", hl = "PoppyShell" },
-		{ name = "PoppyDotShellH", text = "•", hl = "PoppyShellHidden" },
-		{ name = "PoppyDotCurrentFile", text = "•", hl = "PoppyCurrentRowFile" },
-		{ name = "PoppyDotCurrentExec", text = "•", hl = "PoppyCurrentRowExec" },
-		{ name = "PoppyDotCurrentShell", text = "•", hl = "PoppyCurrentRowShell" },
-		{ name = "PoppyDotNone", text = " ", hl = "NormalPoppyUIPanel" },
-	}
-	for _, s in ipairs(signs) do
-		pcall(vim.fn.sign_define, s.name, { text = s.text, texthl = s.hl })
-	end
-end
-
-define_poppy_signs()
-
 local pick_sign = function(dot, cat, is_active, is_hidden)
 	if dot == " " then
 		return "PoppyDotNone"

@@ -1,6 +1,6 @@
 local M = {}
 local session = require("poppy.core.session")
-local utils = require("poppy.modes.utils")
+local util = require("poppy.core.util")
 
 local resolve_command = function(poppy_opts)
 	if poppy_opts.mode == "term" and poppy_opts.shell then
@@ -14,7 +14,7 @@ local resolve_command = function(poppy_opts)
 end
 
 local get_or_create_buffer = function(poppy_name, opts)
-	local poppy_opts = opts.poppies[poppy_name]
+	local poppy_opts = opts.poppies_resolved[poppy_name]
 	local p_state = session.poppies[poppy_name]
 	local bufnr = (p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr))
 			and p_state.bufnr
@@ -23,10 +23,12 @@ local get_or_create_buffer = function(poppy_name, opts)
 	if not p_state or (not p_state.active and not p_state.hidden) then
 		vim.api.nvim_buf_call(bufnr, function()
 			pcall(vim.api.nvim_set_option_value, "modified", false, { buf = bufnr })
-			utils.spawn_term(resolve_command(poppy_opts), {
+			util.spawn_term(resolve_command(poppy_opts), {
 				on_exit = function()
-					if vim.api.nvim_buf_is_valid(bufnr) then vim.api.nvim_buf_delete(bufnr, { force = true }) end
-					if session.is_open() and session.current_poppy_name == poppy_name then
+					if vim.api.nvim_buf_is_valid(bufnr) then
+						vim.api.nvim_buf_delete(bufnr, { force = true })
+					end
+					if session.is_open() and session.get_current_poppy_name() == poppy_name then
 						session.kill_current()
 					else
 						session.poppies[poppy_name] = nil
@@ -41,7 +43,7 @@ local get_or_create_buffer = function(poppy_name, opts)
 end
 
 M.run = function(poppy_name, opts, parent_win)
-	local poppy_opts = opts.poppies[poppy_name]
+	local poppy_opts = opts.poppies_resolved[poppy_name]
 	if not poppy_opts or not parent_win then
 		return
 	end
@@ -55,4 +57,3 @@ M.run = function(poppy_name, opts, parent_win)
 end
 
 return M
-

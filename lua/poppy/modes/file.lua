@@ -2,7 +2,7 @@ local M = {}
 local session = require("poppy.core.session")
 
 M.run = function(poppy_name, opts, parent_win)
-	local poppy_opts = opts.poppies[poppy_name]
+	local poppy_opts = opts.poppies_resolved[poppy_name]
 	if not poppy_opts or not parent_win then
 		return
 	end
