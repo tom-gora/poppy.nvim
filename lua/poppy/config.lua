@@ -2,9 +2,9 @@
 ---@class PoppyConfig
 ---@field keys? table<string, string> # Keybindings: poppy_action, select, kill, exit_menu. Default: { poppy_action = "<C-_>", select = "<CR>", kill = "d", exit_menu = "<Esc>" }
 ---@field icons? table<string, string> # Icons per poppy type: exec, shell, file. Default: { exec = "🛠", shell = "$", file = "🗋" }
----@field menu_autohide? boolean # If true, hide sidebar after selecting a poppy. Default: false
+---@field menu_autohide? boolean # If true, hide sidebar style menu after selecting a poppy. Default: false
 ---@field title_header? boolean # Show "POPPY" header panel above list. Default: true
----@field sidebar_width? number # Width of side panels. Default: 25
+---@field menu_width? number # Width of side panels. Default: 25
 ---@field win_height? number|function # Height ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.75
 ---@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.8
 ---@field win_location? "center"|"top"|"bottom" # Vertical position of the wrapper. Default: "center"
@@ -19,7 +19,7 @@
 
 local M = {}
 
-local geometry = require("poppy.core.geometry")
+local geometry = require("poppy.core.ui.geometry")
 local util = require("poppy.core.util")
 
 local default_opts = {
@@ -27,7 +27,7 @@ local default_opts = {
 	icons = { exec = "🛠", shell = "$", file = "🗋" },
 	menu_autohide = false,
 	title_header = true,
-	sidebar_width = 25,
+	menu_width = 25,
 	win_height = 0.75,
 	win_width = 0.8,
 	win_location = "center",
@@ -58,10 +58,7 @@ local function resolve_poppy(name, poppy)
 
 	local title = poppy.title
 	if not title then
-		title = util.title_fallback(
-			mode,
-			poppy.exec or poppy.file or poppy.shell or os.getenv("SHELL") or "shell"
-		)
+		title = util.title_fallback(mode, poppy.exec or poppy.file or poppy.shell or os.getenv("SHELL") or "shell")
 	end
 
 	-- Fresh record; the user's poppy config is NOT mutated.
@@ -135,7 +132,7 @@ M.merge = function(user_opts)
 		icons = icons,
 		menu_autohide = merged.menu_autohide == true,
 		title_header = merged.title_header ~= false,
-		sidebar_width = merged.sidebar_width,
+		menu_width = merged.menu_width,
 		win_height = geometry.normalize_ratio_or_pixels(merged.win_height, 0.75),
 		win_width = geometry.normalize_ratio_or_pixels(merged.win_width, 0.8),
 		win_location = win_location,

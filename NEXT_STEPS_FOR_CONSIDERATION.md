@@ -88,7 +88,7 @@ All 9 engine upvalues now live in `state`. `reset_state()` /
 back-reference to `state.poppies`. `_landing_view_width` and
 `state.opts` are session-persistent (intentionally outside state).
 
-### 3.3. `_suppress_watch` flag is a smell
+### 3.3. ~~`_suppress_watch` flag is a smell~~ - done
 
 Used in `cleanup` and `_recover` to prevent `WinClosed` from reacting
 to its own teardown. Either scope the `poppy_ui` augroup inside
@@ -283,3 +283,4 @@ Actions workflow running `nvim --headless -u tests/minimal_init.lua
   items done; smoke test at 25 assertions. Bugs fixed: autohide-hint
   leak, empty-list-after-toggle, `M.poppies` back-ref breakage,
   `util.is_open()` no-arg, metatable shadow.
+

@@ -2,9 +2,9 @@ local M = {}
 local style = require("poppy.core.ui.style")
 local namespace = vim.api.nvim_create_namespace("poppy_hints_bar")
 
-local PADDING = { landing = 1, sidebar = 3 }
-local ROW_OFFSET = { landing = 0, sidebar = -1 }
-local CONTENT_LINES = { landing = 3, sidebar = 4 }
+local PADDING = { landing = 1, menu = 3 }
+local ROW_OFFSET = { landing = 0, menu = -1 }
+local CONTENT_HEIGHT = { landing = 3, menu = 4 }
 local INDENT = "  "
 local KEY_COL = 5
 local COL_GAP = "  "
@@ -15,7 +15,7 @@ local fmt_hint = function(key, label)
 end
 
 M.create = function(wrapper_win, layout)
-	layout = layout or "sidebar"
+	layout = layout or "menu"
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
 	return M.recreate(wrapper_win, buf, nil, nil, nil, nil, layout), buf
@@ -55,12 +55,12 @@ M.create_bottom_right = function(parent_win, keys)
 end
 
 M.recreate = function(wrapper_win, buf, width_override, col_override, row_override, height_override, layout)
-	layout = layout or "sidebar"
+	layout = layout or "menu"
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
 	local row = row_override or (wrapper_conf.height + ROW_OFFSET[layout])
 	local col = col_override or wrapper_conf.width
 	local width = width_override or wrapper_conf.width
-	local height = height_override or CONTENT_LINES[layout]
+	local height = height_override or CONTENT_HEIGHT[layout]
 
 	local config = {
 		relative = "win",
@@ -85,7 +85,7 @@ M.update = function(buf, keys, count, wrapper_width, layout, mode)
 	if not keys then
 		return
 	end
-	layout = layout or "sidebar"
+	layout = layout or "menu"
 	local sep = INDENT .. string.rep("─", math.max(0, wrapper_width - #INDENT - 1)) .. " "
 	local line_specs
 	if layout == "landing" then
@@ -100,7 +100,7 @@ M.update = function(buf, keys, count, wrapper_width, layout, mode)
 				{ text = fmt_hint(keys.poppy_action, "Toggle Off"), hl = nil },
 			},
 		}
-	elseif mode == "active_sidebar" or mode == "active_focused" then
+	elseif mode == "active_menu" or mode == "active_focused" then
 		line_specs = {
 			{
 				{ text = sep, hl = nil },

@@ -1,11 +1,6 @@
 local M = {}
-local HEIGHT = 3
 local style = require("poppy.core.ui.style")
 local namespace = vim.api.nvim_create_namespace("poppy_header_panel")
-
-M.get_header_lines = function(opts)
-	return (opts and opts.title_header ~= false) and HEIGHT or 0
-end
 
 M.create = function(wrapper_win, width_override, col_override)
 	local buf = vim.api.nvim_create_buf(false, true)

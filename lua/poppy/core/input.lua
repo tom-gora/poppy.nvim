@@ -6,7 +6,7 @@ M.setup_global = function(keys)
 	end, { desc = "Poppy: Toggle UI" })
 end
 
-M.setup_sidebar = function(buf, keys)
+M.setup_menu = function(buf, keys)
 	vim.keymap.set({ "n", "t" }, keys.select, function()
 		local session = require("poppy.core.session")
 		if vim.v.count > 0 then

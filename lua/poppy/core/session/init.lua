@@ -8,7 +8,7 @@ local header_panel = require("poppy.core.ui.header_panel")
 local content = require("poppy.core.ui.content")
 local input = require("poppy.core.input")
 local util = require("poppy.core.util")
-local geometry = require("poppy.core.geometry")
+local geometry = require("poppy.core.ui.geometry")
 
 local function reset_state()
 	return {
@@ -19,18 +19,17 @@ local function reset_state()
 		current_poppy_name = nil,
 		is_landing = false,
 		menu_focused = false,
-		_suppress_watch = false,
 		hints_win = nil,
 		hints_buf = nil,
 		list_win = nil,
 		list_buf = nil,
 		header_win = nil,
 		header_buf = nil,
-		sw = 25,
+		mw = 25,
 		hidden = false,
 		autohidden = false,
-		hint_lines = 1,
-		header_lines = 0,
+		hint_height = 1,
+		header_height = 0,
 		autohide_hint_win = nil,
 		autohide_hint_buf = nil,
 		poppies = {},
@@ -68,23 +67,23 @@ local _landing_view_width
 local _recover
 local _watch_content_window
 
-_watch_content_window = function(win_id, sidebars_width)
+_watch_content_window = function(win_id, menu_width)
 	if not win_id then
 		return
 	end
-	local sw = sidebars_width or 25
+	local mw = menu_width or 25
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(win_id),
 		once = true,
 		group = vim.api.nvim_create_augroup("poppy_ui", { clear = false }),
 		callback = function()
-			if not util.is_open(state.wrapper_win) or state._suppress_watch then
+			if not util.is_open(state.wrapper_win) then
 				return
 			end
-			local c_win, c_buf = content.create(state.wrapper_win, sw)
+			local c_win, c_buf = content.create(state.wrapper_win, mw)
 			state.content_win = c_win
 			state.content_buf = c_buf
-			_watch_content_window(c_win, sw)
+			_watch_content_window(c_win, mw)
 			if state.current_poppy_name then
 				M.kill_current()
 			else
@@ -110,10 +109,10 @@ local refresh = function(sorted_poppies)
 	if panels.is_autohidden() or panels.is_hidden() then
 		return
 	end
-	local sw = (state.opts and state.opts.sidebar_width) or 25
+	local mw = (state.opts and state.opts.menu_width) or 25
 	list_panel.update(panels.get_list_buf(), sorted_poppies, M.poppies, state.opts and state.opts.icons)
-	local mode = state.menu_focused and "active_focused" or "active_sidebar"
-	hints_panel.update(panels.get_hints_buf(), state.opts and state.opts.keys, #sorted_poppies, sw, "sidebar", mode)
+	local mode = state.menu_focused and "active_focused" or "active_menu"
+	hints_panel.update(panels.get_hints_buf(), state.opts and state.opts.keys, #sorted_poppies, mw, "menu", mode)
 end
 
 local _active_width = function()
@@ -134,8 +133,8 @@ M.open = function(poppy_name)
 	local last_poppy = state.current_poppy_name
 
 	if poppy_name or (last_poppy and M.poppies[last_poppy]) then
-		local sw = (state.opts and state.opts.sidebar_width) or 25
-		local hdr = header_panel.get_header_lines(state.opts)
+		local mw = (state.opts and state.opts.menu_width) or 25
+		local hdr = geometry.get_header_height(state.opts)
 		local win, wbuf
 		if state.wrapper_buf and vim.api.nvim_buf_is_valid(state.wrapper_buf) then
 			wbuf = state.wrapper_buf
@@ -144,9 +143,9 @@ M.open = function(poppy_name)
 			win, wbuf = wrapper.create(state.opts)
 			state.wrapper_buf = wbuf
 		end
-		local c_win, c_buf = content.create(win, sw)
-		panels.create(win, sw, 4, hdr)
-		_watch_content_window(c_win, sw)
+		local c_win, c_buf = content.create(win, mw)
+		panels.create(win, mw, 4, hdr)
+		_watch_content_window(c_win, mw)
 
 		state.wrapper_win = win
 		state.content_win = c_win
@@ -160,7 +159,7 @@ M.open = function(poppy_name)
 			M.switch(last_poppy)
 		end
 
-		input.setup_sidebar(panels.get_list_buf(), state.opts and state.opts.keys)
+		input.setup_menu(panels.get_list_buf(), state.opts and state.opts.keys)
 	else
 		if not _landing_view_width then
 			_landing_view_width = util.compute_landing_view_width(state.opts, M.poppies)
@@ -173,7 +172,7 @@ M.open = function(poppy_name)
 			win, wbuf = wrapper.create(state.opts, _landing_view_width)
 			state.wrapper_buf = wbuf
 		end
-		panels.create_landing(win, header_panel.get_header_lines(state.opts))
+		panels.create_landing(win, geometry.get_header_height(state.opts))
 		state.wrapper_win = win
 		state.content_win = nil
 		state.content_buf = nil
@@ -182,7 +181,7 @@ M.open = function(poppy_name)
 
 		local list_buf = panels.get_list_buf()
 		vim.bo[list_buf].filetype = "poppy_menu"
-		input.setup_sidebar(list_buf, state.opts and state.opts.keys)
+		input.setup_menu(list_buf, state.opts and state.opts.keys)
 		local list_win = panels.get_list_win()
 		if list_win and vim.api.nvim_win_is_valid(list_win) then
 			vim.api.nvim_set_current_win(list_win)
@@ -222,13 +221,13 @@ M.toggle_menu = function()
 	else
 		state.menu_focused = not state.menu_focused
 		if state.menu_focused then
-			panels.focus_sidebar()
+			panels.focus_menu()
 			local list_win = panels.get_list_win()
 			if list_win and vim.api.nvim_win_is_valid(list_win) then
 				vim.api.nvim_set_current_win(list_win)
 			end
 		else
-			panels.unfocus_sidebar()
+			panels.unfocus_menu()
 			if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
 				vim.api.nvim_set_current_win(state.content_win)
 			end
@@ -254,7 +253,7 @@ M.exit_menu = function()
 				hints_panel.create_bottom_right(state.content_win, state.opts.keys)
 		end
 	else
-		panels.unfocus_sidebar()
+		panels.unfocus_menu()
 	end
 	refresh(M.poppies)
 	if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
@@ -286,7 +285,7 @@ M.switch = function(poppy_name)
 
 	if state.is_landing then
 		panels.destroy()
-		local sw = (state.opts and state.opts.sidebar_width) or 25
+		local mw = (state.opts and state.opts.menu_width) or 25
 		local wc = vim.api.nvim_win_get_config(state.wrapper_win)
 		local full_width = _active_width()
 		vim.api.nvim_win_set_config(state.wrapper_win, {
@@ -296,14 +295,14 @@ M.switch = function(poppy_name)
 			col = math.floor((vim.o.columns - full_width) / 2),
 			row = wc.row,
 		})
-		local hdr = header_panel.get_header_lines(state.opts)
-		local c_win, c_buf = content.create(state.wrapper_win, sw)
-		panels.create(state.wrapper_win, sw, 4, hdr)
-		_watch_content_window(c_win, sw)
+		local hdr = geometry.get_header_height(state.opts)
+		local c_win, c_buf = content.create(state.wrapper_win, mw)
+		panels.create(state.wrapper_win, mw, 4, hdr)
+		_watch_content_window(c_win, mw)
 		state.content_win = c_win
 		state.content_buf = c_buf
 		state.is_landing = false
-		input.setup_sidebar(panels.get_list_buf(), state.opts and state.opts.keys)
+		input.setup_menu(panels.get_list_buf(), state.opts and state.opts.keys)
 	end
 
 	local poppy_opts = state.opts.poppies_resolved[poppy_name]
@@ -327,7 +326,7 @@ M.switch = function(poppy_name)
 				hints_panel.create_bottom_right(state.content_win, state.opts.keys)
 		end
 	else
-		panels.unfocus_sidebar()
+		panels.unfocus_menu()
 	end
 
 	refresh(M.poppies)
@@ -445,13 +444,17 @@ _recover = function()
 			end
 			state.autohide_hint_win = nil
 			state.autohide_hint_buf = nil
-			state._suppress_watch = true
+
+			-- Wipe per-window WinClosed watchers before closing `state.content_win`;
+			-- otherwise our own teardown would re-fire the watcher and try to
+			-- recreate / recover state we are about to throw away.
+			vim.api.nvim_create_augroup("poppy_ui", { clear = true })
+
 			if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
 				vim.api.nvim_win_close(state.content_win, true)
 			end
 			state.content_win = nil
 			state.content_buf = nil
-			state._suppress_watch = false
 
 			if not _landing_view_width then
 				_landing_view_width = util.compute_landing_view_width(state.opts, M.poppies)
@@ -464,12 +467,12 @@ _recover = function()
 				col = math.floor((vim.o.columns - _landing_view_width) / 2),
 				row = wc.row,
 			})
-			panels.create_landing(state.wrapper_win, header_panel.get_header_lines(state.opts))
+			panels.create_landing(state.wrapper_win, geometry.get_header_height(state.opts))
 			state.is_landing = true
 
 			local list_buf = panels.get_list_buf()
 			vim.bo[list_buf].filetype = "poppy_menu"
-			input.setup_sidebar(list_buf, state.opts and state.opts.keys)
+			input.setup_menu(list_buf, state.opts and state.opts.keys)
 			refresh(M.poppies)
 
 			local list_win = panels.get_list_win()
@@ -499,13 +502,16 @@ local cleanup = function()
 
 	panels.destroy()
 
-	state._suppress_watch = true
+	-- Wipe per-window WinClosed watchers before closing windows; otherwise
+	-- our own cleanup would re-fire the watchers and trigger content
+	-- recreation / kill_current / _recover.
+	vim.api.nvim_create_augroup("poppy_ui", { clear = true })
+
 	for _, win in ipairs({ state.wrapper_win, state.content_win }) do
 		if win and vim.api.nvim_win_is_valid(win) then
 			vim.api.nvim_win_close(win, true)
 		end
 	end
-	state._suppress_watch = false
 
 	local has_running_popies = next(M.poppies) ~= nil
 	local buffers = { state.content_buf }

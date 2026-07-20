@@ -1,6 +1,6 @@
 local M = {}
 local style = require("poppy.core.ui.style")
-local geometry = require("poppy.core.geometry")
+local geometry = require("poppy.core.ui.geometry")
 
 local open_with = function(buf, poppy_opts, width_override)
 	local width, height, row = geometry.compute_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override)

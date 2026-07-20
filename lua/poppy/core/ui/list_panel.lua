@@ -1,7 +1,7 @@
 local M = {}
 local style = require("poppy.core.ui.style")
 local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
-local sb_width = 25
+local mv = 25
 
 local sign_group = "poppy_list"
 
@@ -17,9 +17,9 @@ local pick_sign = function(dot, cat, is_active, is_hidden)
 	return prefix .. (is_hidden and "H" or "A")
 end
 
-M.create = function(wrapper_win, width, focusable, hint_lines, row_override)
+M.create = function(wrapper_win, width, focusable, hint_height, row_override)
 	if width then
-		sb_width = width
+		mv = width
 	end
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
@@ -29,24 +29,24 @@ M.create = function(wrapper_win, width, focusable, hint_lines, row_override)
 			vim.cmd("stopinsert")
 		end,
 	})
-	return M.recreate(wrapper_win, buf, width, focusable, hint_lines, row_override), buf
+	return M.recreate(wrapper_win, buf, width, focusable, hint_height, row_override), buf
 end
 
-M.recreate = function(wrapper_win, buf, width, focusable, hint_lines, row_override)
+M.recreate = function(wrapper_win, buf, width, focusable, hint_height, row_override)
 	if width then
-		sb_width = width
+		mv = width
 	end
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local h = math.max(1, (hint_lines and (wrapper_conf.height - hint_lines) or (wrapper_conf.height - 1)))
+	local h = math.max(1, (hint_height and (wrapper_conf.height - hint_height) or (wrapper_conf.height - 1)))
 	if row_override then
 		h = math.max(1, h - row_override)
 	end
 
 	local config = {
 		relative = "win",
-		width = sb_width,
+		width = mv,
 		height = h,
-		col = wrapper_conf.width - sb_width,
+		col = wrapper_conf.width - mv,
 		row = row_override or 0,
 		style = "minimal",
 		border = "none",
@@ -114,7 +114,7 @@ M.update = function(buf, sorted_poppies, poppies, icons)
 		local is_active = ps and ps.active
 		local dot = (is_active or is_hidden) and "•" or " "
 		local icon_w = vim.fn.strdisplaywidth(icon)
-		local title_max = sb_width - 1 - icon_w - 1 - idx_width - 1
+		local title_max = mv - 1 - icon_w - 1 - idx_width - 1
 		local title = trim_title(raw_title, title_max)
 		local line = string.format("%s %" .. idx_width .. "d %s", icon, display_idx, title)
 		table.insert(lines, line)
