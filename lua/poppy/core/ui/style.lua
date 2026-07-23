@@ -117,19 +117,45 @@ M.setup = function()
 end
 
 M.apply_hints_panel_style = function(win)
-	vim.api.nvim_set_option_value("winhl", "Normal:NormalPoppyUIPanel", { win = win })
+	vim.schedule(function()
+		if not vim.api.nvim_win_is_valid(win) then
+			return
+		end
+		vim.api.nvim_set_option_value("winhl", "Normal:NormalPoppyUIPanel", { scope = "local", win = win })
+	end)
 end
 
 M.apply_list_panel_style = function(win)
-	vim.api.nvim_set_option_value("winhl", "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel", { win = win })
+	vim.schedule(function()
+		if not vim.api.nvim_win_is_valid(win) then
+			return
+		end
+		vim.api.nvim_set_option_value(
+			"winhl",
+			"Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel",
+			{ scope = "local", win = win }
+		)
+	end)
 end
 
-M.apply_content_style = function(win)
-	vim.api.nvim_set_option_value("winhl", "Normal:NormalPoppyContent", { win = win })
+M.apply_content_style = function(win, ext_config_opts)
+	vim.schedule(function()
+		vim.api.nvim_set_option_value(
+			"winhl",
+			"Normal:NormalPoppyContent,SignColumn:NormalPoppyContent",
+			{ scope = "local", win = win }
+		)
+
+		vim.api.nvim_set_option_value("signcolumn", "yes", { win = win })
+		vim.api.nvim_set_option_value("number", ext_config_opts.number, { win = win })
+		vim.api.nvim_set_option_value("relativenumber", ext_config_opts.relativenumber, { win = win })
+	end)
 end
 
 M.apply_border_style = function(win)
-	vim.api.nvim_set_option_value("winhl", "FloatBorder:PoppyBorder", { win = win })
+	vim.schedule(function()
+		vim.api.nvim_set_option_value("winhl", "FloatBorder:PoppyBorder", { scope = "local", win = win })
+	end)
 end
 
 return M

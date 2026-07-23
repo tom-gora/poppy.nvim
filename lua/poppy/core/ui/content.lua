@@ -4,6 +4,8 @@ local style = require("poppy.core.ui.style")
 M.create = function(wrapper_win, list_panel_width)
 	local buf = vim.api.nvim_create_buf(false, true)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
+	local ext_nu = vim.o.number
+	local ext_rnu = vim.o.relativenumber
 
 	local config = {
 		relative = "win",
@@ -19,7 +21,8 @@ M.create = function(wrapper_win, list_panel_width)
 	}
 
 	local win = vim.api.nvim_open_win(buf, true, config)
-	style.apply_content_style(win)
+
+	style.apply_content_style(win, { number = ext_nu, relativenumber = ext_rnu })
 	return win, buf
 end
 
