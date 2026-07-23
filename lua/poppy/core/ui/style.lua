@@ -21,7 +21,7 @@ end
 -- abort the plugin. The signs are re-defined on every call to M.setup
 -- (initial setup + every ColorScheme event), so sign text colors stay
 -- in sync with the just-redefined highlight groups.
-local function define_poppy_signs()
+local define_poppy_signs = function()
 	local signs = {
 		{ name = "PoppyDotFileA", text = "•", hl = "PoppyFile" },
 		{ name = "PoppyDotFileH", text = "•", hl = "PoppyFileHidden" },

@@ -38,7 +38,7 @@ local default_opts = {
 -- Build a fresh, sanitized record for a poppy. Reads from the user's raw
 -- poppy config (which is left untouched); never mutates the user's input.
 -- Returns nil on error (and emits a notify).
-local function resolve_poppy(name, poppy)
+local resolve_poppy = function(name, poppy)
 	if not poppy then
 		return nil
 	end

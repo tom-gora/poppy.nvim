@@ -10,7 +10,7 @@ local input = require("poppy.core.input")
 local util = require("poppy.core.util")
 local geometry = require("poppy.core.ui.geometry")
 
-local function reset_state()
+local reset_state = function()
 	return {
 		wrapper_win = nil,
 		wrapper_buf = nil,
@@ -38,7 +38,7 @@ end
 local state = reset_state()
 M.poppies = state.poppies
 
-local function init_state()
+local init_state = function()
 	local preserved_opts = state.opts
 	state = reset_state()
 	state.opts = preserved_opts
@@ -49,7 +49,7 @@ end
 -- cleanup) state.poppies becomes {}, leaving the list panel empty even though
 -- state.opts still has the user's poppy config. Copies sorted entries from
 -- state.opts.poppies back into M.poppies's array portion when needed.
-local function refresh_poppies_list()
+local refresh_poppies_list = function()
 	if #M.poppies == 0 and state.opts and state.opts.poppies and next(state.opts.poppies) then
 		local new_poppies = util.get_sorted_poppies(state.opts)
 		for i, v in ipairs(new_poppies) do
@@ -61,7 +61,7 @@ end
 -- Focus the sidebar list window and land the cursor on the line of the
 -- currently-active poppy (if any). Falls back to line 1 when no current
 -- poppy or when the name isn't found in M.poppies's array portion.
-local function focus_list_with_cursor()
+local focus_list_with_cursor = function()
 	local list_win = panels.get_list_win()
 	if not list_win or not vim.api.nvim_win_is_valid(list_win) then
 		return
@@ -620,7 +620,7 @@ M.setup = function(user_opts)
 	end
 
 	if state.opts and state.opts.auto_close_on_focus_lost then
-		vim.api.nvim_create_autocmd("WinLeave", {
+		vim.api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, {
 			group = "poppy_group",
 			callback = function()
 				if not util.is_open(state.wrapper_win) then
