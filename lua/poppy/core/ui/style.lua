@@ -65,10 +65,18 @@ M.setup = function()
 	local type_hl = vim.api.nvim_get_hl(0, { name = "Type" })
 	local string_hl = vim.api.nvim_get_hl(0, { name = "String" })
 	local func_hl = vim.api.nvim_get_hl(0, { name = "Function" })
+	local lnr = vim.api.nvim_get_hl(0, { name = "LineNr" })
+	local clnr = vim.api.nvim_get_hl(0, { name = "CursorLineNr" })
+	local lnra = vim.api.nvim_get_hl(0, { name = "LineNrAbove" })
+	local lnrb = vim.api.nvim_get_hl(0, { name = "LineNrBelow" })
 
 	vim.api.nvim_set_hl(0, "PoppyFile", { fg = type_hl.fg })
 	vim.api.nvim_set_hl(0, "PoppyExec", { fg = string_hl.fg })
 	vim.api.nvim_set_hl(0, "PoppyShell", { fg = func_hl.fg })
+	vim.api.nvim_set_hl(0, "PoppyLineNr", { fg = lnr.fg, bg = nf.bg })
+	vim.api.nvim_set_hl(0, "PoppyCursorLineNr", { fg = clnr.fg, bg = nf.bg })
+	vim.api.nvim_set_hl(0, "PoppyLineNrAbove", { fg = lnra.fg, bg = nf.bg })
+	vim.api.nvim_set_hl(0, "PoppyLineNrBelow", { fg = lnrb.fg, bg = nf.bg })
 
 	if type_hl.fg then
 		vim.api.nvim_set_hl(
@@ -140,12 +148,21 @@ end
 
 M.apply_content_style = function(win, ext_config_opts)
 	vim.schedule(function()
+		if not vim.api.nvim_win_is_valid(win) then
+			return
+		end
 		vim.api.nvim_set_option_value(
 			"winhl",
-			"Normal:NormalPoppyContent,SignColumn:NormalPoppyContent",
+			"Normal:NormalPoppyContent,SignColumn:NormalPoppyContent,LineNr:PoppyLineNr,LineNrAbove:PoppyLineNrAbove,LineNrBelow:PoppyLineNrBelow,CursorLineNr:PoppyCursorLineNr",
 			{ scope = "local", win = win }
 		)
 
+		local buf = vim.api.nvim_win_get_buf(win)
+		local buftype = vim.api.nvim_get_option_value("buftype", { buf = buf })
+		if buftype == "terminal" then
+			return
+		end
+		vim.api.nvim_set_option_value("cursorline", true, { win = win })
 		vim.api.nvim_set_option_value("signcolumn", "yes", { win = win })
 		vim.api.nvim_set_option_value("number", ext_config_opts.number, { win = win })
 		vim.api.nvim_set_option_value("relativenumber", ext_config_opts.relativenumber, { win = win })
@@ -153,6 +170,9 @@ M.apply_content_style = function(win, ext_config_opts)
 end
 
 M.apply_border_style = function(win)
+	if not vim.api.nvim_win_is_valid(win) then
+		return
+	end
 	vim.schedule(function()
 		vim.api.nvim_set_option_value("winhl", "FloatBorder:PoppyBorder", { scope = "local", win = win })
 	end)

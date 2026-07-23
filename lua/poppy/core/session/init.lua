@@ -59,6 +59,27 @@ local function refresh_poppies_list()
 	end
 end
 
+-- Focus the sidebar list window and land the cursor on the line of the
+-- currently-active poppy (if any). Falls back to line 1 when no current
+-- poppy or when the name isn't found in M.poppies's array portion.
+local function focus_list_with_cursor()
+	local list_win = panels.get_list_win()
+	if not list_win or not vim.api.nvim_win_is_valid(list_win) then
+		return
+	end
+	vim.api.nvim_set_current_win(list_win)
+	if not state.current_poppy_name then
+		return
+	end
+	for i = 1, #M.poppies do
+		local entry = M.poppies[i]
+		if type(entry) == "table" and entry.name == state.current_poppy_name then
+			pcall(vim.api.nvim_win_set_cursor, list_win, { i, 0 })
+			break
+		end
+	end
+end
+
 -- Landing width is a session-persistent derived constant.
 -- Lives outside state; computed lazily and never reset.
 local _landing_view_width
@@ -206,10 +227,7 @@ M.toggle_menu = function()
 		state.autohide_hint_buf = nil
 		panels.show_for_autohide(state.content_win)
 		state.menu_focused = true
-		local list_win = panels.get_list_win()
-		if list_win and vim.api.nvim_win_is_valid(list_win) then
-			vim.api.nvim_set_current_win(list_win)
-		end
+		focus_list_with_cursor()
 		refresh(M.poppies)
 	elseif panels.is_hidden() then
 		panels.show(state.content_win)
@@ -222,10 +240,7 @@ M.toggle_menu = function()
 		state.menu_focused = not state.menu_focused
 		if state.menu_focused then
 			panels.focus_menu()
-			local list_win = panels.get_list_win()
-			if list_win and vim.api.nvim_win_is_valid(list_win) then
-				vim.api.nvim_set_current_win(list_win)
-			end
+			focus_list_with_cursor()
 		else
 			panels.unfocus_menu()
 			if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
