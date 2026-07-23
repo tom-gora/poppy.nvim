@@ -27,11 +27,10 @@ local function reset_state()
 		header_buf = nil,
 		mw = 25,
 		hidden = false,
-		autohidden = false,
 		hint_height = 1,
 		header_height = 0,
-		autohide_hint_win = nil,
-		autohide_hint_buf = nil,
+		menu_hint_win = nil,
+		menu_hint_buf = nil,
 		poppies = {},
 	}
 end
@@ -127,7 +126,7 @@ local refresh = function(sorted_poppies)
 		)
 		return
 	end
-	if panels.is_autohidden() or panels.is_hidden() then
+	if panels.is_hidden() then
 		return
 	end
 	local mw = (state.opts and state.opts.menu_width) or 25
@@ -219,13 +218,13 @@ M.toggle_menu = function()
 		return
 	end
 
-	if panels.is_autohidden() then
-		if state.autohide_hint_win and vim.api.nvim_win_is_valid(state.autohide_hint_win) then
-			vim.api.nvim_win_close(state.autohide_hint_win, true)
+	if panels.is_hidden() and state.menu_hint_buf and state.menu_hint_win then
+		if state.menu_hint_win and vim.api.nvim_win_is_valid(state.menu_hint_win) then
+			vim.api.nvim_win_close(state.menu_hint_win, true)
 		end
-		state.autohide_hint_win = nil
-		state.autohide_hint_buf = nil
-		panels.show_for_autohide(state.content_win)
+		state.menu_hint_win = nil
+		state.menu_hint_buf = nil
+		panels.show_menu(state.content_win)
 		state.menu_focused = true
 		focus_list_with_cursor()
 		refresh(M.poppies)
@@ -257,14 +256,14 @@ M.exit_menu = function()
 	end
 	state.menu_focused = false
 	if state.opts and state.opts.menu_autohide then
-		panels.hide_for_autohide(state.content_win)
-		if state.autohide_hint_win and vim.api.nvim_win_is_valid(state.autohide_hint_win) then
-			vim.api.nvim_win_close(state.autohide_hint_win, true)
+		panels.hide_menu(state.content_win)
+		if state.menu_hint_win and vim.api.nvim_win_is_valid(state.menu_hint_win) then
+			vim.api.nvim_win_close(state.menu_hint_win, true)
 		end
-		state.autohide_hint_win = nil
-		state.autohide_hint_buf = nil
+		state.menu_hint_win = nil
+		state.menu_hint_buf = nil
 		if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
-			state.autohide_hint_win, state.autohide_hint_buf =
+			state.menu_hint_win, state.menu_hint_buf =
 				hints_panel.create_bottom_right(state.content_win, state.opts.keys)
 		end
 	else
@@ -330,14 +329,14 @@ M.switch = function(poppy_name)
 
 	state.menu_focused = false
 	if state.opts.menu_autohide then
-		panels.hide_for_autohide(state.content_win)
-		if state.autohide_hint_win and vim.api.nvim_win_is_valid(state.autohide_hint_win) then
-			vim.api.nvim_win_close(state.autohide_hint_win, true)
+		panels.hide_menu(state.content_win)
+		if state.menu_hint_win and vim.api.nvim_win_is_valid(state.menu_hint_win) then
+			vim.api.nvim_win_close(state.menu_hint_win, true)
 		end
-		state.autohide_hint_win = nil
-		state.autohide_hint_buf = nil
+		state.menu_hint_win = nil
+		state.menu_hint_buf = nil
 		if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
-			state.autohide_hint_win, state.autohide_hint_buf =
+			state.menu_hint_win, state.menu_hint_buf =
 				hints_panel.create_bottom_right(state.content_win, state.opts.keys)
 		end
 	else
@@ -454,11 +453,11 @@ _recover = function()
 			M.switch(fallback_name)
 		else
 			panels.destroy()
-			if state.autohide_hint_win then
-				vim.api.nvim_win_close(state.autohide_hint_win, true)
+			if state.menu_hint_win then
+				vim.api.nvim_win_close(state.menu_hint_win, true)
 			end
-			state.autohide_hint_win = nil
-			state.autohide_hint_buf = nil
+			state.menu_hint_win = nil
+			state.menu_hint_buf = nil
 
 			-- Wipe per-window WinClosed watchers before closing `state.content_win`;
 			-- otherwise our own teardown would re-fire the watcher and try to
@@ -508,12 +507,12 @@ local cleanup = function()
 		end
 	end
 
-	if state.autohide_hint_win and vim.api.nvim_win_is_valid(state.autohide_hint_win) then
-		vim.api.nvim_win_close(state.autohide_hint_win, true)
+	if state.menu_hint_win and vim.api.nvim_win_is_valid(state.menu_hint_win) then
+		vim.api.nvim_win_close(state.menu_hint_win, true)
 	end
-	local hint_buf = state.autohide_hint_buf
-	state.autohide_hint_win = nil
-	state.autohide_hint_buf = nil
+	local hint_buf = state.menu_hint_buf
+	state.menu_hint_win = nil
+	state.menu_hint_buf = nil
 
 	panels.destroy()
 

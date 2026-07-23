@@ -13,7 +13,6 @@ local state = {
 	header_buf = nil,
 	mw = 25,
 	hidden = false,
-	autohidden = false,
 	hint_height = 1,
 	header_height = 0,
 }
@@ -102,7 +101,6 @@ M.create = function(wrapper_win, mw, hint_height, header_height)
 	state.header_buf = header_buf
 	state.mw = mw
 	state.hidden = false
-	state.autohidden = false
 	state.hint_height = hl
 	state.header_height = hdr
 
@@ -148,7 +146,6 @@ M.create_landing = function(wrapper_win, header_height)
 	state.header_buf = header_buf
 	state.mw = wc.width
 	state.hidden = false
-	state.autohidden = false
 	state.hint_height = 1
 	state.header_height = hdr
 
@@ -189,21 +186,21 @@ local toggle = function(content_win)
 end
 
 M.focus_menu = function()
-	if state.autohidden or state.hidden then
+	if state.hidden then
 		return
 	end
 	rebuild(3, true)
 end
 
 M.unfocus_menu = function()
-	if state.autohidden or state.hidden then
+	if state.hidden then
 		return
 	end
 	rebuild(4, false)
 end
 
-M.hide_for_autohide = function(content_win)
-	if state.hidden or state.autohidden then
+M.hide_menu = function(content_win)
+	if state.hidden then
 		return
 	end
 	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
@@ -213,16 +210,16 @@ M.hide_for_autohide = function(content_win)
 	state.hints_win = nil
 	state.list_win = nil
 	state.header_win = nil
-	state.autohidden = true
+	state.hidden = true
 	resize_content(content_win, wc.width - 2, wc.height - 2, 0)
 end
 
-M.show_for_autohide = function(content_win)
-	if not state.autohidden then
+M.show_menu = function(content_win)
+	if not state.hidden then
 		return
 	end
 	rebuild(3, true)
-	state.autohidden = false
+	state.hidden = false
 	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
 	resize_content(content_win, wc.width - state.mw - 2, wc.height - 2)
 end
@@ -238,9 +235,6 @@ end
 
 M.is_hidden = function()
 	return state.hidden
-end
-M.is_autohidden = function()
-	return state.autohidden
 end
 M.get_hints_buf = function()
 	return state.hints_buf
