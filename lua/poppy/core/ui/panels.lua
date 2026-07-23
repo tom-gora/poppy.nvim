@@ -152,39 +152,6 @@ M.create_landing = function(wrapper_win, header_height)
 	return { hints_win = hints_win, hints_buf = hints_buf, list_win = list_win, list_buf = list_buf }
 end
 
-local hide = function(content_win)
-	if state.hidden then
-		return
-	end
-	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
-	close_panel(state.hints_win)
-	close_panel(state.list_win)
-	close_panel(state.header_win)
-	state.hints_win = nil
-	state.list_win = nil
-	state.header_win = nil
-	state.hidden = true
-	resize_content(content_win, wc.width - 2, wc.height - 2, 0)
-end
-
-local show = function(content_win)
-	if not state.hidden then
-		return
-	end
-	rebuild(4, false)
-	state.hidden = false
-	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
-	resize_content(content_win, wc.width - state.mw - 2, wc.height - 2)
-end
-
-local toggle = function(content_win)
-	if state.hidden then
-		show(content_win)
-	else
-		hide(content_win)
-	end
-end
-
 M.focus_menu = function()
 	if state.hidden then
 		return

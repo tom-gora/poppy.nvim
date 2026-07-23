@@ -218,7 +218,7 @@ M.toggle_menu = function()
 		return
 	end
 
-	if panels.is_hidden() and state.menu_hint_buf and state.menu_hint_win then
+	if panels.is_hidden() then
 		if state.menu_hint_win and vim.api.nvim_win_is_valid(state.menu_hint_win) then
 			vim.api.nvim_win_close(state.menu_hint_win, true)
 		end
@@ -228,13 +228,6 @@ M.toggle_menu = function()
 		state.menu_focused = true
 		focus_list_with_cursor()
 		refresh(M.poppies)
-	elseif panels.is_hidden() then
-		panels.show(state.content_win)
-		state.menu_focused = false
-		refresh(M.poppies)
-		if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
-			vim.api.nvim_set_current_win(state.content_win)
-		end
 	else
 		state.menu_focused = not state.menu_focused
 		if state.menu_focused then
