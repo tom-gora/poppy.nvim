@@ -59,6 +59,7 @@ M.recreate = function(wrapper_win, buf, width, focusable, hint_height, row_overr
 	vim.wo[win].signcolumn = "yes:1"
 	vim.api.nvim_set_option_value("statuscolumn", "%s", { win = win })
 	style.apply_list_panel_style(win)
+	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 	return win
 end
 

@@ -619,6 +619,41 @@ M.setup = function(user_opts)
 		})
 	end
 
+	if state.opts and state.opts.auto_close_on_focus_lost then
+		vim.api.nvim_create_autocmd("WinLeave", {
+			group = "poppy_group",
+			callback = function()
+				if not util.is_open(state.wrapper_win) then
+					return
+				end
+				-- Defer until after the focus transition completes; without
+				-- this, nvim_get_current_win() can still report the old window.
+				vim.schedule(function()
+					if not util.is_open(state.wrapper_win) then
+						return
+					end
+					local cur = vim.api.nvim_get_current_win()
+					if not vim.api.nvim_win_is_valid(cur) then
+						return
+					end
+					-- Internal hop (content <-> list, etc.): destination is
+					-- still tagged as a poppy window. Stay open.
+					local ok, val = pcall(vim.api.nvim_win_get_var, cur, "poppy_ui_window")
+					if ok and val == true then
+						return
+					end
+					-- Cmdline (`:`) is exempt: the user may be typing a
+					-- `:Poppy` subcommand or any ordinary command while
+					-- still wanting the UI to survive.
+					if vim.fn.win_gettype(cur) == "command" then
+						return
+					end
+					M.toggle()
+				end)
+			end,
+		})
+	end
+
 	vim.api.nvim_create_user_command("Poppy", function(cmd_opts)
 		local args = cmd_opts.args
 		if args == "" or args == "toggle" then

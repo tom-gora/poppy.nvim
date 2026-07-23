@@ -51,6 +51,8 @@ M.create_bottom_right = function(parent_win, keys)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, { text })
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
+	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
+
 	return win, buf
 end
 
@@ -78,6 +80,7 @@ M.recreate = function(wrapper_win, buf, width_override, col_override, row_overri
 
 	local win = vim.api.nvim_open_win(buf, false, config)
 	style.apply_hints_panel_style(win)
+	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 	return win
 end
 

@@ -32,6 +32,7 @@ require("poppy").setup({
     },
     menu_autohide  = false,     -- On true, the menu auto-hides after selecting a poppy or after the "updatetime" passed via "CursorHold" aurocmd. Else, sidebar is always visible
     title_header   = true,      -- On false, the "P◉PPY.NVIM" header above the list isn't rendered
+    auto_close_on_focus_lost = true, -- Close the manager when focus leaves all poppy windows (e.g. opening a picker, `<C-w>w`, tmux nav). The `:` cmdline is exempted so `:Poppy` subcommands still work.
     sidebar_width  = 25,        -- Width of the side menu panel
     win_height     = 0.75,      -- Entire UI height: ratio (0.2–1.0), absolute pixels (>1), or function
     win_width      = 0.8,       -- Same but witdth

@@ -28,6 +28,7 @@ M.recreate = function(wrapper_win, buf, width_override, col_override)
 
 	local win = vim.api.nvim_open_win(buf, false, config)
 	style.apply_list_panel_style(win)
+	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 
 	local title = "P◉PPY.NVIM"
 	local title_col = math.max(0, math.ceil((width - #title) / 2))

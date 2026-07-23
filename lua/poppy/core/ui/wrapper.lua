@@ -17,6 +17,7 @@ local open_with = function(buf, poppy_opts, width_override)
 	}
 	local win = vim.api.nvim_open_win(buf, false, config)
 	style.apply_border_style(win)
+	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 	return win
 end
 
