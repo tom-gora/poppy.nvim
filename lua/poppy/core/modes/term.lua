@@ -1,5 +1,6 @@
 local M = {}
 local session = require("poppy.core.session")
+local poppy_state = require("poppy.core.session.poppy_state")
 local util = require("poppy.core.util")
 
 M.run = function(poppy_name, opts, parent_win)
@@ -8,7 +9,7 @@ M.run = function(poppy_name, opts, parent_win)
 		return
 	end
 
-	local p_state = session.poppies[poppy_name]
+	local p_state = poppy_state.runtime_get(poppy_name)
 	local bufnr = util.term_get_or_create_buffer(poppy_name, opts, p_state)
 	if not bufnr then
 		return
@@ -23,9 +24,9 @@ M.run = function(poppy_name, opts, parent_win)
 						vim.api.nvim_buf_delete(bufnr, { force = true })
 					end
 					if util.session_is_open() and util.session_get_current_poppy_name() == poppy_name then
-						session.kill_current()
+						session.kill_active()
 					else
-						session.poppies[poppy_name] = nil
+						poppy_state.runtime_remove(poppy_name)
 					end
 				end,
 			})
@@ -34,8 +35,8 @@ M.run = function(poppy_name, opts, parent_win)
 
 	vim.api.nvim_win_set_buf(parent_win, bufnr)
 
-	session.poppies[poppy_name] =
-		{ active = true, hidden = false, bufnr = bufnr, win = parent_win, title = poppy_opts.title }
+	poppy_state.runtime_set(poppy_name,
+		{ active = true, hidden = false, bufnr = bufnr, win = parent_win, title = poppy_opts.title })
 end
 
 return M

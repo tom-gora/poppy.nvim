@@ -1,20 +1,16 @@
 local M = {}
 
--- Late-bound reference to the session module. session.setup() wires this
--- via util.attach_session(M). Avoids a top-level require cycle
--- (session already requires util at module load time).
-local _session = nil
-
-M.attach_session = function(session)
-	_session = session
-end
+-- Session-state accessors. Read directly from the shared state record
+-- (poppy.core.session.state). No late binding required: state.lua has
+-- no deps and is safe for util to import at module load time.
+local state = require("poppy.core.session.state")
 
 M.session_is_open = function()
-	return _session ~= nil and _session.is_open() or false
+	return state.wrapper_win ~= nil and vim.api.nvim_win_is_valid(state.wrapper_win) or false
 end
 
 M.session_get_current_poppy_name = function()
-	return _session ~= nil and _session.get_current_poppy_name() or nil
+	return state.current_poppy_name
 end
 
 M.term_spawn = function(command, opts)

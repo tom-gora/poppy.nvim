@@ -1,5 +1,5 @@
 local M = {}
-local session = require("poppy.core.session")
+local poppy_state = require("poppy.core.session.poppy_state")
 
 M.run = function(poppy_name, opts, parent_win)
 	local poppy_opts = opts.poppies_resolved[poppy_name]
@@ -7,7 +7,7 @@ M.run = function(poppy_name, opts, parent_win)
 		return
 	end
 
-	local p_state = session.poppies[poppy_name]
+	local p_state = poppy_state.runtime_get(poppy_name)
 	local bufnr
 	if p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
 		bufnr = p_state.bufnr
@@ -33,9 +33,8 @@ M.run = function(poppy_name, opts, parent_win)
 
 	vim.api.nvim_win_set_buf(parent_win, bufnr)
 
-	session.poppies[poppy_name] =
-		{ active = true, hidden = false, bufnr = bufnr, win = parent_win, title = poppy_opts.title }
+	poppy_state.runtime_set(poppy_name,
+		{ active = true, hidden = false, bufnr = bufnr, win = parent_win, title = poppy_opts.title })
 end
 
 return M
-
