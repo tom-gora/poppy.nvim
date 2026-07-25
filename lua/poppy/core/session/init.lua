@@ -8,7 +8,10 @@ local header_panel = require("poppy.core.ui.header_panel")
 local content = require("poppy.core.ui.content")
 local input = require("poppy.core.input")
 local util = require("poppy.core.util")
-local geometry = require("poppy.core.ui.geometry")
+local layout = require("poppy.core.ui.layout")
+
+local group = vim.api.nvim_create_augroup("poppy_group", { clear = false })
+local watcher_group = vim.api.nvim_create_augroup("poppy_ui", { clear = false })
 
 local reset_state = function()
 	return {
@@ -95,7 +98,7 @@ _watch_content_window = function(win_id, menu_width)
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(win_id),
 		once = true,
-		group = vim.api.nvim_create_augroup("poppy_ui", { clear = false }),
+		group = watcher_group,
 		callback = function()
 			if not util.is_open(state.wrapper_win) then
 				return
@@ -136,7 +139,7 @@ local refresh = function(sorted_poppies)
 end
 
 local _active_width = function()
-	local width = geometry.compute_dimensions(state.opts, vim.o.columns, vim.o.lines)
+	local width = layout.compute_dimensions(state.opts, vim.o.columns, vim.o.lines)
 	return width
 end
 
@@ -150,11 +153,32 @@ M.open = function(poppy_name)
 
 	refresh_poppies_list()
 
+	if state.opts.exclusive_float then
+		vim.api.nvim_create_autocmd("WinEnter", {
+			group = group,
+			once = true,
+			callback = function()
+				vim.schedule(function()
+					for _, w in ipairs(vim.api.nvim_list_wins()) do
+						local _, val = pcall(vim.api.nvim_win_get_var, w, "poppy_ui_window")
+						if not vim.api.nvim_win_is_valid(w) or val == true then
+							goto continue
+						end
+						if vim.api.nvim_win_get_config(w).relative ~= "" then
+							vim.api.nvim_win_close(w, true)
+						end
+						::continue::
+					end
+				end)
+			end,
+		})
+	end
+
 	local last_poppy = state.current_poppy_name
 
 	if poppy_name or (last_poppy and M.poppies[last_poppy]) then
 		local mw = (state.opts and state.opts.menu_width) or 25
-		local hdr = geometry.get_header_height(state.opts)
+		local hdr = layout.get_header_height(state.opts)
 		local win, wbuf
 		if state.wrapper_buf and vim.api.nvim_buf_is_valid(state.wrapper_buf) then
 			wbuf = state.wrapper_buf
@@ -192,7 +216,7 @@ M.open = function(poppy_name)
 			win, wbuf = wrapper.create(state.opts, _landing_view_width)
 			state.wrapper_buf = wbuf
 		end
-		panels.create_landing(win, geometry.get_header_height(state.opts))
+		panels.create_landing(win, layout.get_header_height(state.opts))
 		state.wrapper_win = win
 		state.content_win = nil
 		state.content_buf = nil
@@ -302,7 +326,7 @@ M.switch = function(poppy_name)
 			col = math.floor((vim.o.columns - full_width) / 2),
 			row = wc.row,
 		})
-		local hdr = geometry.get_header_height(state.opts)
+		local hdr = layout.get_header_height(state.opts)
 		local c_win, c_buf = content.create(state.wrapper_win, mw)
 		panels.create(state.wrapper_win, mw, 4, hdr)
 		_watch_content_window(c_win, mw)
@@ -316,7 +340,7 @@ M.switch = function(poppy_name)
 	state.current_poppy_name = poppy_name
 
 	local mode = poppy_opts.mode
-	require("poppy.modes." .. mode).run(poppy_name, state.opts, state.content_win)
+	require("poppy.core.modes." .. mode).run(poppy_name, state.opts, state.content_win)
 
 	input.setup_content(vim.api.nvim_win_get_buf(state.content_win), state.opts and state.opts.keys)
 
@@ -474,7 +498,7 @@ _recover = function()
 				col = math.floor((vim.o.columns - _landing_view_width) / 2),
 				row = wc.row,
 			})
-			panels.create_landing(state.wrapper_win, geometry.get_header_height(state.opts))
+			panels.create_landing(state.wrapper_win, layout.get_header_height(state.opts))
 			state.is_landing = true
 
 			local list_buf = panels.get_list_buf()
@@ -592,10 +616,12 @@ M.setup = function(user_opts)
 
 	input.setup_global(state.opts and state.opts.keys)
 
-	vim.api.nvim_create_augroup("poppy_group", { clear = true })
 	vim.api.nvim_create_autocmd("BufUnload", {
-		group = "poppy_group",
+		group = group,
 		callback = function(ctx)
+			if not util.is_open(state.wrapper_win) then
+				return
+			end
 			local ok, poppy_name = pcall(vim.api.nvim_buf_get_var, ctx.buf, "poppy_popup")
 			if not ok or not poppy_name or not M.poppies[poppy_name] then
 				return
@@ -610,7 +636,7 @@ M.setup = function(user_opts)
 
 	if state.opts and state.opts.menu_autohide then
 		vim.api.nvim_create_autocmd("CursorHold", {
-			group = "poppy_group",
+			group = group,
 			callback = function()
 				if vim.bo.filetype == "poppy_menu" then
 					M.exit_menu()
@@ -619,9 +645,9 @@ M.setup = function(user_opts)
 		})
 	end
 
-	if state.opts and state.opts.auto_close_on_focus_lost then
+	if state.opts and state.opts.autoclose then
 		vim.api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, {
-			group = "poppy_group",
+			group = group,
 			callback = function()
 				if not util.is_open(state.wrapper_win) then
 					return
@@ -655,28 +681,52 @@ M.setup = function(user_opts)
 	end
 
 	vim.api.nvim_create_user_command("Poppy", function(cmd_opts)
-		local args = cmd_opts.args
-		if args == "" or args == "toggle" then
+		local fargs = cmd_opts.fargs
+		local sub = fargs[1]
+		if sub == nil or sub == "toggle" then
 			M.toggle()
-		elseif args == "close" then
+		elseif sub == "close" then
 			M.close()
-		elseif args == "menu" then
+		elseif sub == "menu" then
 			M.toggle_menu()
-		elseif args:sub(1, 5) == "open " then
-			M.open(args:sub(6))
+		elseif sub == "open" then
+			local name = table.concat(fargs, " ", 2)
+			M.open(name ~= "" and name or nil)
 		else
-			M.toggle()
+			vim.notify(
+				string.format(
+					"Poppy: unknown subcommand '%s' (valid: toggle, close, menu, open [<name>])",
+					tostring(sub)
+				),
+				vim.log.levels.WARN
+			)
 		end
 	end, {
-		nargs = "?",
-		complete = function(_, _, _)
-			local keys = { "toggle", "open ", "close", "menu" }
-			if state.opts and state.opts.poppies then
-				for k, _ in pairs(state.opts.poppies) do
-					table.insert(keys, "open " .. k)
+		nargs = "*",
+		complete = function(arg_lead, cmd_line, _)
+			local body = cmd_line:gsub("^%s*:?[Pp]oppy%s+", "")
+			local first_word = body:match("^(%S+)")
+			if first_word == "open" and body:find("%s") then
+				local names = {}
+				if state.opts and state.opts.poppies then
+					for k, _ in pairs(state.opts.poppies) do
+						if k:sub(1, #arg_lead) == arg_lead then
+							table.insert(names, k)
+						end
+					end
 				end
+				return names
+			elseif first_word == nil or body:find("%s") == nil then
+				local subs = { "toggle", "close", "menu", "open" }
+				local out = {}
+				for _, s in ipairs(subs) do
+					if s:sub(1, #arg_lead) == arg_lead then
+						table.insert(out, s)
+					end
+				end
+				return out
 			end
-			return keys
+			return {}
 		end,
 	})
 end

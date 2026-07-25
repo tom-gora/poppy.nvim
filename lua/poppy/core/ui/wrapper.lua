@@ -1,9 +1,9 @@
 local M = {}
 local style = require("poppy.core.ui.style")
-local geometry = require("poppy.core.ui.geometry")
+local layout = require("poppy.core.ui.layout")
 
 local open_with = function(buf, poppy_opts, width_override)
-	local width, height, row = geometry.compute_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override)
+	local width, height, row = layout.compute_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override)
 	local config = {
 		relative = "editor",
 		width = width,
@@ -12,7 +12,7 @@ local open_with = function(buf, poppy_opts, width_override)
 		row = row,
 		style = "minimal",
 		border = "none",
-		zindex = 200,
+		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
 	}
 	local win = vim.api.nvim_open_win(buf, false, config)

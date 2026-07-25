@@ -1,4 +1,14 @@
 local M = {}
+
+-- Stacking priority for all poppy UI windows. We sit just below
+-- Neovim's default of 50 (used by completion pum, hover/documentation
+-- floats, preview windows, diagnostics, notifications, :help, etc.)
+-- so those transient overlays reliably appear on top of the poppy
+-- UI rather than being obscured by it. Other plugin pickers
+-- (Telescope, Snacks, aerial code actions, etc.) typically sit at
+-- z=200+, so they continue to render above us as well.
+M.POPPY_Z_INDEX = 48
+
 local HEADER_HEIGHT = 3
 
 M.get_header_height = function(opts)

@@ -1,5 +1,6 @@
 local M = {}
 local style = require("poppy.core.ui.style")
+local layout = require("poppy.core.ui.layout")
 local namespace = vim.api.nvim_create_namespace("poppy_header_panel")
 
 M.create = function(wrapper_win, width_override, col_override)
@@ -21,7 +22,7 @@ M.recreate = function(wrapper_win, buf, width_override, col_override)
 		row = 0,
 		style = "minimal",
 		border = "none",
-		zindex = 201,
+		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
 		win = wrapper_win,
 	}

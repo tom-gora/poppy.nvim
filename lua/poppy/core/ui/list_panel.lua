@@ -1,5 +1,7 @@
 local M = {}
 local style = require("poppy.core.ui.style")
+local layout = require("poppy.core.ui.layout")
+local util = require("poppy.core.util")
 local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
 local mv = 25
 
@@ -50,7 +52,7 @@ M.recreate = function(wrapper_win, buf, width, focusable, hint_height, row_overr
 		row = row_override or 0,
 		style = "minimal",
 		border = "none",
-		zindex = 201,
+		zindex = layout.POPPY_Z_INDEX,
 		focusable = focusable == true,
 		win = wrapper_win,
 	}
@@ -107,8 +109,8 @@ M.update = function(buf, sorted_poppies, poppies, icons)
 	local idx_width = max_index_width(#sorted_poppies)
 
 	for display_idx, item in ipairs(sorted_poppies) do
-		local icon = (icons and icons[item.config.cat]) or " "
-		local cat = item.config.cat or item.config.mode
+		local cat = util.cat(item.config)
+		local icon = (icons and icons[cat]) or " "
 		local raw_title = item.config.title or item.name
 		local ps = poppies[item.name]
 		local is_hidden = ps and ps.hidden

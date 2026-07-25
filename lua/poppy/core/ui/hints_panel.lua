@@ -1,5 +1,6 @@
 local M = {}
 local style = require("poppy.core.ui.style")
+local layout = require("poppy.core.ui.layout")
 local namespace = vim.api.nvim_create_namespace("poppy_hints_bar")
 
 local PADDING = { landing = 1, menu = 3 }
@@ -39,7 +40,7 @@ M.create_bottom_right = function(parent_win, keys)
 		anchor = "NE",
 		style = "minimal",
 		border = "none",
-		zindex = 204,
+		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
 		win = parent_win,
 	}
@@ -73,7 +74,7 @@ M.recreate = function(wrapper_win, buf, width_override, col_override, row_overri
 		anchor = "SE",
 		style = "minimal",
 		border = "none",
-		zindex = 203,
+		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
 		win = wrapper_win,
 	}

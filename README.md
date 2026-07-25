@@ -32,8 +32,9 @@ require("poppy").setup({
     },
     menu_autohide  = false,     -- On true, the menu auto-hides after selecting a poppy or after the "updatetime" passed via "CursorHold" aurocmd. Else, sidebar is always visible
     title_header   = true,      -- On false, the "P◉PPY.NVIM" header above the list isn't rendered
-    auto_close_on_focus_lost = true, -- Close the manager when focus leaves all poppy windows (e.g. opening a picker, `<C-w>w`, tmux nav). The `:` cmdline is exempted so `:Poppy` subcommands still work.
-    sidebar_width  = 25,        -- Width of the side menu panel
+    autoclose      = true,      -- Close the manager when focus leaves all poppy windows (WinLeave + TermEnter; fzf-lua, external terminals, `<C-w>w`, tmux nav). The `:` cmdline is exempted so `:Poppy` subcommands still work.
+    exclusive_float = true,     -- When poppy opens, close all other floating windows (Telescope, snacks, LSP hovers, notifications, etc.)
+    menu_width     = 25,        -- Width of the side menu panel
     win_height     = 0.75,      -- Entire UI height: ratio (0.2–1.0), absolute pixels (>1), or function
     win_width      = 0.8,       -- Same but witdth
     win_location   = "center",  -- Vertical offset: "center" | "top" | "bottom".
@@ -124,8 +125,9 @@ lua/poppy/
   init.lua              Thin public API: toggle, open, close, setup
   config.lua            Defaults, merge, validation
   core/
-    session.lua         Engine: state, opts, window orchestration, mode dispatch
+    session/init.lua    Engine: state, opts, window orchestration, mode dispatch
     input.lua           Keybind setup (global, sidebar-local, content-local)
+    util.lua            Shared helpers (title_fallback, is_open, etc.)
     ui/
       wrapper.lua       Outer floating window
       content.lua       Inner content window (holds the active poppy's buffer)
@@ -133,11 +135,11 @@ lua/poppy/
       list_panel.lua    Numbered poppy list (signs + extmark highlights)
       hints_panel.lua   Keybinding hints panel + bottom-right menu indicator
       header_panel.lua  "P◉PPY.NVIM" header (shown when title_header = true)
+      layout.lua        Wrapper/content dimensions + z-index constants
       style.lua         Highlight group definitions + ColorScheme refresh
   modes/
     term.lua            Terminal mode (exec + shell configs)
     file.lua            File buffer mode
-    utils.lua           Shared helpers (spawn_term, title_fallback)
 ```
 
 ## License

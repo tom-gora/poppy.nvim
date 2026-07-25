@@ -1,5 +1,6 @@
 local M = {}
 local style = require("poppy.core.ui.style")
+local layout = require("poppy.core.ui.layout")
 
 M.create = function(wrapper_win, list_panel_width)
 	local buf = vim.api.nvim_create_buf(false, true)
@@ -15,7 +16,7 @@ M.create = function(wrapper_win, list_panel_width)
 		row = 0,
 		style = "minimal",
 		border = "solid",
-		zindex = 202,
+		zindex = layout.POPPY_Z_INDEX,
 		focusable = true,
 		win = wrapper_win,
 	}

@@ -3,7 +3,7 @@
 Working backlog for refining the codebase. Branch: `ui-rewrite`.
 ~2100 LOC, 15 Lua files. Updated 2026-07-19.
 
----
+______________________________________________________________________
 
 ## 0. At-a-glance
 
@@ -13,21 +13,21 @@ active backlog is now scoped to:
 1. **README rewrite** (§2) — high-impact, low-effort. The README's
    `## Configuration` and `## Usage` sections describe a design
    that's two refactors behind the code.
-2. **Panels state-machine rewrite** (§3.8) — collapse the three
+1. **Panels state-machine rewrite** (§3.8) — collapse the three
    boolean state machine in `panels.lua` to a single tagged state.
-3. **Sign-fix on `ColorScheme`** ✓, **mode schema** (§7),
+1. **Sign-fix on `ColorScheme`** ✓, **mode schema** (§7),
    **index parsing** (§6), **z-index centralization** (§12) —
    small but easy.
 
 Larger items (§3.3–3.7, §13, §14, §17) take a branch each.
 
----
+______________________________________________________________________
 
 ## 1. What's working — don't touch
 
 - **Module decomposition** — `core/ui/*` cleanly splits the wrapper,
   content window, sidebar panels, list, hints, header, style. Each
-  file is read in <5 min. Don't subdivide further unless §17 happens.
+  file is read in \<5 min. Don't subdivide further unless §17 happens.
 - **Mode dispatcher** — `require("poppy.modes." .. mode)` is the right
   plug-in point. Don't replace with a dispatch table unless a fourth
   mode appears.
@@ -42,7 +42,7 @@ Larger items (§3.3–3.7, §13, §14, §17) take a branch each.
 - **Per-poppy `on_exit` in `term.lua`** — delegates kill-or-recover to
   `session` rather than doing the bookkeeping itself.
 
----
+______________________________________________________________________
 
 ## 2. README / config drift (high priority, low cost)
 
@@ -67,7 +67,7 @@ designs that pre-date the state consolidation:
 current schema. Or drop the `<M-p>N` claims and the `exec = function`
 row.
 
----
+______________________________________________________________________
 
 ## 3. State & control flow in `core/session.lua`
 
@@ -108,13 +108,18 @@ Split: `M._open_landing()` / `M._open_active(name)` / `M.open(name)`.
 ~65 LOC. Split: `M._leave_current()` /
 `M._transition_landing_to_active()` / `M._enter_current(name)`.
 
-### 3.6. `:Poppy` command parser is hand-rolled
+### 3.6. ~~`:Poppy` command parser is hand-rolled~~ — done
 
-`args:sub(1, 5) == "open "` breaks on `args == "open"` (no trailing
-space) and misroutes multi-word names. Use `vim.split(args, " ", ...)`;
-completion function already knows which names exist.
+Switched `nargs = "?"` → `nargs = "*"` and routed on
+`cmd_opts.fargs[1]` instead of `cmd_opts.args:sub(1, 5)`. Multi-word
+poppy names (`open my stuff`) now work via `table.concat(fargs, " ", 2)`.
+Unknown subcommands emit a `vim.log.levels.WARN` notify listing valid
+options instead of silently toggling. `:Poppy open` with no name opens
+landing (was: silently toggled). Completion is now subcommand-aware:
+returns subcommand names at the first arg slot, poppy names at the
+second (after `open`), and `{}` after argless subcommands.
 
-### 3.7. `mode` and `cat` are coupled fields
+### 3.7. ~~`mode` and `cat` are coupled fields~~ - done
 
 `config.lua` (in `resolve_poppy` since the §4 rewrite) writes both
 `poppy.mode` and `poppy.cat` onto every poppy. `cat` is fully
@@ -122,16 +127,15 @@ derivable from `mode` + which user-facing key (`exec` vs `shell`)
 was set. Either drop `cat` and derive at use sites, or keep both and
 document the invariant.
 
-### 3.8. Boolean state machine for the sidebar
+### 3.8. ~~Boolean state machine for the sidebar~~ - done
 
 `panels.lua` encodes `hidden` and `autohidden` as two booleans. The
 actual reachable states are `visible` / `manually_hidden` /
 `auto_hidden`; `hidden=true && autohidden=true` is unreachable and
-unguarded. Replace with a single `M.state = "visible" | "hidden" |
-"autohidden"` field + `set_state(s)` dispatch. Collapses ~6
+unguarded. Replace with a single `M.state = "visible" | "hidden" | "autohidden"` field + `set_state(s)` dispatch. Collapses ~6
 near-duplicate methods.
 
----
+______________________________________________________________________
 
 ## 4. ~~Config sanitization mutates user input~~ — done
 
@@ -140,16 +144,16 @@ not mutated. Engine-internal `mode`/`cat`/`title` live in a parallel
 `poppies_resolved` map. Latent `vim.tbl_deep_extend` mutation of
 `default_opts` fixed as a side effect (`{}` first arg).
 
----
+______________________________________________________________________
 
 ## 5. ~~Duplicated sizing logic~~ — done
 
-`core/geometry.lua` exposes `normalize_ratio_or_pixels` (sanitize-time)
+`core/ui/layout.lua` exposes `normalize_ratio_or_pixels` (sanitize-time)
 and `compute_dimensions(opts, cols, lines, override_width)` (open-time,
 testable in isolation). Three callers (`config.lua`, `wrapper.lua`,
 `session.lua`'s `_active_width`) all share it.
 
----
+______________________________________________________________________
 
 ## 6. Fragile list-index parsing
 
@@ -160,7 +164,7 @@ testable in isolation). Three callers (`config.lua`, `wrapper.lua`,
 Replace with: an extmark or buffer-local `poppy_index_by_line` map
 populated by `list_panel.update`, or a `statuscolumn` number column.
 
----
+______________________________________________________________________
 
 ## 7. Mode-dispatch has no schema
 
@@ -171,7 +175,7 @@ places, no documentation.
 Add a `poppy_state` factory in `core/session.lua` (or
 `core/poppy_state.lua`); both modes call it.
 
----
+______________________________________________________________________
 
 ## 8. `exec` shape claim vs. reality
 
@@ -184,7 +188,7 @@ actually works.
 Either document `exec` as `string` only, or extend `resolve_command`
 to handle the array and function shapes.
 
----
+______________________________________________________________________
 
 ## 9. ~~Title-fallback import direction~~ — done
 
@@ -193,7 +197,7 @@ to handle the array and function shapes.
 deleted. `config.lua`'s stale `require("poppy.modes.utils")` was
 inadvertently fixed by the §4 rewrite.
 
----
+______________________________________________________________________
 
 ## 10. `list_panel.lua` module-level mutable state
 
@@ -202,7 +206,7 @@ Line 4: `local sb_width = 25` is a module-local re-assigned every
 to `M.update` instead of relying on the upvalue. Removes a class of
 "two sidebars fighting over the same upvalue" bugs.
 
----
+______________________________________________________________________
 
 ## 11. ~~Highlight signs not refreshed on `ColorScheme`~~ — done
 
@@ -211,17 +215,16 @@ to `M.update` instead of relying on the upvalue. Removes a class of
 Smoke test verifies `sign_getdefined(...).texthl` survives
 `:colorscheme default`.
 
----
+______________________________________________________________________
 
-## 12. Z-indexes scattered
+## 12. ~~Z-indexes scattered~~ — done
 
-Z-indexes 200, 201, 202, 203, 204 are scattered across `wrapper.lua`,
-`content.lua`, `list_panel.lua`, `hints_panel.lua`, `header_panel.lua`.
-Centralize as a `ZINDEX = {WRAPPER=200, ...}` constant block in
-`core/ui/style.lua`. Stacking order legible at a glance; collisions
-become syntactically impossible.
+Centralized as `layout.POPPY_Z_INDEX = 49` in `core/ui/layout.lua` (folded in
+during the same change that renamed `geometry.lua` → `layout.lua`).
+All six zindex sites now read from the constant; arbitrary 200–204
+values replaced with the single value.
 
----
+______________________________________________________________________
 
 ## 13. `:CheckHealth` / lazy-load hints
 
@@ -230,7 +233,7 @@ become syntactically impossible.
 - No `lazy.nvim` / `folke/snacks` `opts = { cmd = "PoppyToggle" }`
   or `event = "VeryLazy"` hints in the README.
 
----
+______________________________________________________________________
 
 ## 14. No tests
 
@@ -238,11 +241,10 @@ Smoke test at `/tmp/poppy_smoke_test.lua` (25 assertions) covers the
 key state-machine + reset paths. No test framework, no CI.
 
 Promote to plenary-driven `tests/` with `describe`/`it`. Pure-Lua
-unit tests for `core/geometry.lua` are now trivial. Add a GitHub
-Actions workflow running `nvim --headless -u tests/minimal_init.lua
--c "PlenaryBustedDirectory tests/"`.
+unit tests for `core/ui/layout.lua` are now trivial. Add a GitHub
+Actions workflow running `nvim --headless -u tests/minimal_init.lua -c "PlenaryBustedDirectory tests/"`.
 
----
+______________________________________________________________________
 
 ## 15. Idiomatic nits
 
@@ -251,16 +253,16 @@ Actions workflow running `nvim --headless -u tests/minimal_init.lua
 `core/ui/panels.lua` (`sw`, `hl`, `hdr`) are ambiguous — rename to
 `sidebar_w`, `hint_lines`, `header_lines`.
 
----
+______________________________________________________________________
 
 ## 16. Quick wins — open items
 
-- [ ] Centralize z-index constants in `core/ui/style.lua` (§12).
+- [x] Centralize z-index constants (`layout.POPPY_Z_INDEX = 49` in `core/ui/layout.lua`) (§12).
 - [ ] Add a `CheckHealth` provider (§13).
 - [ ] Rewrite README §Configuration and §Usage against the current
-      schema (§2).
+  schema (§2).
 
----
+______________________________________________________________________
 
 ## 17. Larger refactors (dedicated branch each)
 
@@ -275,7 +277,7 @@ Actions workflow running `nvim --headless -u tests/minimal_init.lua
   (§7). Enforces schema in one place.
 - **Panels state-machine rewrite** — see §3.8.
 
----
+______________________________________________________________________
 
 ## Changelog
 
