@@ -376,15 +376,9 @@ M.switch_by_index = function(index)
 end
 
 M.switch_by_cursor = function()
-	local buf = vim.api.nvim_get_current_buf()
-	local cursor = vim.api.nvim_win_get_cursor(0)
-	local line = vim.api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1]
-	if not line then
-		return
-	end
-	local idx = line:match("%s+(%d+)%s")
+	local idx = util.cursor_to_poppy_index(M.poppies)
 	if idx then
-		M.switch_by_index(tonumber(idx))
+		M.switch_by_index(idx)
 	end
 end
 
@@ -439,15 +433,9 @@ M.kill_by_index = function(index)
 end
 
 M.kill_by_cursor = function()
-	local buf = vim.api.nvim_get_current_buf()
-	local cursor = vim.api.nvim_win_get_cursor(0)
-	local line = vim.api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1]
-	if not line then
-		return
-	end
-	local idx = line:match("%s+(%d+)%s")
+	local idx = util.cursor_to_poppy_index(M.poppies)
 	if idx then
-		M.kill_by_index(tonumber(idx))
+		M.kill_by_index(idx)
 	end
 end
 
@@ -588,10 +576,6 @@ M.close = function()
 	hard_cleanup()
 end
 
-M.is_open = function()
-	return util.is_open(state.wrapper_win)
-end
-
 M.toggle = function()
 	if util.is_open(state.wrapper_win) then
 		cleanup()
@@ -601,6 +585,7 @@ M.toggle = function()
 end
 
 M.setup = function(user_opts)
+	util.attach_session(M)
 	init_state()
 
 	require("poppy.core.ui.style").setup()
@@ -729,10 +714,6 @@ M.setup = function(user_opts)
 			return {}
 		end,
 	})
-end
-
-M.get_current_poppy_name = function()
-	return state.current_poppy_name
 end
 
 return M

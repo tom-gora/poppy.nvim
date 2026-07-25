@@ -1,5 +1,22 @@
 local M = {}
 
+-- Late-bound reference to the session module. session.setup() wires this
+-- via util.attach_session(M). Avoids a top-level require cycle
+-- (session already requires util at module load time).
+local _session = nil
+
+M.attach_session = function(session)
+	_session = session
+end
+
+M.session_is_open = function()
+	return _session ~= nil and _session.is_open() or false
+end
+
+M.session_get_current_poppy_name = function()
+	return _session ~= nil and _session.get_current_poppy_name() or nil
+end
+
 M.term_spawn = function(command, opts)
 	if type(command) == "function" then
 		command = command()
@@ -22,6 +39,31 @@ M.term_resolve_command = function(poppy_opts)
 		return (shell and shell ~= "default") and shell or os.getenv("SHELL") or "bash"
 	end
 	return poppy_opts.exec
+end
+
+M.term_get_or_create_buffer = function(poppy_name, opts, p_state)
+	local poppy_opts = opts.poppies_resolved and opts.poppies_resolved[poppy_name]
+	if not poppy_opts then
+		return nil
+	end
+	local bufnr = (p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr))
+			and p_state.bufnr
+		or vim.api.nvim_create_buf(false, false)
+	pcall(vim.api.nvim_buf_set_name, bufnr, " Poppy: " .. poppy_name .. " ")
+	return bufnr
+end
+
+M.cursor_to_poppy_index = function(poppies)
+	local ok, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
+	if not ok then
+		return nil
+	end
+	local idx = cursor[1]
+	local item = poppies[idx]
+	if type(item) == "table" and item.name then
+		return idx
+	end
+	return nil
 end
 
 M.compute_landing_view_width = function(opts, poppies)
