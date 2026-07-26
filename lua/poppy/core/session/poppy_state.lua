@@ -23,7 +23,7 @@ M.runtime_remove = function(name)
 	_poppies[name] = nil
 end
 
-M.runtime_iter = function()
+M.iter = function()
 	return pairs(_poppies)
 end
 
@@ -33,6 +33,17 @@ end
 
 M.array_length = function()
 	return #_poppies
+end
+
+-- The poppy has been opened at least once, is currently hidden, and its
+-- buffer is still valid for re-display. Used by both file/term modes to
+-- decide whether to reuse the existing buffer or create a fresh one.
+M.is_usable = function(name)
+	local p = _poppies[name]
+	if not (p and p.hidden and p.bufnr) then
+		return false
+	end
+	return vim.api.nvim_buf_is_valid(p.bufnr)
 end
 
 -- Resolve a name-or-index to {name, runtime}. runtime is nil if the
@@ -54,6 +65,19 @@ M.resolve = function(name_or_index)
 	return { name = name, runtime = _poppies[name] }
 end
 
+-- Mark a poppy as no-longer-visible: drop active, set hidden, drop the
+-- window reference. Idempotent. Used in transitions (switching) and
+-- teardown (cleanup).
+M.hide = function(name)
+	local ps = _poppies[name]
+	if not ps then
+		return
+	end
+	ps.active = false
+	ps.hidden = true
+	ps.win = nil
+end
+
 M.clear = function()
 	for k in pairs(_poppies) do
 		_poppies[k] = nil
@@ -61,9 +85,7 @@ M.clear = function()
 end
 
 M.rebuild_from_sorted = function(sorted)
-	for k in pairs(_poppies) do
-		_poppies[k] = nil
-	end
+	M.clear()
 	for i, v in ipairs(sorted) do
 		_poppies[i] = v
 	end

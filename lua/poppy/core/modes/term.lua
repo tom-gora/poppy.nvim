@@ -1,5 +1,5 @@
 local M = {}
-local session = require("poppy.core.session")
+local killing = require("poppy.core.session.killing")
 local poppy_state = require("poppy.core.session.poppy_state")
 local util = require("poppy.core.util")
 
@@ -24,7 +24,7 @@ M.run = function(poppy_name, opts, parent_win)
 						vim.api.nvim_buf_delete(bufnr, { force = true })
 					end
 					if util.session_is_open() and util.session_get_current_poppy_name() == poppy_name then
-						session.kill_active()
+						killing.kill_active()
 					else
 						poppy_state.runtime_remove(poppy_name)
 					end

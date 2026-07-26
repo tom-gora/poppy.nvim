@@ -4,6 +4,7 @@ local state = require("poppy.core.session.state")
 local poppy_state = require("poppy.core.session.poppy_state")
 local killing = require("poppy.core.session.killing")
 local switching = require("poppy.core.session.switching")
+local panels = require("poppy.core.ui.panels")
 local util = require("poppy.core.util")
 
 M.setup_exclusive_float = function()
@@ -13,8 +14,7 @@ M.setup_exclusive_float = function()
 		callback = function()
 			vim.schedule(function()
 				for _, w in ipairs(vim.api.nvim_list_wins()) do
-					local _, val = pcall(vim.api.nvim_win_get_var, w, "poppy_ui_window")
-					if not vim.api.nvim_win_is_valid(w) or val == true then
+					if not vim.api.nvim_win_is_valid(w) or panels.is_poppy_window(w) then
 						goto continue
 					end
 					if vim.api.nvim_win_get_config(w).relative ~= "" then
@@ -76,8 +76,7 @@ M.setup = function(opts, callbacks)
 						return
 					end
 					-- Internal hop: destination is a poppy window, stay open.
-					local ok, val = pcall(vim.api.nvim_win_get_var, cur, "poppy_ui_window")
-					if ok and val == true then
+					if panels.is_poppy_window(cur) then
 						return
 					end
 					-- Cmdline is exempt: user may be typing :Poppy or any command.

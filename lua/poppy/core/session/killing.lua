@@ -16,7 +16,7 @@ M.recover = function()
 		end
 
 		local fallback_name = nil
-		for name, ps in poppy_state.runtime_iter() do
+		for name, ps in poppy_state.iter() do
 			if ps.hidden then
 				fallback_name = name
 				break
@@ -27,11 +27,7 @@ M.recover = function()
 			switching.switch_by_name(fallback_name)
 		else
 			panels.destroy()
-			if state.menu_hint_win then
-				vim.api.nvim_win_close(state.menu_hint_win, true)
-			end
-			state.menu_hint_win = nil
-			state.menu_hint_buf = nil
+			util.close_menu_hint()
 
 			vim.api.nvim_create_augroup("poppy_ui", { clear = true })
 
@@ -74,13 +70,16 @@ M.kill_active = function()
 	local p_state = poppy_state.runtime_get(target)
 	local target_bufnr = p_state and p_state.bufnr
 
-	poppy_state.runtime_remove(target)
-	state.current_poppy_name = nil
-	M.recover()
-
+	-- Drop the target buffer up-front so any callback recover() schedules
+	-- (via vim.schedule) lands on a clean state without referencing a
+	-- half-dead window's buffer.
 	if target_bufnr and vim.api.nvim_buf_is_valid(target_bufnr) then
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
 	end
+
+	poppy_state.runtime_remove(target)
+	state.current_poppy_name = nil
+	M.recover()
 
 	if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
 		vim.api.nvim_set_current_win(state.content_win)

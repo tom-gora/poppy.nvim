@@ -9,7 +9,7 @@ M.run = function(poppy_name, opts, parent_win)
 
 	local p_state = poppy_state.runtime_get(poppy_name)
 	local bufnr
-	if p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
+	if poppy_state.is_usable(poppy_name) then
 		bufnr = p_state.bufnr
 		vim.api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
 	else

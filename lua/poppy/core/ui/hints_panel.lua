@@ -15,11 +15,29 @@ local fmt_hint = function(key, label)
 	return INDENT .. padded .. COL_GAP .. label .. " "
 end
 
-M.create = function(wrapper_win, width_override, col_override, row_override, height_override, layout)
-	layout = layout or "menu"
+-- Each entry is `[config_key, label]`. `config_key` is looked up on
+-- `keys` (so all four keybindings stay in one place); `label` is the
+-- hint text shown to the user.
+local ACTIVE = {
+	{ "select", "Select" },
+	{ "kill", "Kill" },
+	{ "exit_menu", "Exit menu" },
+	{ "poppy_action", "Toggle off" },
+}
+local HINT_SPECS = {
+	landing = {
+		{ "select", "Select" },
+		{ "poppy_action", "Toggle Off" },
+	},
+	active_menu = ACTIVE,
+	active_focused = ACTIVE,
+}
+
+M.create = function(wrapper_win, opts)
+	opts = opts or {}
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
-	return M.recreate(wrapper_win, buf, width_override, col_override, row_override, height_override, layout), buf
+	return M.recreate(wrapper_win, buf, opts), buf
 end
 
 M.create_bottom_right = function(parent_win, keys)
@@ -57,18 +75,19 @@ M.create_bottom_right = function(parent_win, keys)
 	return win, buf
 end
 
-M.recreate = function(wrapper_win, buf, width_override, col_override, row_override, height_override, layout)
-	layout = layout or "menu"
+M.recreate = function(wrapper_win, buf, opts)
+	opts = opts or {}
+	local kind = opts.kind or "menu"
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local row = row_override or (wrapper_conf.height + ROW_OFFSET[layout])
-	local col = col_override or wrapper_conf.width
-	local width = width_override or wrapper_conf.width
-	local height = height_override or CONTENT_HEIGHT[layout]
+	local row = opts.row or (wrapper_conf.height + ROW_OFFSET[kind])
+	local col = opts.col or wrapper_conf.width
+	local width = opts.width or wrapper_conf.width
+	local height = opts.height or CONTENT_HEIGHT[kind]
 
 	local config = {
 		relative = "win",
 		width = width,
-		height = height + PADDING[layout],
+		height = height + PADDING[kind],
 		col = col,
 		row = row,
 		anchor = "SE",
@@ -85,45 +104,17 @@ M.recreate = function(wrapper_win, buf, width_override, col_override, row_overri
 	return win
 end
 
-M.update = function(buf, keys, count, wrapper_width, layout, mode)
+M.update = function(buf, keys, count, wrapper_width, kind, mode)
 	if not keys then
 		return
 	end
-	layout = layout or "menu"
+	kind = kind or "menu"
 	local sep = INDENT .. string.rep("─", math.max(0, wrapper_width - #INDENT - 1)) .. " "
-	local line_specs
-	if layout == "landing" then
-		line_specs = {
-			{
-				{ text = sep, hl = nil },
-			},
-			{
-				{ text = fmt_hint(keys.select, "Select"), hl = nil },
-			},
-			{
-				{ text = fmt_hint(keys.poppy_action, "Toggle Off"), hl = nil },
-			},
-		}
-	elseif mode == "active_menu" or mode == "active_focused" then
-		line_specs = {
-			{
-				{ text = sep, hl = nil },
-			},
-			{
-				{ text = fmt_hint(keys.select, "Select"), hl = nil },
-			},
-			{
-				{ text = fmt_hint(keys.kill, "Kill"), hl = nil },
-			},
-			{
-				{ text = fmt_hint(keys.exit_menu, "Exit menu"), hl = nil },
-			},
-			{
-				{ text = fmt_hint(keys.poppy_action, "Toggle off"), hl = nil },
-			},
-		}
-	else
-		line_specs = {}
+	local spec = HINT_SPECS[kind == "landing" and "landing" or mode] or {}
+
+	local line_specs = { { { text = sep, hl = nil } } }
+	for _, kp in ipairs(spec) do
+		table.insert(line_specs, { { text = fmt_hint(keys[kp[1]], kp[2]), hl = nil } })
 	end
 
 	local lines = {}

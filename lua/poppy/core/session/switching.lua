@@ -60,11 +60,7 @@ end
 M.focus_list_with_cursor = focus_list_with_cursor
 
 local show_menu_hint_or_close = function()
-	if state.menu_hint_win and vim.api.nvim_win_is_valid(state.menu_hint_win) then
-		vim.api.nvim_win_close(state.menu_hint_win, true)
-	end
-	state.menu_hint_win = nil
-	state.menu_hint_buf = nil
+	util.close_menu_hint()
 	if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
 		state.menu_hint_win, state.menu_hint_buf =
 			hints_panel.create_bottom_right(state.content_win, util.keys())
@@ -82,11 +78,7 @@ M.switch_by_name = function(poppy_name)
 	end
 
 	if state.current_poppy_name then
-		local cur_state = poppy_state.runtime_get(state.current_poppy_name)
-		if cur_state then
-			cur_state.active = false
-			cur_state.hidden = true
-		end
+		poppy_state.hide(state.current_poppy_name)
 	end
 
 	if state.is_landing then
@@ -156,11 +148,7 @@ M.toggle_menu = function()
 	end
 
 	if panels.is_hidden() then
-		if state.menu_hint_win and vim.api.nvim_win_is_valid(state.menu_hint_win) then
-			vim.api.nvim_win_close(state.menu_hint_win, true)
-		end
-		state.menu_hint_win = nil
-		state.menu_hint_buf = nil
+		util.close_menu_hint()
 		panels.show_menu(state.content_win)
 		state.menu_focused = true
 		focus_list_with_cursor()

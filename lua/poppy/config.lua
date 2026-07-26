@@ -24,6 +24,9 @@ local M = {}
 local layout = require("poppy.core.ui.layout")
 local util = require("poppy.core.util")
 
+local DEFAULT_KEYS = { "poppy_action", "select", "kill", "exit_menu" }
+local DEFAULT_ICONS = { "exec", "shell", "file" }
+
 local default_opts = {
 	keys = { poppy_action = "<C-_>", select = "<CR>", kill = "d", exit_menu = "<Esc>" },
 	icons = { exec = "🛠", shell = "$", file = "🗋" },
@@ -83,7 +86,7 @@ M.merge = function(user_opts)
 
 	local merged_keys = merged.keys
 	local keys = {}
-	for _, k in ipairs({ "poppy_action", "select", "kill", "exit_menu" }) do
+	for _, k in ipairs(DEFAULT_KEYS) do
 		if type(merged_keys) == "table" and type(merged_keys[k]) == "string" and merged_keys[k] ~= "" then
 			keys[k] = merged_keys[k]
 		else
@@ -93,7 +96,7 @@ M.merge = function(user_opts)
 
 	local merged_icons = merged.icons
 	local icons = {}
-	for _, k in ipairs({ "exec", "shell", "file" }) do
+	for _, k in ipairs(DEFAULT_ICONS) do
 		if type(merged_icons) == "table" and type(merged_icons[k]) == "string" then
 			icons[k] = merged_icons[k]
 		else
@@ -123,10 +126,10 @@ M.merge = function(user_opts)
 	return {
 		keys = keys,
 		icons = icons,
-		menu_autohide = merged.menu_autohide == true,
-		title_header = merged.title_header ~= false,
-		autoclose = merged.autoclose ~= false,
-		exclusive_float = merged.exclusive_float ~= false,
+		menu_autohide = merged.menu_autohide,
+		title_header = merged.title_header,
+		autoclose = merged.autoclose,
+		exclusive_float = merged.exclusive_float,
 		menu_width = merged.menu_width,
 		win_height = layout.normalize_ratio_or_pixels(merged.win_height, 0.75),
 		win_width = layout.normalize_ratio_or_pixels(merged.win_width, 0.8),

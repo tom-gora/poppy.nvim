@@ -15,10 +15,7 @@ local events = require("poppy.core.session.events")
 -- Augroup for per-window WinClosed watchers; cleared on cleanup/recover.
 vim.api.nvim_create_augroup("poppy_ui", { clear = false })
 
--- Forward decl: the autocmd callback re-registers itself.
-local _watch_content_window
-
-_watch_content_window = function(win_id, menu_width)
+M.watch_content_window = function(win_id, menu_width)
 	if not win_id then
 		return
 	end
@@ -34,7 +31,7 @@ _watch_content_window = function(win_id, menu_width)
 			local c_win, c_buf = content.create(state.wrapper_win, menu_width)
 			state.content_win = c_win
 			state.content_buf = c_buf
-			_watch_content_window(c_win, menu_width)
+			M.watch_content_window(c_win, menu_width)
 			if state.current_poppy_name then
 				killing.kill_active()
 			else
@@ -44,13 +41,11 @@ _watch_content_window = function(win_id, menu_width)
 	})
 end
 
-M.watch_content_window = _watch_content_window
-
 -- Soft close (default): drops UI but keeps poppies alive for next open.
 -- Hard close (drop_poppies=true): also kills every live poppy buffer.
 local cleanup = function(drop_poppies)
 	if drop_poppies then
-		for _, p_state in poppy_state.runtime_iter() do
+		for _, p_state in poppy_state.iter() do
 			if p_state and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
 				vim.api.nvim_buf_delete(p_state.bufnr, { force = true })
 			end
@@ -59,20 +54,11 @@ local cleanup = function(drop_poppies)
 	end
 
 	if state.current_poppy_name then
-		local ps = poppy_state.runtime_get(state.current_poppy_name)
-		if ps then
-			ps.active = false
-			ps.hidden = true
-			ps.win = nil
-		end
+		poppy_state.hide(state.current_poppy_name)
 	end
 
-	if state.menu_hint_win and vim.api.nvim_win_is_valid(state.menu_hint_win) then
-		vim.api.nvim_win_close(state.menu_hint_win, true)
-	end
 	local hint_buf = state.menu_hint_buf
-	state.menu_hint_win = nil
-	state.menu_hint_buf = nil
+	util.close_menu_hint()
 
 	panels.destroy()
 
@@ -162,7 +148,7 @@ M.open = function(poppy_name)
 	if has_content then
 		local c_win, c_buf = content.create(win, menu_width)
 		panels.create(win, menu_width, 4, hdr)
-		_watch_content_window(c_win, menu_width)
+		M.watch_content_window(c_win, menu_width)
 		state.content_win = c_win
 		state.content_buf = c_buf
 		switching.switch_by_name(poppy_name or last_poppy)

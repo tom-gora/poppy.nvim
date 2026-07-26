@@ -23,7 +23,7 @@ M.create = function(wrapper_win, list_panel_width)
 
 	local win = vim.api.nvim_open_win(buf, true, config)
 
-	style.apply_content_style(win, { number = ext_nu, relativenumber = ext_rnu })
+	style.apply_content_style(win, ext_nu, ext_rnu)
 	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 	return win, buf
 end

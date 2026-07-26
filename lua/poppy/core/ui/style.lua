@@ -130,7 +130,7 @@ M.apply_list_panel_style = function(win)
 	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
 end
 
-M.apply_content_style = function(win, ext_config_opts)
+M.apply_content_style = function(win, ext_number, ext_relativenumber)
 	vim.schedule(function()
 		if not vim.api.nvim_win_is_valid(win) then
 			return
@@ -147,8 +147,8 @@ M.apply_content_style = function(win, ext_config_opts)
 		end
 		vim.api.nvim_set_option_value("cursorline", true, { win = win })
 		vim.api.nvim_set_option_value("signcolumn", "yes", { win = win })
-		vim.api.nvim_set_option_value("number", ext_config_opts.number, { win = win })
-		vim.api.nvim_set_option_value("relativenumber", ext_config_opts.relativenumber, { win = win })
+		vim.api.nvim_set_option_value("number", ext_number, { win = win })
+		vim.api.nvim_set_option_value("relativenumber", ext_relativenumber, { win = win })
 	end)
 end
 

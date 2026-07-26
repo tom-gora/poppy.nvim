@@ -96,65 +96,67 @@ end
 M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 
-	local lines = {}
-	local rows = {}
-	local placelist = {}
 	local idx_width = max_index_width(#sorted_poppies)
+	local entries = {}
 
 	for display_idx, item in ipairs(sorted_poppies) do
 		local cat = util.cat(item.config)
 		local icon = (icons and icons[cat]) or " "
 		local raw_title = item.config.title or item.name
 		local ps = poppies[item.name]
-		local is_hidden = ps and ps.hidden
-		local is_active = ps and ps.active
-		local dot = (is_active or is_hidden) and "•" or " "
-		local icon_w = vim.fn.strdisplaywidth(icon)
-		local title_max = menu_width - 1 - icon_w - 1 - idx_width - 1
-		local title = trim_title(raw_title, title_max)
-		local line = string.format("%s %" .. idx_width .. "d %s", icon, display_idx, title)
-		table.insert(lines, line)
-
-		local hl = nil
+		local is_hidden = ps and ps.hidden or false
+		local is_active = ps and ps.active or false
+		local title_max = menu_width - 1 - vim.fn.strdisplaywidth(icon) - 1 - idx_width - 1
+		local hl
 		if is_active then
-			local cap = cat:sub(1, 1):upper() .. cat:sub(2)
-			hl = "PoppyCurrentRow" .. cap
+			hl = "PoppyCurrentRow" .. cat:sub(1, 1):upper() .. cat:sub(2)
 		elseif is_hidden then
 			hl = cat_hl_hidden[cat]
 		else
 			hl = cat_hl[cat]
 		end
-		table.insert(rows, { row = #lines - 1, hl = hl, name = item.name })
+		entries[display_idx] = {
+			name = item.name,
+			cat = cat,
+			icon = icon,
+			title = trim_title(raw_title, title_max),
+			is_active = is_active,
+			is_hidden = is_hidden,
+			hl = hl,
+		}
+	end
 
-		table.insert(placelist, {
+	if #entries == 0 then
+		entries[1] = { cat = "", icon = " ", title = "", is_active = false, is_hidden = false, hl = nil }
+	end
+
+	local lines = {}
+	local placelist = {}
+	for display_idx, e in ipairs(entries) do
+		lines[display_idx] = string.format("%s %" .. idx_width .. "d %s", e.icon, display_idx, e.title)
+		placelist[display_idx] = {
 			buffer = buf,
 			group = sign_group,
 			id = display_idx,
 			lnum = display_idx,
-			name = pick_sign(dot, cat, is_active, is_hidden),
-		})
-	end
-
-	if #lines == 0 then
-		table.insert(lines, "")
-		table.insert(placelist, {
-			buffer = buf,
-			group = sign_group,
-			id = 1,
-			lnum = 1,
-			name = "PoppyDotNone",
-		})
+			name = pick_sign(
+				(e.is_active or e.is_hidden) and "•" or " ",
+				e.cat,
+				e.is_active,
+				e.is_hidden
+			),
+		}
 	end
 
 	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
-	for _, entry in ipairs(rows) do
-		if entry.hl then
-			vim.api.nvim_buf_set_extmark(buf, namespace, entry.row, 0, {
-				end_row = entry.row,
-				line_hl_group = entry.hl,
+	for display_idx, e in ipairs(entries) do
+		if e.hl then
+			vim.api.nvim_buf_set_extmark(buf, namespace, display_idx - 1, 0, {
+				end_row = display_idx - 1,
+				line_hl_group = e.hl,
 			})
 		end
 	end

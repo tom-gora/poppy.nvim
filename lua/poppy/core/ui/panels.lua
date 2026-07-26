@@ -41,6 +41,19 @@ local close_panel = function(win)
 	end
 end
 
+-- Tear down the side panel trio (hints/list/header) in one place. Used by
+-- destroy() and hide_menu() — both walk the same three windows and zero
+-- out the corresponding state fields. Module-private; callers outside
+-- panels shouldn't be closing these directly.
+local close_all_panels = function()
+	close_panel(state.hints_win)
+	close_panel(state.list_win)
+	close_panel(state.header_win)
+	state.hints_win = nil
+	state.list_win = nil
+	state.header_win = nil
+end
+
 -- Reuse the existing buffer if valid, else create. `create` returns
 -- (win, buf); `recreate` takes the buf and returns the win. `skip`
 -- nils out the state entries (matches the original hdr==0 path).
@@ -74,7 +87,13 @@ local rebuild = function(hl, focusable)
 		state.header_win = header_panel.recreate(state.wrapper_win, state.header_buf, menu_width, wc.width - menu_width)
 	end
 	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, menu_width, focusable, hl, hdr)
-	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, menu_width, wc.width, wc.height, hl, "menu")
+	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, {
+		width = menu_width,
+		col = wc.width,
+		row = wc.height,
+		height = hl,
+		kind = "menu",
+	})
 end
 
 M.create = function(wrapper_win, menu_width, hint_height, header_height)
@@ -87,8 +106,8 @@ M.create = function(wrapper_win, menu_width, hint_height, header_height)
 		function(buf) return list_panel.recreate(wrapper_win, buf, menu_width, false, hl, hdr) end)
 
 	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win",
-		function() return hints_panel.create(wrapper_win, menu_width, wc.width, wc.height - 1, hl, "menu") end,
-		function(buf) return hints_panel.recreate(wrapper_win, buf, menu_width, wc.width, wc.height - 1, hl, "menu") end)
+		function() return hints_panel.create(wrapper_win, { width = menu_width, col = wc.width, row = wc.height - 1, height = hl, kind = "menu" }) end,
+		function(buf) return hints_panel.recreate(wrapper_win, buf, { width = menu_width, col = wc.width, row = wc.height - 1, height = hl, kind = "menu" }) end)
 
 	local header_win, header_buf = ensure_panel("header_buf", "header_win",
 		function() return header_panel.create(wrapper_win, menu_width, wc.width - menu_width) end,
@@ -112,8 +131,8 @@ M.create_landing = function(wrapper_win, header_height)
 		function(buf) return list_panel.recreate(wrapper_win, buf, wc.width, true, nil, hdr) end)
 
 	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win",
-		function() return hints_panel.create(wrapper_win, nil, nil, nil, nil, "landing") end,
-		function(buf) return hints_panel.recreate(wrapper_win, buf, nil, nil, nil, nil, "landing") end)
+		function() return hints_panel.create(wrapper_win, { kind = "landing" }) end,
+		function(buf) return hints_panel.recreate(wrapper_win, buf, { kind = "landing" }) end)
 
 	local header_win, header_buf = ensure_panel("header_buf", "header_win",
 		function() return header_panel.create(wrapper_win) end,
@@ -147,12 +166,7 @@ M.hide_menu = function(content_win)
 		return
 	end
 	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
-	close_panel(state.hints_win)
-	close_panel(state.list_win)
-	close_panel(state.header_win)
-	state.hints_win = nil
-	state.list_win = nil
-	state.header_win = nil
+	close_all_panels()
 	state.hidden = true
 	resize_content(content_win, wc.width - 2, wc.height - 2, 0)
 end
@@ -168,17 +182,30 @@ M.show_menu = function(content_win)
 end
 
 M.destroy = function()
-	for _, win in ipairs({ state.hints_win, state.list_win, state.header_win }) do
-		close_panel(win)
-	end
-	state.hints_win = nil
-	state.list_win = nil
-	state.header_win = nil
+	close_all_panels()
 	state.wrapper_win = nil
 end
 
 M.is_hidden = function()
 	return state.hidden
+end
+
+-- The single rule for "is this window one of ours?" Wrappers/content/list/
+-- hints/header/bottom-right all set the marker on creation. Internal hop
+-- detection (events.lua) reads it here. Add the marker via
+-- `M.mark_poppy_window(win)` for any new panel type.
+local UI_WINDOW_MARK = "poppy_ui_window"
+
+M.mark_poppy_window = function(win)
+	vim.api.nvim_win_set_var(win, UI_WINDOW_MARK, true)
+end
+
+M.is_poppy_window = function(win)
+	if not win or not vim.api.nvim_win_is_valid(win) then
+		return false
+	end
+	local _, val = pcall(vim.api.nvim_win_get_var, win, UI_WINDOW_MARK)
+	return val == true
 end
 M.get_hints_buf = function()
 	return state.hints_buf
