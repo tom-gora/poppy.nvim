@@ -15,11 +15,11 @@ local fmt_hint = function(key, label)
 	return INDENT .. padded .. COL_GAP .. label .. " "
 end
 
-M.create = function(wrapper_win, layout)
+M.create = function(wrapper_win, width_override, col_override, row_override, height_override, layout)
 	layout = layout or "menu"
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
-	return M.recreate(wrapper_win, buf, nil, nil, nil, nil, layout), buf
+	return M.recreate(wrapper_win, buf, width_override, col_override, row_override, height_override, layout), buf
 end
 
 M.create_bottom_right = function(parent_win, keys)

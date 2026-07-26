@@ -1,4 +1,4 @@
-local M = {}
+M = {}
 
 local state = require("poppy.core.session.state")
 local poppy_state = require("poppy.core.session.poppy_state")
@@ -9,7 +9,7 @@ local events = require("poppy.core.session.events")
 local commands = require("poppy.core.session.commands")
 local util = require("poppy.core.util")
 
--- Public API: thin wrappers to the session submodules.
+-- Public session API.
 M.open = manager.open
 M.close = manager.close
 M.toggle = manager.toggle
@@ -23,7 +23,6 @@ M.kill_by_name = killing.kill_by_name
 M.kill_by_index = killing.kill_by_index
 M.kill_by_cursor = killing.kill_by_cursor
 
--- Read-only data getters for users building custom UIs.
 M.get_poppies = poppy_state.get_poppies
 M.get_poppy_by_name = poppy_state.get_poppy_by_name
 M.get_poppy_by_index = poppy_state.get_poppy_by_index
@@ -36,7 +35,7 @@ M.setup = function(user_opts)
 	require("poppy.core.ui.style").setup()
 	state.opts = require("poppy.config").merge(user_opts)
 	poppy_state.rebuild_from_sorted(util.get_sorted_poppies(state.opts))
-	require("poppy.core.input").setup_global(state.opts and state.opts.keys)
+	require("poppy.core.input").setup_global(util.keys())
 	events.setup(state.opts, { toggle = M.toggle })
 	commands.setup(state.opts, {
 		toggle = M.toggle,

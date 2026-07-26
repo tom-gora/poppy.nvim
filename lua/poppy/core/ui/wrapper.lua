@@ -3,7 +3,7 @@ local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 
 local open_with = function(buf, poppy_opts, width_override)
-	local width, height, row = layout.compute_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override)
+	local width, height, row = layout.compute_wrapper_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override)
 	local config = {
 		relative = "editor",
 		width = width,

@@ -55,7 +55,7 @@ M.recover = function()
 
 			local list_buf = panels.get_list_buf()
 			vim.bo[list_buf].filetype = "poppy_menu"
-			input.setup_menu(list_buf, state.opts and state.opts.keys)
+			input.setup_menu(list_buf, util.keys())
 			switching.refresh_panels(poppy_state.entries())
 
 			local list_win = panels.get_list_win()
@@ -87,19 +87,19 @@ M.kill_active = function()
 	end
 end
 
-M.kill_by_name = function(name)
-	local p_state = poppy_state.runtime_get(name)
-	if not p_state then
+local _kill = function(resolved)
+	if not resolved then
+		return
+	end
+	if resolved.name == state.current_poppy_name then
+		return M.kill_active()
+	end
+	if not resolved.runtime then
 		return
 	end
 
-	if name == state.current_poppy_name then
-		M.kill_active()
-		return
-	end
-
-	local target_bufnr = p_state.bufnr
-	poppy_state.runtime_remove(name)
+	local target_bufnr = resolved.runtime.bufnr
+	poppy_state.runtime_remove(resolved.name)
 
 	if target_bufnr and vim.api.nvim_buf_is_valid(target_bufnr) then
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
@@ -110,33 +110,12 @@ M.kill_by_name = function(name)
 	end
 end
 
+M.kill_by_name = function(name)
+	return _kill(poppy_state.resolve(name))
+end
+
 M.kill_by_index = function(index)
-	local item = poppy_state.entries()[index]
-	if not item then
-		return
-	end
-	local name = item.name
-
-	if name == state.current_poppy_name then
-		M.kill_active()
-		return
-	end
-
-	local p_state = poppy_state.runtime_get(name)
-	if not p_state then
-		return
-	end
-
-	local target_bufnr = p_state.bufnr
-	poppy_state.runtime_remove(name)
-
-	if target_bufnr and vim.api.nvim_buf_is_valid(target_bufnr) then
-		vim.api.nvim_buf_delete(target_bufnr, { force = true })
-	end
-
-	if util.is_open(state.wrapper_win) and not state.is_landing then
-		switching.refresh_panels(poppy_state.entries())
-	end
+	return _kill(poppy_state.resolve(index))
 end
 
 M.kill_by_cursor = function()

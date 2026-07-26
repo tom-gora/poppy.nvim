@@ -35,6 +35,25 @@ M.array_length = function()
 	return #_poppies
 end
 
+-- Resolve a name-or-index to {name, runtime}. runtime is nil if the
+-- poppy has never been opened. Returns nil for invalid index or nil name.
+M.resolve = function(name_or_index)
+	local name
+	if type(name_or_index) == "number" then
+		local item = _poppies[name_or_index]
+		if not item or not item.name then
+			return nil
+		end
+		name = item.name
+	else
+		name = name_or_index
+	end
+	if not name then
+		return nil
+	end
+	return { name = name, runtime = _poppies[name] }
+end
+
 M.clear = function()
 	for k in pairs(_poppies) do
 		_poppies[k] = nil
@@ -60,9 +79,7 @@ M.landing_view_width = function()
 	return util.compute_landing_view_width(state.opts, _poppies)
 end
 
--- ─── Public read API (exposed via require("poppy").get_*) ───
-
-local build_record = function(i, entry)
+local build_poppy_public_data = function(i, entry)
 	local name = entry.name
 	local runtime = _poppies[name]
 	local opened = runtime ~= nil
@@ -85,7 +102,7 @@ M.get_poppy_by_name = function(name)
 	for i = 1, #_poppies do
 		local entry = _poppies[i]
 		if entry and entry.name == name then
-			return build_record(i, entry)
+			return build_poppy_public_data(i, entry)
 		end
 	end
 	return nil
@@ -96,7 +113,7 @@ M.get_poppy_by_index = function(index)
 	if not entry or not entry.name then
 		return nil
 	end
-	return build_record(index, entry)
+	return build_poppy_public_data(index, entry)
 end
 
 M.get_current_poppy = function()
@@ -112,7 +129,7 @@ M.get_poppies = function()
 	for i = 1, #_poppies do
 		local entry = _poppies[i]
 		if entry and entry.name then
-			result[i] = M.get_poppy_by_name(entry.name)
+			result[i] = build_poppy_public_data(i, entry)
 		end
 	end
 	return result

@@ -12,18 +12,17 @@ local switching = require("poppy.core.session.switching")
 local killing = require("poppy.core.session.killing")
 local events = require("poppy.core.session.events")
 
--- Augroup for per-window WinClosed watchers created by _watch_content_window.
--- Cleared (not destroyed) during cleanup / recover via nvim_create_augroup(_, {clear=true}).
+-- Augroup for per-window WinClosed watchers; cleared on cleanup/recover.
 vim.api.nvim_create_augroup("poppy_ui", { clear = false })
 
--- Forward decl for mutual reference inside the autocmd callback.
+-- Forward decl: the autocmd callback re-registers itself.
 local _watch_content_window
 
 _watch_content_window = function(win_id, menu_width)
 	if not win_id then
 		return
 	end
-	local mw = menu_width or 25
+	local menu_width = menu_width or 25
 	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(win_id),
 		once = true,
@@ -32,10 +31,10 @@ _watch_content_window = function(win_id, menu_width)
 			if not util.is_open(state.wrapper_win) then
 				return
 			end
-			local c_win, c_buf = content.create(state.wrapper_win, mw)
+			local c_win, c_buf = content.create(state.wrapper_win, menu_width)
 			state.content_win = c_win
 			state.content_buf = c_buf
-			_watch_content_window(c_win, mw)
+			_watch_content_window(c_win, menu_width)
 			if state.current_poppy_name then
 				killing.kill_active()
 			else
@@ -66,9 +65,7 @@ local cleanup = function()
 
 	panels.destroy()
 
-	-- Wipe per-window WinClosed watchers before closing windows; otherwise
-	-- our own cleanup would re-fire the watchers and trigger content
-	-- recreation / kill_active / recover.
+	-- Wipe WinClosed watchers before closing windows to avoid re-fire.
 	vim.api.nvim_create_augroup("poppy_ui", { clear = true })
 
 	for _, win in ipairs({ state.wrapper_win, state.content_win }) do
@@ -127,6 +124,15 @@ M.toggle = function()
 	end
 end
 
+local open_wrapper = function(width_override)
+	if state.wrapper_buf and vim.api.nvim_buf_is_valid(state.wrapper_buf) then
+		return wrapper.recreate(state.wrapper_buf, state.opts, width_override)
+	end
+	local win, wbuf = wrapper.create(state.opts, width_override)
+	state.wrapper_buf = wbuf
+	return win
+end
+
 M.open = function(poppy_name)
 	if util.is_open(state.wrapper_win) then
 		if poppy_name then
@@ -136,69 +142,43 @@ M.open = function(poppy_name)
 	end
 
 	poppy_state.ensure_entries_loaded()
-
 	if state.opts.exclusive_float then
 		events.setup_exclusive_float()
 	end
 
 	local last_poppy = state.current_poppy_name
+	local has_content = poppy_name or (last_poppy and poppy_state.runtime_get(last_poppy))
+	local menu_width = util.menu_width()
+	local hdr = layout.get_header_height(state.opts)
+	local should_land = not has_content
+	local landing_width = should_land and poppy_state.landing_view_width() or nil
 
-	if poppy_name or (last_poppy and poppy_state.runtime_get(last_poppy)) then
-		local mw = (state.opts and state.opts.menu_width) or 25
-		local hdr = layout.get_header_height(state.opts)
-		local win, wbuf
-		if state.wrapper_buf and vim.api.nvim_buf_is_valid(state.wrapper_buf) then
-			wbuf = state.wrapper_buf
-			win = wrapper.recreate(wbuf, state.opts)
-		else
-			win, wbuf = wrapper.create(state.opts)
-			state.wrapper_buf = wbuf
-		end
-		local c_win, c_buf = content.create(win, mw)
-		panels.create(win, mw, 4, hdr)
-		_watch_content_window(c_win, mw)
+	local win = open_wrapper(landing_width)
+	state.wrapper_win = win
+	state.current_poppy_name = nil
+	state.is_landing = should_land
 
-		state.wrapper_win = win
+	if has_content then
+		local c_win, c_buf = content.create(win, menu_width)
+		panels.create(win, menu_width, 4, hdr)
+		_watch_content_window(c_win, menu_width)
 		state.content_win = c_win
 		state.content_buf = c_buf
-		state.current_poppy_name = nil
-		state.is_landing = false
-
-		if poppy_name then
-			switching.switch_by_name(poppy_name)
-		else
-			switching.switch_by_name(last_poppy)
-		end
-
-		input.setup_menu(panels.get_list_buf(), state.opts and state.opts.keys)
+		switching.switch_by_name(poppy_name or last_poppy)
 	else
-		local landing_width = poppy_state.landing_view_width()
-		local win, wbuf
-		if state.wrapper_buf and vim.api.nvim_buf_is_valid(state.wrapper_buf) then
-			wbuf = state.wrapper_buf
-			win = wrapper.recreate(wbuf, state.opts, landing_width)
-		else
-			win, wbuf = wrapper.create(state.opts, landing_width)
-			state.wrapper_buf = wbuf
-		end
-		panels.create_landing(win, layout.get_header_height(state.opts))
-		state.wrapper_win = win
+		panels.create_landing(win, hdr)
 		state.content_win = nil
 		state.content_buf = nil
-		state.current_poppy_name = nil
-		state.is_landing = true
-
 		local list_buf = panels.get_list_buf()
 		vim.bo[list_buf].filetype = "poppy_menu"
-		input.setup_menu(list_buf, state.opts and state.opts.keys)
 		local list_win = panels.get_list_win()
 		if list_win and vim.api.nvim_win_is_valid(list_win) then
 			vim.api.nvim_set_current_win(list_win)
 		end
 	end
 
+	input.setup_menu(panels.get_list_buf(), util.keys())
 	switching.refresh_panels(poppy_state.entries())
-
 	return state.wrapper_win
 end
 

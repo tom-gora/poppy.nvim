@@ -1,8 +1,6 @@
 local M = {}
 
--- Session-state accessors. Read directly from the shared state record
--- (poppy.core.session.state). No late binding required: state.lua has
--- no deps and is safe for util to import at module load time.
+-- state.lua has no deps, so the require is safe at module load time.
 local state = require("poppy.core.session.state")
 
 M.session_is_open = function()
@@ -11,6 +9,17 @@ end
 
 M.session_get_current_poppy_name = function()
 	return state.current_poppy_name
+end
+
+-- Accessors for state.opts fields. The `state.opts and state.opts.X`
+-- chain was scattered across 10+ call sites; these centralize the
+-- nil-safety and make the call sites read cleanly.
+M.keys = function()
+	return state.opts and state.opts.keys
+end
+
+M.menu_width = function()
+	return state.opts and state.opts.menu_width or 25
 end
 
 M.term_spawn = function(command, opts)
@@ -119,9 +128,8 @@ M.is_open = function(wrapper_win)
 	return wrapper_win ~= nil and vim.api.nvim_win_is_valid(wrapper_win)
 end
 
--- Derive the user-facing category ("exec" | "file" | "shell") from the
--- raw poppy config. Exactly one of `exec`, `file`, `shell` is set per
--- the validation in resolve_poppy, so the first truthy field wins.
+-- User-facing category from raw poppy config. Validation in
+-- resolve_poppy guarantees exactly one of exec/file/shell is set.
 M.cat = function(poppy)
 	if poppy.exec then
 		return "exec"

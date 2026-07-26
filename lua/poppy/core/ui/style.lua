@@ -15,12 +15,9 @@ local adjust_brightness = function(color, factor)
 	return r * 65536 + g * 256 + b
 end
 
--- Sign definitions. Defined at module scope (above M.setup) so the
--- M.setup closure can call it. `pcall` wraps each `sign_define` so a
--- misconfigured theme (an unrecognized highlight group name) doesn't
--- abort the plugin. The signs are re-defined on every call to M.setup
--- (initial setup + every ColorScheme event), so sign text colors stay
--- in sync with the just-redefined highlight groups.
+-- pcall so an unrecognized highlight group in a misconfigured theme
+-- doesn't abort the plugin. Re-defined on every M.setup so sign text
+-- colors track the just-set highlight groups.
 local define_poppy_signs = function()
 	local signs = {
 		{ name = "PoppyDotFileA", text = "•", hl = "PoppyFile" },
@@ -37,6 +34,17 @@ local define_poppy_signs = function()
 	for _, s in ipairs(signs) do
 		pcall(vim.fn.sign_define, s.name, { text = s.text, texthl = s.hl })
 	end
+end
+
+-- Validate-inside-schedule so we don't schedule work that would
+-- no-op anyway. All panel/window winhl assignments use this.
+local set_winhl_deferred = function(win, mappings)
+	vim.schedule(function()
+		if not vim.api.nvim_win_is_valid(win) then
+			return
+		end
+		vim.api.nvim_set_option_value("winhl", mappings, { scope = "local", win = win })
+	end)
 end
 
 M.setup = function()
@@ -70,49 +78,39 @@ M.setup = function()
 	local lnra = vim.api.nvim_get_hl(0, { name = "LineNrAbove" })
 	local lnrb = vim.api.nvim_get_hl(0, { name = "LineNrBelow" })
 
-	vim.api.nvim_set_hl(0, "PoppyFile", { fg = type_hl.fg })
-	vim.api.nvim_set_hl(0, "PoppyExec", { fg = string_hl.fg })
-	vim.api.nvim_set_hl(0, "PoppyShell", { fg = func_hl.fg })
-	vim.api.nvim_set_hl(0, "PoppyLineNr", { fg = lnr.fg, bg = nf.bg })
-	vim.api.nvim_set_hl(0, "PoppyCursorLineNr", { fg = clnr.fg, bg = nf.bg })
-	vim.api.nvim_set_hl(0, "PoppyLineNrAbove", { fg = lnra.fg, bg = nf.bg })
-	vim.api.nvim_set_hl(0, "PoppyLineNrBelow", { fg = lnrb.fg, bg = nf.bg })
+	local CATEGORY = { { "File", type_hl }, { "Exec", string_hl }, { "Shell", func_hl } }
 
-	if type_hl.fg then
-		vim.api.nvim_set_hl(
-			0,
-			"PoppyFileHidden",
-			{ fg = adjust_brightness(type_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR), bold = true }
-		)
-	else
-		vim.api.nvim_set_hl(0, "PoppyFileHidden", { link = "Comment", bold = true })
-	end
-	if string_hl.fg then
-		vim.api.nvim_set_hl(
-			0,
-			"PoppyExecHidden",
-			{ fg = adjust_brightness(string_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR), bold = true }
-		)
-	else
-		vim.api.nvim_set_hl(0, "PoppyExecHidden", { link = "Comment", bold = true })
-	end
-	if func_hl.fg then
-		vim.api.nvim_set_hl(
-			0,
-			"PoppyShellHidden",
-			{ fg = adjust_brightness(func_hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR), bold = true }
-		)
-	else
-		vim.api.nvim_set_hl(0, "PoppyShellHidden", { link = "Comment", bold = true })
+	for _, entry in ipairs(CATEGORY) do
+		vim.api.nvim_set_hl(0, "Poppy" .. entry[1], { fg = entry[2].fg })
 	end
 
-	vim.api.nvim_set_hl(0, "PoppyCurrentRowFile", { bg = type_hl.fg, fg = nf.bg })
-	vim.api.nvim_set_hl(0, "PoppyCurrentRowExec", { bg = string_hl.fg, fg = nf.bg })
-	vim.api.nvim_set_hl(0, "PoppyCurrentRowShell", { bg = func_hl.fg, fg = nf.bg })
+	for _, entry in ipairs({
+		{ "PoppyLineNr",       lnr },
+		{ "PoppyCursorLineNr", clnr },
+		{ "PoppyLineNrAbove",  lnra },
+		{ "PoppyLineNrBelow",  lnrb },
+	}) do
+		vim.api.nvim_set_hl(0, entry[1], { fg = entry[2].fg, bg = nf.bg })
+	end
+
+	for _, entry in ipairs(CATEGORY) do
+		local name, hl = entry[1], entry[2]
+		if hl.fg then
+			vim.api.nvim_set_hl(0, "Poppy" .. name .. "Hidden", {
+				fg = adjust_brightness(hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR),
+				bold = true,
+			})
+		else
+			vim.api.nvim_set_hl(0, "Poppy" .. name .. "Hidden", { link = "Comment", bold = true })
+		end
+	end
+
+	for _, entry in ipairs(CATEGORY) do
+		vim.api.nvim_set_hl(0, "PoppyCurrentRow" .. entry[1], { bg = entry[2].fg, fg = nf.bg })
+	end
 
 	vim.api.nvim_set_hl(0, "PoppyActiveDot", { link = "Normal" })
 
-	-- Re-define signs so they pick up the just-set highlight groups.
 	define_poppy_signs()
 
 	vim.api.nvim_create_augroup("poppy_style", { clear = true })
@@ -125,25 +123,11 @@ M.setup = function()
 end
 
 M.apply_hints_panel_style = function(win)
-	vim.schedule(function()
-		if not vim.api.nvim_win_is_valid(win) then
-			return
-		end
-		vim.api.nvim_set_option_value("winhl", "Normal:NormalPoppyUIPanel", { scope = "local", win = win })
-	end)
+	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel")
 end
 
 M.apply_list_panel_style = function(win)
-	vim.schedule(function()
-		if not vim.api.nvim_win_is_valid(win) then
-			return
-		end
-		vim.api.nvim_set_option_value(
-			"winhl",
-			"Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel",
-			{ scope = "local", win = win }
-		)
-	end)
+	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
 end
 
 M.apply_content_style = function(win, ext_config_opts)
@@ -158,8 +142,7 @@ M.apply_content_style = function(win, ext_config_opts)
 		)
 
 		local buf = vim.api.nvim_win_get_buf(win)
-		local buftype = vim.api.nvim_get_option_value("buftype", { buf = buf })
-		if buftype == "terminal" then
+		if vim.api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
 			return
 		end
 		vim.api.nvim_set_option_value("cursorline", true, { win = win })
@@ -170,12 +153,7 @@ M.apply_content_style = function(win, ext_config_opts)
 end
 
 M.apply_border_style = function(win)
-	if not vim.api.nvim_win_is_valid(win) then
-		return
-	end
-	vim.schedule(function()
-		vim.api.nvim_set_option_value("winhl", "FloatBorder:PoppyBorder", { scope = "local", win = win })
-	end)
+	set_winhl_deferred(win, "FloatBorder:PoppyBorder")
 end
 
 return M

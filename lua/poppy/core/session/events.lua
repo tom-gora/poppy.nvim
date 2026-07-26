@@ -66,8 +66,7 @@ M.setup = function(opts, callbacks)
 				if not util.is_open(state.wrapper_win) then
 					return
 				end
-				-- Defer until after the focus transition completes; without
-				-- this, nvim_get_current_win() can still report the old window.
+				-- Defer so nvim_get_current_win() reports the new window.
 				vim.schedule(function()
 					if not util.is_open(state.wrapper_win) then
 						return
@@ -76,15 +75,12 @@ M.setup = function(opts, callbacks)
 					if not vim.api.nvim_win_is_valid(cur) then
 						return
 					end
-					-- Internal hop (content <-> list, etc.): destination is
-					-- still tagged as a poppy window. Stay open.
+					-- Internal hop: destination is a poppy window, stay open.
 					local ok, val = pcall(vim.api.nvim_win_get_var, cur, "poppy_ui_window")
 					if ok and val == true then
 						return
 					end
-					-- Cmdline (`:`) is exempt: the user may be typing a
-					-- `:Poppy` subcommand or any ordinary command while
-					-- still wanting the UI to survive.
+					-- Cmdline is exempt: user may be typing :Poppy or any command.
 					if vim.fn.win_gettype(cur) == "command" then
 						return
 					end

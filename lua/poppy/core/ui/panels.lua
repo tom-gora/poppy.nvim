@@ -11,7 +11,7 @@ local state = {
 	list_buf = nil,
 	header_win = nil,
 	header_buf = nil,
-	mw = 25,
+	menu_width = 25,
 	hidden = false,
 	hint_height = 1,
 	header_height = 0,
@@ -42,9 +42,29 @@ local close_panel = function(win)
 	end
 end
 
+-- Reuse the existing buffer if valid, else create. `create` returns
+-- (win, buf); `recreate` takes the buf and returns the win. `skip`
+-- nils out the state entries (matches the original hdr==0 path).
+local ensure_panel = function(buf_key, win_key, create, recreate, skip)
+	if skip then
+		state[win_key] = nil
+		state[buf_key] = nil
+		return nil, nil
+	end
+	if valid_buf(state[buf_key]) then
+		local buf = state[buf_key]
+		state[win_key] = recreate(buf)
+		return state[win_key], buf
+	end
+	local win, buf = create()
+	state[win_key] = win
+	state[buf_key] = buf
+	return win, buf
+end
+
 local rebuild = function(hl, focusable)
 	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
-	local mw = state.mw
+	local menu_width = state.menu_width
 	local hdr = state.header_height
 
 	close_panel(state.hints_win)
@@ -52,54 +72,33 @@ local rebuild = function(hl, focusable)
 	close_panel(state.header_win)
 
 	if hdr > 0 and valid_buf(state.header_buf) then
-		state.header_win = header_panel.recreate(state.wrapper_win, state.header_buf, mw, wc.width - mw)
+		state.header_win = header_panel.recreate(state.wrapper_win, state.header_buf, menu_width, wc.width - menu_width)
 	end
-	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, mw, focusable, hl, hdr)
-	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, mw, wc.width, wc.height, hl, "menu")
+	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, menu_width, focusable, hl, hdr)
+	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, menu_width, wc.width, wc.height, hl, "menu")
 	state.hint_height = hl
 end
 
-M.create = function(wrapper_win, mw, hint_height, header_height)
+M.create = function(wrapper_win, menu_width, hint_height, header_height)
 	local wc = vim.api.nvim_win_get_config(wrapper_win)
 	local hl = hint_height or 1
 	local hdr = header_height or 0
 
-	local list_win, list_buf
-	if valid_buf(state.list_buf) then
-		list_buf = state.list_buf
-		list_win = list_panel.recreate(wrapper_win, list_buf, mw, false, hl, hdr)
-	else
-		list_win, list_buf = list_panel.create(wrapper_win, mw, false, hl, hdr)
-	end
+	local list_win, list_buf = ensure_panel("list_buf", "list_win",
+		function() return list_panel.create(wrapper_win, menu_width, false, hl, hdr) end,
+		function(buf) return list_panel.recreate(wrapper_win, buf, menu_width, false, hl, hdr) end)
 
-	local hints_win, hints_buf
-	if valid_buf(state.hints_buf) then
-		hints_buf = state.hints_buf
-		hints_win = hints_panel.recreate(wrapper_win, hints_buf, mw, wc.width, wc.height - 1, hl, "menu")
-	else
-		hints_buf = vim.api.nvim_create_buf(false, true)
-		vim.bo[hints_buf].modifiable = false
-		hints_win = hints_panel.recreate(wrapper_win, hints_buf, mw, wc.width, wc.height - 1, hl, "menu")
-	end
+	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win",
+		function() return hints_panel.create(wrapper_win, menu_width, wc.width, wc.height - 1, hl, "menu") end,
+		function(buf) return hints_panel.recreate(wrapper_win, buf, menu_width, wc.width, wc.height - 1, hl, "menu") end)
 
-	local header_win, header_buf = nil, nil
-	if hdr > 0 then
-		if valid_buf(state.header_buf) then
-			header_buf = state.header_buf
-			header_win = header_panel.recreate(wrapper_win, header_buf, mw, wc.width - mw)
-		else
-			header_win, header_buf = header_panel.create(wrapper_win, mw, wc.width - mw)
-		end
-	end
+	local header_win, header_buf = ensure_panel("header_buf", "header_win",
+		function() return header_panel.create(wrapper_win, menu_width, wc.width - menu_width) end,
+		function(buf) return header_panel.recreate(wrapper_win, buf, menu_width, wc.width - menu_width) end,
+		hdr == 0)
 
 	state.wrapper_win = wrapper_win
-	state.hints_win = hints_win
-	state.hints_buf = hints_buf
-	state.list_win = list_win
-	state.list_buf = list_buf
-	state.header_win = header_win
-	state.header_buf = header_buf
-	state.mw = mw
+	state.menu_width = menu_width
 	state.hidden = false
 	state.hint_height = hl
 	state.header_height = hdr
@@ -111,40 +110,21 @@ M.create_landing = function(wrapper_win, header_height)
 	local wc = vim.api.nvim_win_get_config(wrapper_win)
 	local hdr = header_height or 0
 
-	local list_win, list_buf
-	if valid_buf(state.list_buf) then
-		list_buf = state.list_buf
-		list_win = list_panel.recreate(wrapper_win, list_buf, wc.width, true, nil, hdr)
-	else
-		list_win, list_buf = list_panel.create(wrapper_win, wc.width, true, nil, hdr)
-	end
+	local list_win, list_buf = ensure_panel("list_buf", "list_win",
+		function() return list_panel.create(wrapper_win, wc.width, true, nil, hdr) end,
+		function(buf) return list_panel.recreate(wrapper_win, buf, wc.width, true, nil, hdr) end)
 
-	local hints_win, hints_buf
-	if valid_buf(state.hints_buf) then
-		hints_buf = state.hints_buf
-		hints_win = hints_panel.recreate(wrapper_win, hints_buf, nil, nil, nil, nil, "landing")
-	else
-		hints_win, hints_buf = hints_panel.create(wrapper_win, "landing")
-	end
+	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win",
+		function() return hints_panel.create(wrapper_win, nil, nil, nil, nil, "landing") end,
+		function(buf) return hints_panel.recreate(wrapper_win, buf, nil, nil, nil, nil, "landing") end)
 
-	local header_win, header_buf = nil, nil
-	if hdr > 0 then
-		if valid_buf(state.header_buf) then
-			header_buf = state.header_buf
-			header_win = header_panel.recreate(wrapper_win, header_buf)
-		else
-			header_win, header_buf = header_panel.create(wrapper_win)
-		end
-	end
+	local header_win, header_buf = ensure_panel("header_buf", "header_win",
+		function() return header_panel.create(wrapper_win) end,
+		function(buf) return header_panel.recreate(wrapper_win, buf) end,
+		hdr == 0)
 
 	state.wrapper_win = wrapper_win
-	state.hints_win = hints_win
-	state.hints_buf = hints_buf
-	state.list_win = list_win
-	state.list_buf = list_buf
-	state.header_win = header_win
-	state.header_buf = header_buf
-	state.mw = wc.width
+	state.menu_width = wc.width
 	state.hidden = false
 	state.hint_height = 1
 	state.header_height = hdr
@@ -188,7 +168,7 @@ M.show_menu = function(content_win)
 	rebuild(3, true)
 	state.hidden = false
 	local wc = vim.api.nvim_win_get_config(state.wrapper_win)
-	resize_content(content_win, wc.width - state.mw - 2, wc.height - 2)
+	resize_content(content_win, wc.width - state.menu_width - 2, wc.height - 2)
 end
 
 M.destroy = function()

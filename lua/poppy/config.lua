@@ -37,9 +37,7 @@ local default_opts = {
 	win_location = "center",
 }
 
--- Build a fresh, sanitized record for a poppy. Reads from the user's raw
--- poppy config (which is left untouched); never mutates the user's input.
--- Returns nil on error (and emits a notify).
+-- Returns nil on validation error (and notifies). Never mutates the input.
 local resolve_poppy = function(name, poppy)
 	if not poppy then
 		return nil
@@ -65,8 +63,7 @@ local resolve_poppy = function(name, poppy)
 		title = util.title_fallback(mode, poppy.exec or poppy.file or poppy.shell or os.getenv("SHELL") or "shell")
 	end
 
-	-- Fresh record; the user's poppy config is NOT mutated.
-	-- `cat` is derived at use sites via util.cat(poppy) — see core/util.lua.
+	-- `cat` is derived at use sites via util.cat(poppy).
 	return {
 		exec = poppy.exec,
 		file = poppy.file,
@@ -76,16 +73,14 @@ local resolve_poppy = function(name, poppy)
 	}
 end
 
--- Build a fresh, fully sanitized opts table. The user's `user_opts` is
--- left untouched: keys/icons are copied into fresh tables, poppies is
--- referenced (not mutated), and a parallel `poppies_resolved` map holds
--- the engine-internal `mode` / `cat` / `title` fields.
+-- User input is never mutated: keys/icons are copied into fresh tables,
+-- poppies is referenced, and a parallel `poppies_resolved` map carries
+-- engine-internal mode/title.
 M.merge = function(user_opts)
 	local user = user_opts or {}
-	-- First arg is `{}` so neither default_opts (module-local) nor user is mutated.
+	-- Leading `{}` keeps default_opts and user untouched.
 	local merged = vim.tbl_deep_extend("force", {}, default_opts, user)
 
-	-- Sanitize keys: build a fresh table. Never mutate merged.keys in place.
 	local merged_keys = merged.keys
 	local keys = {}
 	for _, k in ipairs({ "poppy_action", "select", "kill", "exit_menu" }) do
@@ -96,7 +91,6 @@ M.merge = function(user_opts)
 		end
 	end
 
-	-- Sanitize icons: same pattern.
 	local merged_icons = merged.icons
 	local icons = {}
 	for _, k in ipairs({ "exec", "shell", "file" }) do
@@ -107,7 +101,6 @@ M.merge = function(user_opts)
 		end
 	end
 
-	-- Validate win_location.
 	local valid_locations = { center = true, top = true, bottom = true }
 	local win_location = merged.win_location
 	if not valid_locations[win_location] then
@@ -118,9 +111,6 @@ M.merge = function(user_opts)
 		win_location = default_opts.win_location
 	end
 
-	-- Build the resolved poppies map. The user's `merged.poppies` is left
-	-- alone; a parallel `poppies_resolved` table holds the engine-internal
-	-- `mode` / `cat` / `title` fields.
 	local poppies = merged.poppies or {}
 	local poppies_resolved = {}
 	for name, poppy in pairs(poppies) do
@@ -130,7 +120,6 @@ M.merge = function(user_opts)
 		end
 	end
 
-	-- Final opts: completely fresh table; nothing aliased to user input.
 	return {
 		keys = keys,
 		icons = icons,

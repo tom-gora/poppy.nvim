@@ -12,16 +12,16 @@ local util = require("poppy.core.util")
 local list_panel_update
 local focus_list_with_cursor
 
--- Refresh both the sidebar list and hints panel based on current state.
--- Called after every pop-changing action (open, switch, toggle_menu, kill, recover).
+-- Refresh sidebar + hints after every pop-changing action.
 M.refresh_panels = function(sorted_poppies)
 	if state.is_landing and state.wrapper_win then
-		list_panel_update(sorted_poppies)
+		local menu_width = vim.api.nvim_win_get_width(state.wrapper_win)
+		list_panel_update(sorted_poppies, menu_width)
 		hints_panel.update(
 			panels.get_hints_buf(),
-			state.opts and state.opts.keys,
+			util.keys(),
 			#sorted_poppies,
-			vim.api.nvim_win_get_width(state.wrapper_win),
+			menu_width,
 			"landing",
 			"landing"
 		)
@@ -30,15 +30,15 @@ M.refresh_panels = function(sorted_poppies)
 	if panels.is_hidden() then
 		return
 	end
-	local mw = (state.opts and state.opts.menu_width) or 25
-	list_panel_update(sorted_poppies)
+	local menu_width = util.menu_width()
+	list_panel_update(sorted_poppies, menu_width)
 	local mode = state.menu_focused and "active_focused" or "active_menu"
-	hints_panel.update(panels.get_hints_buf(), state.opts and state.opts.keys, #sorted_poppies, mw, "menu", mode)
+	hints_panel.update(panels.get_hints_buf(), util.keys(), #sorted_poppies, menu_width, "menu", mode)
 end
 
-list_panel_update = function(sorted_poppies)
+list_panel_update = function(sorted_poppies, menu_width)
 	local list_panel = require("poppy.core.ui.list_panel")
-	list_panel.update(panels.get_list_buf(), sorted_poppies, poppy_state.entries(), state.opts and state.opts.icons)
+	list_panel.update(panels.get_list_buf(), sorted_poppies, poppy_state.entries(), state.opts and state.opts.icons, menu_width)
 end
 
 focus_list_with_cursor = function()
@@ -68,7 +68,7 @@ local show_menu_hint_or_close = function()
 	state.menu_hint_buf = nil
 	if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
 		state.menu_hint_win, state.menu_hint_buf =
-			hints_panel.create_bottom_right(state.content_win, state.opts.keys)
+			hints_panel.create_bottom_right(state.content_win, util.keys())
 	end
 end
 
@@ -92,9 +92,9 @@ M.switch_by_name = function(poppy_name)
 
 	if state.is_landing then
 		panels.destroy()
-		local mw = (state.opts and state.opts.menu_width) or 25
+		local menu_width = util.menu_width()
 		local wc = vim.api.nvim_win_get_config(state.wrapper_win)
-		local full_width = layout.compute_dimensions(state.opts, vim.o.columns, vim.o.lines)
+		local full_width = layout.compute_wrapper_dimensions(state.opts, vim.o.columns, vim.o.lines)
 		vim.api.nvim_win_set_config(state.wrapper_win, {
 			relative = wc.relative,
 			width = full_width,
@@ -103,14 +103,14 @@ M.switch_by_name = function(poppy_name)
 			row = wc.row,
 		})
 		local hdr = layout.get_header_height(state.opts)
-		local c_win, c_buf = content.create(state.wrapper_win, mw)
-		panels.create(state.wrapper_win, mw, 4, hdr)
+		local c_win, c_buf = content.create(state.wrapper_win, menu_width)
+		panels.create(state.wrapper_win, menu_width, 4, hdr)
 		local manager = require("poppy.core.session.manager")
-		manager.watch_content_window(c_win, mw)
+		manager.watch_content_window(c_win, menu_width)
 		state.content_win = c_win
 		state.content_buf = c_buf
 		state.is_landing = false
-		input.setup_menu(panels.get_list_buf(), state.opts and state.opts.keys)
+		input.setup_menu(panels.get_list_buf(), util.keys())
 	end
 
 	local poppy_opts = state.opts.poppies_resolved[poppy_name]
@@ -119,7 +119,7 @@ M.switch_by_name = function(poppy_name)
 	local mode = poppy_opts.mode
 	require("poppy.core.modes." .. mode).run(poppy_name, state.opts, state.content_win)
 
-	input.setup_content(vim.api.nvim_win_get_buf(state.content_win), state.opts and state.opts.keys)
+	input.setup_content(vim.api.nvim_win_get_buf(state.content_win), util.keys())
 
 	state.menu_focused = false
 	if state.opts.menu_autohide then
@@ -138,9 +138,9 @@ M.switch_by_name = function(poppy_name)
 end
 
 M.switch_by_index = function(index)
-	local item = poppy_state.entries()[index]
-	if item then
-		M.switch_by_name(item.name)
+	local resolved = poppy_state.resolve(index)
+	if resolved then
+		M.switch_by_name(resolved.name)
 	end
 end
 

@@ -3,7 +3,6 @@ local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local util = require("poppy.core.util")
 local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
-local mv = 25
 
 local sign_group = "poppy_list"
 
@@ -19,10 +18,7 @@ local pick_sign = function(dot, cat, is_active, is_hidden)
 	return prefix .. (is_hidden and "H" or "A")
 end
 
-M.create = function(wrapper_win, width, focusable, hint_height, row_override)
-	if width then
-		mv = width
-	end
+M.create = function(wrapper_win, menu_width, focusable, hint_height, row_override)
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
 	vim.api.nvim_create_autocmd("InsertEnter", {
@@ -31,13 +27,10 @@ M.create = function(wrapper_win, width, focusable, hint_height, row_override)
 			vim.cmd("stopinsert")
 		end,
 	})
-	return M.recreate(wrapper_win, buf, width, focusable, hint_height, row_override), buf
+	return M.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override), buf
 end
 
-M.recreate = function(wrapper_win, buf, width, focusable, hint_height, row_override)
-	if width then
-		mv = width
-	end
+M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
 	local h = math.max(1, (hint_height and (wrapper_conf.height - hint_height) or (wrapper_conf.height - 1)))
 	if row_override then
@@ -46,9 +39,9 @@ M.recreate = function(wrapper_win, buf, width, focusable, hint_height, row_overr
 
 	local config = {
 		relative = "win",
-		width = mv,
+		width = menu_width,
 		height = h,
-		col = wrapper_conf.width - mv,
+		col = wrapper_conf.width - menu_width,
 		row = row_override or 0,
 		style = "minimal",
 		border = "none",
@@ -100,7 +93,7 @@ local trim_title = function(title, max_width)
 	return result
 end
 
-M.update = function(buf, sorted_poppies, poppies, icons)
+M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 
 	local lines = {}
@@ -117,7 +110,7 @@ M.update = function(buf, sorted_poppies, poppies, icons)
 		local is_active = ps and ps.active
 		local dot = (is_active or is_hidden) and "•" or " "
 		local icon_w = vim.fn.strdisplaywidth(icon)
-		local title_max = mv - 1 - icon_w - 1 - idx_width - 1
+		local title_max = menu_width - 1 - icon_w - 1 - idx_width - 1
 		local title = trim_title(raw_title, title_max)
 		local line = string.format("%s %" .. idx_width .. "d %s", icon, display_idx, title)
 		table.insert(lines, line)
