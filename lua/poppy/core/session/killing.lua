@@ -58,10 +58,10 @@ M.recover = function()
 			input.setup_menu(list_buf, util.keys())
 			switching.refresh_panels(poppy_state.entries())
 
-			local list_win = panels.get_list_win()
-			if list_win and vim.api.nvim_win_is_valid(list_win) then
-				pcall(vim.api.nvim_set_current_win, list_win)
-			end
+		local list_win = panels.get_list_win()
+		if list_win and vim.api.nvim_win_is_valid(list_win) then
+			vim.api.nvim_set_current_win(list_win)
+		end
 		end
 	end)
 end
@@ -83,7 +83,7 @@ M.kill_active = function()
 	end
 
 	if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
-		pcall(vim.api.nvim_set_current_win, state.content_win)
+		vim.api.nvim_set_current_win(state.content_win)
 	end
 end
 

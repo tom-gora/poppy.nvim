@@ -15,9 +15,9 @@ M.run = function(poppy_name, opts, parent_win)
 		return
 	end
 
-	if not p_state or (not p_state.active and not p_state.hidden) then
+	if not (p_state and (p_state.active or p_state.hidden)) then
 		vim.api.nvim_buf_call(bufnr, function()
-			pcall(vim.api.nvim_set_option_value, "modified", false, { buf = bufnr })
+			vim.api.nvim_set_option_value("modified", false, { buf = bufnr })
 			util.term_spawn(util.term_resolve_command(poppy_opts), {
 				on_exit = function()
 					if vim.api.nvim_buf_is_valid(bufnr) then

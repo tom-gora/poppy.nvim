@@ -11,7 +11,7 @@ M.run = function(poppy_name, opts, parent_win)
 	local bufnr
 	if p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
 		bufnr = p_state.bufnr
-		pcall(vim.api.nvim_buf_set_var, bufnr, "poppy_popup", poppy_name)
+		vim.api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
 	else
 		bufnr = vim.api.nvim_create_buf(false, false)
 		local file_val = poppy_opts.file
@@ -20,7 +20,7 @@ M.run = function(poppy_name, opts, parent_win)
 		end
 		local file_path = vim.fn.expand(file_val)
 		if vim.fn.filereadable(file_path) ~= 1 then
-			pcall(vim.fn.writefile, {}, file_path)
+			vim.fn.writefile({}, file_path)
 		end
 		vim.api.nvim_buf_call(bufnr, function()
 			vim.cmd("edit " .. vim.fn.fnameescape(file_path))

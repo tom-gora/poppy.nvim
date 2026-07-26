@@ -195,19 +195,11 @@ ______________________________________________________________________
   `lua/poppy/core/ui/hints_panel.lua:60-86`. Collapse the optional
   overrides into a single `opts` table.
 
-- [ ] **`util.title_fallback` `exec`/`term` duplication** —
-  `lua/poppy/core/util.lua:98-116`. The two terminal-style branches
-  are identical. Combine:
-  ```lua
-  if mode == "file" then return vim.fs.basename(vim.fn.expand(v)) end
-  local first = type(v) == "table" and v[1] or vim.split(v, " ")[1]
-  return vim.fs.basename(first)
-  ```
-
 - [ ] **`util.compute_landing_view_width` placeholder format** —
-  `lua/poppy/core/util.lua:65-77`. `string.format(" %s %s %d %s", " ", icon, i, title)`
-  has a literal `" "` as the first format arg. Drop the extra
-  `%s " "` pair; the result is unchanged.
+  `lua/poppy/core/util.lua:74-86`. The proposed dedup is wrong: the
+  format `" %s %s %d %s", " ", icon, i, title` produces 3 leading
+  spaces; `" %s %d %s", icon, i, title` produces 1. Dropping the
+  prefix arg shifts the landing width by 2 chars. Leave as-is.
 
 - [ ] **`config.lua` `merged.X == true` chain** —
   `lua/poppy/config.lua:137-140`. Once `vim.tbl_deep_extend` has
@@ -252,11 +244,6 @@ ______________________________________________________________________
   `transition_from_landing` / `apply_focused_state` / `focus_content`.
 
 ### 2.2 De Morgan / readability
-
-- [ ] **`modes/term.lua:18`** —
-  `if not p_state or (not p_state.active and not p_state.hidden) then`
-  is a triple-negative. De Morgan:
-  `if not (p_state and (p_state.active or p_state.hidden)) then`.
 
 - [ ] **`modes/file.lua:12`** —
   `if p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then`
@@ -307,32 +294,7 @@ ______________________________________________________________________
   local specs = SPECS[layout == "landing" and "landing" or mode] or {}
   ```
 
-- [ ] **`commands.lua` sub-dispatch** —
-  `lua/poppy/core/session/commands.lua:7-24`. The if/elseif
-  chain for `toggle / close / menu / open` could be a
-  `local subs = { toggle = cb.toggle, close = cb.close, … }`
-  table; the unknown-sub branch becomes
-  `local fn = subs[sub]; if not fn then return vim.notify(…) end; fn(fargs)`.
-
 ### 2.6 Dead pcall / dead guards
-
-- [ ] **`modes/term.lua:20`** — `pcall(vim.api.nvim_set_option_value, "modified", false, { buf = bufnr })`.
-  `nvim_buf_call` guarantees the buffer is valid, and `nvim_set_option_value`
-  with a valid buf won't raise. Drop the pcall.
-
-- [ ] **`modes/file.lua:14, 31`** — `pcall(vim.api.nvim_buf_set_var, …)`.
-  The buffer is either freshly `nvim_create_buf`'d or already
-  validity-checked. Drop the pcall.
-
-- [ ] **`modes/file.lua:23`** — `pcall(vim.fn.writefile, {}, file_path)`.
-  The pcall swallows real write errors. Either drop the pcall
-  (so the user sees the error) or replace with
-  `if vim.fn.filereadable(file_path) == 0 then vim.fn.writefile({}, file_path) end`.
-
-- [ ] **`killing.lua:63, 86`** — `pcall(vim.api.nvim_set_current_win, list_win)`
-  and `pcall(vim.api.nvim_set_current_win, state.content_win)`.
-  Both calls are immediately preceded by an explicit
-  `vim.api.nvim_win_is_valid(...)` check. Drop the pcall.
 
 - [ ] **`panels.M.is_hidden` wrapper** —
   `lua/poppy/core/ui/panels.lua:203-205`. Single-line passthrough
@@ -390,12 +352,6 @@ ______________________________________________________________________
   `lua/poppy/core/ui/hints_panel.lua:18-23`. The function takes
   `layout` which shadows the imported `layout` module. Rename
   to `mode` or `kind`.
-
-- [ ] **`commands.lua` body parsing** —
-  `lua/poppy/core/session/commands.lua:28-30`. `cmd_line:gsub("^%s*:?[Pp]oppy%s+", "")`
-  is fine but the parsing chain in `complete` is dense.
-  `local cmd, rest = body:match("^(%S+)%s*(.*)")` once, then
-  branch on `cmd`.
 
 - [ ] **`style.M.setup` split** — `lua/poppy/core/ui/style.lua:42-125`
   is 80+ straight-line lines. Split into

@@ -110,18 +110,11 @@ M.title_fallback = function(mode, value)
 	end
 	if mode == "file" then
 		return vim.fs.basename(vim.fn.expand(value))
-	elseif mode == "exec" then
-		if type(value) == "table" then
-			return vim.fs.basename(value[1])
-		end
-		return vim.fs.basename(vim.split(value, " ")[1])
-	elseif mode == "term" then
-		if type(value) == "table" then
-			return vim.fs.basename(value[1])
-		end
-		return vim.fs.basename(vim.split(value, " ")[1])
 	end
-	return "POPPY"
+	-- mode is "term" (the only other resolved mode; "exec" is mapped to it
+	-- in config.resolve_poppy and so never reaches here).
+	local first_arg = type(value) == "table" and value[1] or vim.split(value, " ")[1]
+	return vim.fs.basename(first_arg)
 end
 
 -- User-facing category from raw poppy config. Validation in
