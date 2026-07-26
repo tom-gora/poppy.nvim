@@ -33,7 +33,7 @@ M.setup = function(opts, callbacks)
 	vim.api.nvim_create_autocmd("BufUnload", {
 		group = "poppy_group",
 		callback = function(ctx)
-			if not util.is_open(state.wrapper_win) then
+			if not util.session_is_open() then
 				return
 			end
 			local ok, poppy_name = pcall(vim.api.nvim_buf_get_var, ctx.buf, "poppy_popup")
@@ -42,7 +42,7 @@ M.setup = function(opts, callbacks)
 			end
 
 			poppy_state.runtime_remove(poppy_name)
-			if util.is_open(state.wrapper_win) and state.current_poppy_name == poppy_name then
+			if util.session_is_open() and state.current_poppy_name == poppy_name then
 				killing.recover()
 			end
 		end,
@@ -63,12 +63,12 @@ M.setup = function(opts, callbacks)
 		vim.api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, {
 			group = "poppy_group",
 			callback = function()
-				if not util.is_open(state.wrapper_win) then
+				if not util.session_is_open() then
 					return
 				end
 				-- Defer so nvim_get_current_win() reports the new window.
 				vim.schedule(function()
-					if not util.is_open(state.wrapper_win) then
+					if not util.session_is_open() then
 						return
 					end
 					local cur = vim.api.nvim_get_current_win()

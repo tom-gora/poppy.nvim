@@ -7,6 +7,9 @@ local switching = require("poppy.core.session.switching")
 local manager = require("poppy.core.session.manager")
 local events = require("poppy.core.session.events")
 local commands = require("poppy.core.session.commands")
+local style = require("poppy.core.ui.style")
+local config = require("poppy.config")
+local input = require("poppy.core.input")
 local util = require("poppy.core.util")
 
 -- Public session API.
@@ -32,10 +35,10 @@ M.is_open = util.session_is_open
 
 M.setup = function(user_opts)
 	state.init()
-	require("poppy.core.ui.style").setup()
-	state.opts = require("poppy.config").merge(user_opts)
+	style.setup()
+	state.opts = config.merge(user_opts)
 	poppy_state.rebuild_from_sorted(util.get_sorted_poppies(state.opts))
-	require("poppy.core.input").setup_global(util.keys())
+	input.setup_global(util.keys())
 	events.setup(state.opts, { toggle = M.toggle })
 	commands.setup(state.opts, {
 		toggle = M.toggle,

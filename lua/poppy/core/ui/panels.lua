@@ -13,7 +13,6 @@ local state = {
 	header_buf = nil,
 	menu_width = 25,
 	hidden = false,
-	hint_height = 1,
 	header_height = 0,
 }
 
@@ -76,7 +75,6 @@ local rebuild = function(hl, focusable)
 	end
 	state.list_win = list_panel.recreate(state.wrapper_win, state.list_buf, menu_width, focusable, hl, hdr)
 	state.hints_win = hints_panel.recreate(state.wrapper_win, state.hints_buf, menu_width, wc.width, wc.height, hl, "menu")
-	state.hint_height = hl
 end
 
 M.create = function(wrapper_win, menu_width, hint_height, header_height)
@@ -100,7 +98,6 @@ M.create = function(wrapper_win, menu_width, hint_height, header_height)
 	state.wrapper_win = wrapper_win
 	state.menu_width = menu_width
 	state.hidden = false
-	state.hint_height = hl
 	state.header_height = hdr
 
 	return { hints_win = hints_win, hints_buf = hints_buf, list_win = list_win, list_buf = list_buf }
@@ -126,7 +123,6 @@ M.create_landing = function(wrapper_win, header_height)
 	state.wrapper_win = wrapper_win
 	state.menu_width = wc.width
 	state.hidden = false
-	state.hint_height = 1
 	state.header_height = hdr
 
 	return { hints_win = hints_win, hints_buf = hints_buf, list_win = list_win, list_buf = list_buf }
@@ -192,9 +188,6 @@ M.get_list_buf = function()
 end
 M.get_list_win = function()
 	return state.list_win
-end
-local get_hints_win = function()
-	return state.hints_win
 end
 M.get_header_buf = function()
 	return state.header_buf

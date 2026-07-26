@@ -28,7 +28,7 @@ _watch_content_window = function(win_id, menu_width)
 		once = true,
 		group = "poppy_ui",
 		callback = function()
-			if not util.is_open(state.wrapper_win) then
+			if not util.session_is_open() then
 				return
 			end
 			local c_win, c_buf = content.create(state.wrapper_win, menu_width)
@@ -46,7 +46,18 @@ end
 
 M.watch_content_window = _watch_content_window
 
-local cleanup = function()
+-- Soft close (default): drops UI but keeps poppies alive for next open.
+-- Hard close (drop_poppies=true): also kills every live poppy buffer.
+local cleanup = function(drop_poppies)
+	if drop_poppies then
+		for _, p_state in poppy_state.runtime_iter() do
+			if p_state and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
+				vim.api.nvim_buf_delete(p_state.bufnr, { force = true })
+			end
+		end
+		poppy_state.clear()
+	end
+
 	if state.current_poppy_name then
 		local ps = poppy_state.runtime_get(state.current_poppy_name)
 		if ps then
@@ -102,22 +113,12 @@ local cleanup = function()
 	state.menu_focused = false
 end
 
-local hard_cleanup = function()
-	for _, p_state in poppy_state.runtime_iter() do
-		if p_state and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
-			vim.api.nvim_buf_delete(p_state.bufnr, { force = true })
-		end
-	end
-	poppy_state.clear()
-	cleanup()
-end
-
 M.close = function()
-	hard_cleanup()
+	cleanup(true)
 end
 
 M.toggle = function()
-	if util.is_open(state.wrapper_win) then
+	if util.session_is_open() then
 		cleanup()
 	else
 		M.open()
@@ -134,7 +135,7 @@ local open_wrapper = function(width_override)
 end
 
 M.open = function(poppy_name)
-	if util.is_open(state.wrapper_win) then
+	if util.session_is_open() then
 		if poppy_name then
 			switching.switch_by_name(poppy_name)
 		end

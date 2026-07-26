@@ -24,7 +24,7 @@ M.setup = function(opts, callbacks)
 		end
 	end, {
 		nargs = "*",
-		complete = function(arg_lead, cmd_line, _)
+		complete = function(arg_lead, cmd_line)
 			local body = cmd_line:gsub("^%s*:?[Pp]oppy%s+", "")
 			local first_word = body:match("^(%S+)")
 			if first_word == "open" and body:find("%s") then

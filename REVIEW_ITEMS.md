@@ -23,18 +23,6 @@ Flagged during the read-through but not on the dedup list. Each one is
 small, but they interact with items in §1–§4, so cluster them with the
 matching section when you cut them.
 
-- [x] **`session/init.lua:1` stray global** — `M = {}` instead of
-  `local M = {}`. Becomes a global on load. Fix: add `local`. *(fixed)*
-
-- [x] **`panels.state.wrapper_win` drift** —
-  `lua/poppy/core/ui/panels.lua:6-18`. `M.destroy()` (`:174-181`) nils
-  `hints_win` / `list_win` / `header_win` but leaves `state.wrapper_win`
-  set. If a future code path calls `rebuild()` / `hide_menu()` /
-  `show_menu()` after `destroy()` and before the next `create()`,
-  `vim.api.nvim_win_get_config(state.wrapper_win)` reads a stale id.
-  Fix: add `state.wrapper_win = nil` to the tail of `destroy()`.
-  *(applied 2026-07-26)*
-
 - [ ] **`killing.kill_active` order-of-operations** —
   `lua/poppy/core/session/killing.lua:69-88`. `M.recover()` is called
   *before* `vim.api.nvim_buf_delete(target_bufnr)`. `recover()` schedules
@@ -188,41 +176,14 @@ ______________________________________________________________________
 
 ### 1.2 Minor dedup
 
-- [ ] **`lua/poppy/init.lua:4-42`** — `M.toggle`, `M.open`, `M.close`,
-  `M.setup`, `M.switch_by_name`, etc. are one-line wrappers. Direct
-  assignment is shorter and matches the style already used in
-  `session/init.lua`:
-  ```lua
-  M.toggle = session.toggle
-  M.open   = session.open
-  M.close  = session.close
-  ```
-
-- [ ] **Inline `require` in `session/init.lua:M.setup`** —
-  `lua/poppy/core/session/init.lua:34-46`. `require("poppy.core.ui.style")`,
-  `require("poppy.config")`, `require("poppy.core.input")` are all
-  already required at top of file (or transitively). Hoist to locals.
-
-- [ ] **`session/init.lua` forward decls in switching.lua** —
+- [/] **`session/init.lua` forward decls in switching.lua** —
   `lua/poppy/core/session/switching.lua:12-13`. `list_panel_update`
-  and `focus_list_with_cursor` are only used by functions defined
-  *after* them, so the forward declarations are dead. Drop them.
-
-- [ ] **`state.lua` `init` preserve-then-restore** —
-  `lua/poppy/core/session/state.lua:27-31`. `init` preserves `opts`,
-  calls `reset` (which nulls `opts`), then restores it — but
-  `setup` overwrites `opts` immediately. The preserve is dead code.
-  Either inline `reset` or drop the `opts` line from `reset`.
-
-- [ ] **`util.is_open` vs `util.session_is_open`** —
-  `lua/poppy/core/util.lua:8-10, 118-120`. Same predicate, one
-  takes a win, one reads `state.wrapper_win`. Make
-  `session_is_open = function() return M.is_open(state.wrapper_win) end`.
-
-- [ ] **`util.session_is_open` trailing `or false`** —
-  `lua/poppy/core/util.lua:8-10`. `… and nvim_win_is_valid(…) or false`
-  — the `or false` is dead because `and` already returns false when
-  the left side is falsy.
+  forward decl is actually needed — it's referenced inside
+  `M.refresh_panels` (defined at line 16, before its assignment at
+  line 39) so without the decl the closure would grab the global.
+  Either keep the decl or reorder the file so the helper is defined
+  before `M.refresh_panels`. `focus_list_with_cursor` forward decl
+  has been dropped; `local` was added at the definition site.
 
 - [ ] **`content.lua` `ext_config_opts` table** —
   `lua/poppy/core/ui/content.lua:26` and
@@ -259,20 +220,11 @@ ______________________________________________________________________
   `local DEFAULT_KEYS  = {"poppy_action", "select", "kill", "exit_menu"}` and
   `local DEFAULT_ICONS = {"exec", "shell", "file"}` to module scope.
 
-- [ ] **`panels.lua` `state.hint_height` / `state.header_height` cache** —
-  `lua/poppy/core/ui/panels.lua:16-17, 104-105, 149-150`. Cached at
-  `create` time, then read by `focus_menu`/`unfocus_menu`/`show_menu`/
-  `hide_menu`. Compute on demand from `state.opts` instead — they're
-  pure functions of `state.opts` and `state.is_landing`.
-
-- [ ] **`util.get_sorted_poppies` `cat_order` realloc** —
-  `lua/poppy/core/util.lua:79-96`. The `{exec=0, file=1, shell=2}`
-  map is recreated on every call. Hoist to module-local.
-
-- [ ] **`manager.lua` `cleanup` vs `hard_cleanup`** —
-  `lua/poppy/core/session/manager.lua:50-120`. `hard_cleanup` is
-  `for … in poppy_state.runtime_iter() do delete buf end; poppy_state.clear(); cleanup()`.
-  One line is enough; merge.
+- [/] **`panels.lua` `state.hint_height` cache** —
+  `lua/poppy/core/ui/panels.lua:16, 104, 149`. `hint_height` has
+  been dropped (set 3×, read 0× — fully dead). `state.header_height`
+  is kept: it's read in `rebuild` (`panels.lua:68`). The deeper
+  refactor to derive both from `state.opts` is still open.
 
 - [ ] **`lua/poppy/init.lua` callback indirection** —
   `lua/poppy/core/session/init.lua:40-46`. `events.setup(state.opts, { toggle = M.toggle })`
@@ -419,26 +371,9 @@ ______________________________________________________________________
   a future change needs to grow any of those, split into
   `util_text` / `util_term` / `util_session`.
 
-- [ ] **`lua/poppy/init.lua` is a thin pass-through** —
-  `lua/poppy/init.lua:4-42`. The only logic is the read-only
-  getter block at the bottom. Could be reduced to ~15 lines
-  with direct assignment (see 1.2).
-
 ______________________________________________________________________
 
 ## 4. Dead / Unused
-
-- [ ] **`panels.lua` `local get_hints_win = function()`** —
-  `lua/poppy/core/ui/panels.lua:215-217`. Defined but never
-  exported, never used. Delete or expose as `M.get_hints_win`.
-
-- [ ] **`state.lua` `M.reset`** — `lua/poppy/core/session/state.lua:14-25`.
-  Only called from `M.init`. Inline.
-
-- [ ] **`commands.lua` unused completion arg** —
-  `lua/poppy/core/session/commands.lua:27`.
-  `function(arg_lead, cmd_line, _)` — the third arg is unused.
-  `function(arg_lead, cmd_line)`.
 
 - [ ] **`poppy_state.runtime_iter` returning `pairs`** —
   `lua/poppy/core/session/poppy_state.lua:26-28`. The

@@ -11,7 +11,7 @@ local util = require("poppy.core.util")
 M.recover = function()
 	state.current_poppy_name = nil
 	vim.schedule(function()
-		if not util.is_open(state.wrapper_win) or state.is_landing or state.current_poppy_name then
+		if not util.session_is_open() or state.is_landing or state.current_poppy_name then
 			return
 		end
 
@@ -105,7 +105,7 @@ local _kill = function(resolved)
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
 	end
 
-	if util.is_open(state.wrapper_win) and not state.is_landing then
+	if util.session_is_open() and not state.is_landing then
 		switching.refresh_panels(poppy_state.entries())
 	end
 end

@@ -4,7 +4,7 @@ local M = {}
 local state = require("poppy.core.session.state")
 
 M.session_is_open = function()
-	return state.wrapper_win ~= nil and vim.api.nvim_win_is_valid(state.wrapper_win) or false
+	return state.wrapper_win ~= nil and vim.api.nvim_win_is_valid(state.wrapper_win)
 end
 
 M.session_get_current_poppy_name = function()
@@ -122,10 +122,6 @@ M.title_fallback = function(mode, value)
 		return vim.fs.basename(vim.split(value, " ")[1])
 	end
 	return "POPPY"
-end
-
-M.is_open = function(wrapper_win)
-	return wrapper_win ~= nil and vim.api.nvim_win_is_valid(wrapper_win)
 end
 
 -- User-facing category from raw poppy config. Validation in

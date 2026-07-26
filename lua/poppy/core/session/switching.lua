@@ -10,7 +10,6 @@ local layout = require("poppy.core.ui.layout")
 local util = require("poppy.core.util")
 
 local list_panel_update
-local focus_list_with_cursor
 
 -- Refresh sidebar + hints after every pop-changing action.
 M.refresh_panels = function(sorted_poppies)
@@ -41,7 +40,7 @@ list_panel_update = function(sorted_poppies, menu_width)
 	list_panel.update(panels.get_list_buf(), sorted_poppies, poppy_state.entries(), state.opts and state.opts.icons, menu_width)
 end
 
-focus_list_with_cursor = function()
+local focus_list_with_cursor = function()
 	local list_win = panels.get_list_win()
 	if not list_win or not vim.api.nvim_win_is_valid(list_win) then
 		return
@@ -74,7 +73,7 @@ end
 
 M.switch_by_name = function(poppy_name)
 	if
-		not util.is_open(state.wrapper_win)
+		not util.session_is_open()
 		or not state.opts
 		or not state.opts.poppies_resolved
 		or not state.opts.poppies_resolved[poppy_name]
@@ -152,7 +151,7 @@ M.switch_by_cursor = function()
 end
 
 M.toggle_menu = function()
-	if state.is_landing or not util.is_open(state.wrapper_win) then
+	if state.is_landing or not util.session_is_open() then
 		return
 	end
 
