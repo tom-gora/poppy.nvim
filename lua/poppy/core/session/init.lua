@@ -1,4 +1,4 @@
-M = {}
+local M = {}
 
 local state = require("poppy.core.session.state")
 local poppy_state = require("poppy.core.session.poppy_state")

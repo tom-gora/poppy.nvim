@@ -178,6 +178,7 @@ M.destroy = function()
 	state.hints_win = nil
 	state.list_win = nil
 	state.header_win = nil
+	state.wrapper_win = nil
 end
 
 M.is_hidden = function()

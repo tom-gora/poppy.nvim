@@ -17,19 +17,64 @@ UPPERCASE constants, `M.x` module API.
 
 ______________________________________________________________________
 
+## 0. Lurking issues (out of scope of the dedup sprint)
+
+Flagged during the read-through but not on the dedup list. Each one is
+small, but they interact with items in §1–§4, so cluster them with the
+matching section when you cut them.
+
+- [x] **`session/init.lua:1` stray global** — `M = {}` instead of
+  `local M = {}`. Becomes a global on load. Fix: add `local`. *(fixed)*
+
+- [x] **`panels.state.wrapper_win` drift** —
+  `lua/poppy/core/ui/panels.lua:6-18`. `M.destroy()` (`:174-181`) nils
+  `hints_win` / `list_win` / `header_win` but leaves `state.wrapper_win`
+  set. If a future code path calls `rebuild()` / `hide_menu()` /
+  `show_menu()` after `destroy()` and before the next `create()`,
+  `vim.api.nvim_win_get_config(state.wrapper_win)` reads a stale id.
+  Fix: add `state.wrapper_win = nil` to the tail of `destroy()`.
+  *(applied 2026-07-26)*
+
+- [ ] **`killing.kill_active` order-of-operations** —
+  `lua/poppy/core/session/killing.lua:69-88`. `M.recover()` is called
+  *before* `vim.api.nvim_buf_delete(target_bufnr)`. `recover()` schedules
+  a `vim.schedule` that may re-focus `state.content_win`; if the recovered
+  flow opens a new poppy in the same content window, the schedule could
+  run while the old buffer is still alive. Either delete the buffer
+  first, or move the buf-delete into the scheduled callback (or drop the
+  schedule and do the recovery synchronously).
+
+- [ ] **`events.lua:78` "internal hop" detection** — `poppy_ui_window`
+  is set on every poppy win (wrapper, content, header, list, hints,
+  bottom-right hint) but the allow-list isn't centralized. The
+  `WinLeave`/`TermEnter` autoclose checks `poppy_ui_window` via
+  `pcall(nvim_win_get_var)`. If a future panel forgets to set the var,
+  autoclose will eat it silently. Promote `ui.mark(win)` / `ui.is_marked(win)`
+  to `panels.lua` so the rule is grep-able, and call it from the wrapper
+  / content / header / list / hints / bottom-right hint creators.
+
+- [ ] **`modes/term.lua` session coupling** —
+  `lua/poppy/core/modes/term.lua:2`. `local session = require("poppy.core.session")`
+  pulls the whole session module into the mode just to call
+  `session.kill_active()` from `on_exit`. Either define a "current
+  session died" hook on `poppy_state` (the natural owner) and call that,
+  or accept a callback param so the caller wires `kill_active` in.
+
+______________________________________________________________________
+
 ## Summary — top wins
 
 1. **`switching.switch_by_name` landing→content transition** —
    `lua/poppy/core/session/switching.lua:93-114`. ~22 lines of
    "destroy landing panels, resize wrapper, create content, watch
    it, setup menu" that re-does `manager.open`'s normal path.
-   Expose `manager.transition_to_content()` once and have both
+   Expose a `manager.transition_to_content()` once and have both
    call it.
 2. **`killing.recover` landing transition** —
    `lua/poppy/core/session/killing.lua:30-65`. ~35 lines of
    "resize wrapper, create landing panels, focus list, set
    is_landing" that re-does `manager.open`'s landing path.
-   Expose `manager.enter_landing()` once and have both call it.
+   Expose a `manager.enter_landing()` once and have both call it.
 3. **`menu_hint_win` close-and-nil pattern** —
    `lua/poppy/core/session/switching.lua:63-72, 160-164` and
    `killing.lua:30-33`. Three near-identical `if valid then close;
@@ -89,14 +134,14 @@ ______________________________________________________________________
 - [ ] **`switching.switch_by_name` landing→content transition** —
   `lua/poppy/core/session/switching.lua:93-114`. Re-creates content,
   panels, and rewires the wrapper width — same as `manager.open`'s
-  normal path. The manager should expose a single
-  `transition_to_content()` that both call.
+  normal path. Extract a `manager.transition_to_content()` once and
+  have both call it.
 
 - [ ] **`killing.recover` landing transition** —
   `lua/poppy/core/session/killing.lua:30-65`. Re-implements
   `manager.open`'s landing branch (resize wrapper, create landing
-  panels, focus list, set `is_landing`). Should be a single
-  `manager.enter_landing()` call.
+  panels, focus list, set `is_landing`). Extract a
+  `manager.enter_landing()` once and have both call it.
 
 - [ ] **`menu_hint_win` close-and-nil pattern** —
   `lua/poppy/core/session/switching.lua:63-72, 160-164`
