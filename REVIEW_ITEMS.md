@@ -19,68 +19,72 @@ ______________________________________________________________________
 
 ## Summary — top wins
 
-1. ~~`killing.kill_by_name` and `killing.kill_by_index` share one body.~~ ✅
-1. ~~`manager.open` has two near-identical branches (normal vs landing).~~ ✅
-1. ~~`panels.create` and `panels.create_landing` repeat the same
-   triple-panel create/recreate pattern.~~ ✅
-1. ~~`layout.compute_dimensions` has twin width/height blocks.~~ ✅
-1. ~~`style.apply_*_style` and `style.M.setup` repeat the same
-   `vim.schedule` + `is_valid` + `set_winhl` pattern, and the same
-   `if x.fg then adjust_brightness else link_to_comment` triplet.~~ ✅
-1. ~~`poppy_state.get_poppies` is O(n²) — calls `get_poppy_by_name`
-   (linear search) once per entry.~~ ✅
-1. ~~`list_panel.lua` keeps `mv` as module-level mutable state, set
-   inside `create`/`recreate` and read inside `update`.~~ ✅
-1. ~~`state.opts and state.opts.keys` / `… menu_width` patterns show
-   up in 10+ places; a `util.keys()` / `util.menu_width()` getter
-   removes the chain.~~ ✅
+1. **`switching.switch_by_name` landing→content transition** —
+   `lua/poppy/core/session/switching.lua:93-114`. ~22 lines of
+   "destroy landing panels, resize wrapper, create content, watch
+   it, setup menu" that re-does `manager.open`'s normal path.
+   Expose `manager.transition_to_content()` once and have both
+   call it.
+2. **`killing.recover` landing transition** —
+   `lua/poppy/core/session/killing.lua:30-65`. ~35 lines of
+   "resize wrapper, create landing panels, focus list, set
+   is_landing" that re-does `manager.open`'s landing path.
+   Expose `manager.enter_landing()` once and have both call it.
+3. **`menu_hint_win` close-and-nil pattern** —
+   `lua/poppy/core/session/switching.lua:63-72, 160-164` and
+   `killing.lua:30-33`. Three near-identical `if valid then close;
+   state.menu_hint_win=nil; state.menu_hint_buf=nil` blocks.
+   Extract `local close_menu_hint = function() … end` and own the
+   state from `panels` or `hints_panel` so `killing` doesn't
+   reach across.
+4. **`switching.M.switch_by_name` size** —
+   `lua/poppy/core/session/switching.lua:75-138`. ~65 lines doing
+   state-capture, landing→content, mode dispatch, focus,
+   start-insert-in-terminal, refresh. Split into
+   `M.switch_by_name` (entrypoint) + private helpers
+   `transition_from_landing` / `apply_focused_state` /
+   `focus_content`.
+5. **`killing.M.recover` size** —
+   `lua/poppy/core/session/killing.lua:11-67`. ~57 lines, mostly
+   the landing transition. After `manager.enter_landing()` is
+   extracted, the body becomes a few early-returns + the
+   fallback search.
+6. **`config.merge` keys/icons sanitization loops** —
+   `lua/poppy/config.lua:89-108`. Two near-identical
+   `for k in ipairs({...}) do … end` blocks. One
+   `local sanitize_strings = function(defaults, user, keys) … end`
+   helper handles both.
+7. **`poppy_state.clear` and `rebuild_from_sorted` clearing** —
+   `lua/poppy/core/session/poppy_state.lua:38-51`. Both contain
+   `for k in pairs(_poppies) do _poppies[k] = nil end`. Have
+   `rebuild_from_sorted` call `M.clear()` first.
+8. **`internal-hop` field-nulling pattern** —
+   `lua/poppy/core/session/{killing,manager,switching}.lua`. The
+   sequence
+   `local ps = poppy_state.runtime_get(name); if ps then ps.active=false; ps.hidden=true; ps.win=nil end`
+   appears in 3+ places. Promote to `poppy_state.hide(name)`.
+9. **`pcall(nvim_set_option_value, "modifiable", true, {buf=buf}) … modifiable false` boilerplate** —
+   `lua/poppy/core/ui/header_panel.lua:39-41`,
+   `hints_panel.lua:51-53,154-156`,
+   `list_panel.lua:156-158`. Add a `util.with_modifiable(buf, fn)`
+   helper.
+10. **`pcall(nvim_set_current_win, win)` pattern** —
+    `lua/poppy/core/session/killing.lua:63,86`,
+    `manager.lua:196`. Wrap once as `util.focus(win)`.
+11. **`close_panel` + nil triplet** —
+    `lua/poppy/core/ui/panels.lua:174-179, 194-201`. Destroy and
+    `hide_menu` repeat
+    `for … do close_panel(…) end; state.x_win = nil`. Extract
+    `local close_and_clear = function(panel_names) … end`.
+12. **`hints_panel.recreate` 7 optional params** —
+    `lua/poppy/core/ui/hints_panel.lua:60-86`. Collapse the
+    optional overrides into a single `opts` table.
 
 ______________________________________________________________________
 
 ## 1. Code Conciseness / Duplication
 
-### 1.1 Major dedup (highest LOC reduction)
-
-- [x] ~~**`killing.kill_by_name` + `killing.kill_by_index`**~~ ✅
-  Done. `poppy_state.resolve(name_or_index)` is the new public
-  entry point; both wrappers are one-liners that route through a
-  private `_kill(resolved)`. `killing.lua` 149 → 128 lines.
-
-- [x] ~~**`switching.switch_by_index` uses `poppy_state.resolve`**~~ ✅
-  Follow-up from the `resolve` introduction. `switch_by_index` now
-  resolves via `poppy_state.resolve(index)` instead of the inline
-  `entries()[index].name` dance. Pairs with `switch_by_name` for
-  uniform name/index resolution across the public session API. Zero
-  net LOC change; uniformity win.
-
-- [x] ~~\*\*`manager.open` two branches`**~~ ✅ Done. Private `open_wrapper(width_override)`extracted at module scope; the two branches collapse into a single`has_content`/`should_land`dispatch.`manager.lua\` 205 → 185 lines.
-
-- [x] ~~**`panels.create` + `panels.create_landing`**~~ ✅
-  Done. Private `ensure_panel(buf_key, win_key, create, recreate, skip)`
-  extracted at module scope; both functions now use closure pairs
-  per panel. `hints_panel.create` widened to symmetric signature
-  (matches `recreate`). `panels.lua` 222 → 202 lines.
-
-- [x] ~~**`layout.compute_dimensions` width/height blocks**~~ ✅
-  Done. Renamed public to `M.compute_wrapper_dimensions` (full word,
-  wrapper-specific; both call sites are for the wrapper). Private
-  helper is `resolve_dimension(value, total, name)` — full word,
-  distinct from the public name. Notify strings simplified to use
-  `%s` for the dimension name. `layout.lua` 105 → 84 lines.
-  Call sites updated: `wrapper.lua`, `switching.lua`.
-
-- [x] ~~**`style.apply_*_style` family**~~ ✅
-  Done. Private `set_winhl_deferred(win, mappings)` extracted at
-  module scope; the three winhl-only functions collapse to
-  one-liners. `apply_content_style` keeps its body (does more than
-  winhl) but the buftype check is inlined. `apply_border_style` now
-  validates inside the schedule like the others for consistency.
-
-- [x] ~~**`style.M.setup` hidden-foreground triplet**~~ ✅
-  Done. Hidden triplet folded into a loop over `CATEGORY`. The
-  three simpler triplets/quartets (`PoppyFile`/`Exec`/`Shell`,
-  `PoppyCurrentRow*`, `PoppyLineNr*`) got the same treatment for
-  shape consistency. `style.lua` 177 → 159 lines.
+### 1.1 Major dedup
 
 - [ ] **`switching.switch_by_name` landing→content transition** —
   `lua/poppy/core/session/switching.lua:93-114`. Re-creates content,
@@ -143,7 +147,11 @@ ______________________________________________________________________
   `M.setup`, `M.switch_by_name`, etc. are one-line wrappers. Direct
   assignment is shorter and matches the style already used in
   `session/init.lua`:
-  `lua     M.toggle = session.toggle     M.open   = session.open     M.close  = session.close     `
+  ```lua
+  M.toggle = session.toggle
+  M.open   = session.open
+  M.close  = session.close
+  ```
 
 - [ ] **Inline `require` in `session/init.lua:M.setup`** —
   `lua/poppy/core/session/init.lua:34-46`. `require("poppy.core.ui.style")`,
@@ -171,25 +179,6 @@ ______________________________________________________________________
   — the `or false` is dead because `and` already returns false when
   the left side is falsy.
 
-- [x] ~~**`list_panel.lua` module-level `mv`**~~ ✅
-  Done. Removed. `menu_width` is now a parameter on
-  `M.create` / `M.recreate` / `M.update`. The `if width then mv = width end`
-  defensive guard dropped (every call site passes a value). Full
-  consistency rename across `list_panel.lua`, `panels.lua`
-  (locals + `state.mw` field → `state.menu_width`), `switching.lua`,
-  and `manager.lua` (also had `mw` locals). `M.refresh_panels` in
-  `switching.lua` computes `menu_width` internally per branch
-  (landing uses wrapper width, menu mode uses `state.opts.menu_width`)
-  and forwards to `list_panel_update`.
-
-- [x] ~~**`poppy_state.get_poppies` is O(n²)**~~ ✅
-  Done as a clarity fix, not a perf fix. `get_poppies` now calls
-  `build_record(i, entry)` directly instead of routing through
-  `get_poppy_by_name`. Matches `get_poppy_by_index` shape. The O(n)
-  search inside `get_poppy_by_name` is unchanged — at n=10 it's
-  invisible, and adding a name→index map would be data-structure
-  overhead for human-trigger-speed callers.
-
 - [ ] **`content.lua` `ext_config_opts` table** —
   `lua/poppy/core/ui/content.lua:26` and
   `lua/poppy/core/ui/style.lua:149-168`. `apply_content_style(win, { number=…, relativenumber=… })`
@@ -203,7 +192,11 @@ ______________________________________________________________________
 - [ ] **`util.title_fallback` `exec`/`term` duplication** —
   `lua/poppy/core/util.lua:98-116`. The two terminal-style branches
   are identical. Combine:
-  `lua     if mode == "file" then return vim.fs.basename(vim.fn.expand(v)) end     local first = type(v) == "table" and v[1] or vim.split(v, " ")[1]     return vim.fs.basename(first)     `
+  ```lua
+  if mode == "file" then return vim.fs.basename(vim.fn.expand(v)) end
+  local first = type(v) == "table" and v[1] or vim.split(v, " ")[1]
+  return vim.fs.basename(first)
+  ```
 
 - [ ] **`util.compute_landing_view_width` placeholder format** —
   `lua/poppy/core/util.lua:65-77`. `string.format(" %s %s %d %s", " ", icon, i, title)`
@@ -252,10 +245,6 @@ ______________________________________________________________________
   ~57 lines, mostly the landing transition. After extracting
   `manager.enter_landing()` (see 1.1), the body becomes a few
   early-returns + the fallback search.
-
-- [x] ~~**`panels.M.create` / `M.create_landing`**~~ — done in 1.1. ✅
-
-- [x] ~~**`manager.M.open`**~~ — done in 1.1. ✅
 
 - [ ] **`switching.M.switch_by_name`** —
   `lua/poppy/core/session/switching.lua:75-138`. The function
@@ -312,7 +301,14 @@ ______________________________________________________________________
   `lua/poppy/core/ui/hints_panel.lua:88-127`. Three branches
   (`if layout == "landing" then … elseif mode == "active_menu" or "active_focused" then … else {} end`).
   Promote to a lookup table:
-  `lua     local SPECS = {       landing       = { sep, select, toggle },       active_menu   = { sep, select, kill, exit, toggle },       active_focused = … same as active_menu …,     }     local specs = SPECS[layout == "landing" and "landing" or mode] or {}     `
+  ```lua
+  local SPECS = {
+      landing       = { sep, select, toggle },
+      active_menu   = { sep, select, kill, exit, toggle },
+      active_focused = … same as active_menu …,
+  }
+  local specs = SPECS[layout == "landing" and "landing" or mode] or {}
+  ```
 
 - [ ] **`commands.lua` sub-dispatch** —
   `lua/poppy/core/session/commands.lua:7-24`. The if/elseif
@@ -320,9 +316,6 @@ ______________________________________________________________________
   `local subs = { toggle = cb.toggle, close = cb.close, … }`
   table; the unknown-sub branch becomes
   `local fn = subs[sub]; if not fn then return vim.notify(…) end; fn(fargs)`.
-
-- [x] ~~**`style.M.setup` `PoppyCurrent*` triplet**~~ ✅
-  Done as part of item 5. Loop over `CATEGORY`.
 
 ### 2.6 Dead pcall / dead guards
 
@@ -447,4 +440,3 @@ ______________________________________________________________________
   — the dedup items in §1 already touch this; if the work is
   scheduled, the refactor in §1.1 items 1–4 are a good first
   slice.
-
