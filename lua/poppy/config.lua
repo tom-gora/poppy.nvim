@@ -27,6 +27,25 @@ local util = require("poppy.core.util")
 local DEFAULT_KEYS = { "poppy_action", "select", "kill", "exit_menu" }
 local DEFAULT_ICONS = { "exec", "shell", "file" }
 
+-- Pick non-empty strings from `user` for each name in `keys`, falling
+-- back to `defaults`. Used to validate config string fields typed by the
+-- user (keybindings, icons). Empty strings, nil, and wrong types are
+-- all replaced with the default. When `max_display_width` is set, the
+-- value's display width must also fit (icons get 2 to allow a single
+-- 2-cell nerdfont glyph; longer nerd-font glyphs would break layout).
+local sanitize_string_fields = function(defaults, user, keys, max_display_width)
+	local out = {}
+	for _, k in ipairs(keys) do
+		local v = (type(user) == "table") and user[k] or nil
+		local valid = type(v) == "string" and v ~= ""
+		if valid and max_display_width then
+			valid = vim.fn.strdisplaywidth(v) <= max_display_width
+		end
+		out[k] = valid and v or defaults[k]
+	end
+	return out
+end
+
 local default_opts = {
 	keys = { poppy_action = "<C-_>", select = "<CR>", kill = "d", exit_menu = "<Esc>" },
 	icons = { exec = "🛠", shell = "$", file = "🗋" },
@@ -84,25 +103,8 @@ M.merge = function(user_opts)
 	-- Leading `{}` keeps default_opts and user untouched.
 	local merged = vim.tbl_deep_extend("force", {}, default_opts, user)
 
-	local merged_keys = merged.keys
-	local keys = {}
-	for _, k in ipairs(DEFAULT_KEYS) do
-		if type(merged_keys) == "table" and type(merged_keys[k]) == "string" and merged_keys[k] ~= "" then
-			keys[k] = merged_keys[k]
-		else
-			keys[k] = default_opts.keys[k]
-		end
-	end
-
-	local merged_icons = merged.icons
-	local icons = {}
-	for _, k in ipairs(DEFAULT_ICONS) do
-		if type(merged_icons) == "table" and type(merged_icons[k]) == "string" then
-			icons[k] = merged_icons[k]
-		else
-			icons[k] = default_opts.icons[k]
-		end
-	end
+	local keys = sanitize_string_fields(default_opts.keys, merged.keys, DEFAULT_KEYS)
+	local icons = sanitize_string_fields(default_opts.icons, merged.icons, DEFAULT_ICONS, 2)
 
 	local valid_locations = { center = true, top = true, bottom = true }
 	local win_location = merged.win_location
