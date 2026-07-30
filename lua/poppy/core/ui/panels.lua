@@ -101,18 +101,30 @@ M.create = function(wrapper_win, menu_width, hint_height, header_height)
 	local hl = hint_height or 1
 	local hdr = header_height or 0
 
-	local list_win, list_buf = ensure_panel("list_buf", "list_win",
-		function() return list_panel.create(wrapper_win, menu_width, false, hl, hdr) end,
-		function(buf) return list_panel.recreate(wrapper_win, buf, menu_width, false, hl, hdr) end)
+	local list_win, list_buf = ensure_panel("list_buf", "list_win", function()
+		return list_panel.create(wrapper_win, menu_width, false, hl, hdr)
+	end, function(buf)
+		return list_panel.recreate(wrapper_win, buf, menu_width, false, hl, hdr)
+	end)
 
-	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win",
-		function() return hints_panel.create(wrapper_win, { width = menu_width, col = wc.width, row = wc.height - 1, height = hl, kind = "menu" }) end,
-		function(buf) return hints_panel.recreate(wrapper_win, buf, { width = menu_width, col = wc.width, row = wc.height - 1, height = hl, kind = "menu" }) end)
+	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win", function()
+		return hints_panel.create(
+			wrapper_win,
+			{ width = menu_width, col = wc.width, row = wc.height - 1, height = hl, kind = "menu" }
+		)
+	end, function(buf)
+		return hints_panel.recreate(
+			wrapper_win,
+			buf,
+			{ width = menu_width, col = wc.width, row = wc.height - 1, height = hl, kind = "menu" }
+		)
+	end)
 
-	local header_win, header_buf = ensure_panel("header_buf", "header_win",
-		function() return header_panel.create(wrapper_win, menu_width, wc.width - menu_width) end,
-		function(buf) return header_panel.recreate(wrapper_win, buf, menu_width, wc.width - menu_width) end,
-		hdr == 0)
+	local header_win, header_buf = ensure_panel("header_buf", "header_win", function()
+		return header_panel.create(wrapper_win, menu_width, wc.width - menu_width)
+	end, function(buf)
+		return header_panel.recreate(wrapper_win, buf, menu_width, wc.width - menu_width)
+	end, hdr == 0)
 
 	state.wrapper_win = wrapper_win
 	state.menu_width = menu_width
@@ -126,18 +138,23 @@ M.create_landing = function(wrapper_win, header_height)
 	local wc = vim.api.nvim_win_get_config(wrapper_win)
 	local hdr = header_height or 0
 
-	local list_win, list_buf = ensure_panel("list_buf", "list_win",
-		function() return list_panel.create(wrapper_win, wc.width, true, nil, hdr) end,
-		function(buf) return list_panel.recreate(wrapper_win, buf, wc.width, true, nil, hdr) end)
+	local list_win, list_buf = ensure_panel("list_buf", "list_win", function()
+		return list_panel.create(wrapper_win, wc.width, true, nil, hdr)
+	end, function(buf)
+		return list_panel.recreate(wrapper_win, buf, wc.width, true, nil, hdr)
+	end)
 
-	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win",
-		function() return hints_panel.create(wrapper_win, { kind = "landing" }) end,
-		function(buf) return hints_panel.recreate(wrapper_win, buf, { kind = "landing" }) end)
+	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win", function()
+		return hints_panel.create(wrapper_win, { kind = "landing" })
+	end, function(buf)
+		return hints_panel.recreate(wrapper_win, buf, { kind = "landing" })
+	end)
 
-	local header_win, header_buf = ensure_panel("header_buf", "header_win",
-		function() return header_panel.create(wrapper_win) end,
-		function(buf) return header_panel.recreate(wrapper_win, buf) end,
-		hdr == 0)
+	local header_win, header_buf = ensure_panel("header_buf", "header_win", function()
+		return header_panel.create(wrapper_win)
+	end, function(buf)
+		return header_panel.recreate(wrapper_win, buf)
+	end, hdr == 0)
 
 	state.wrapper_win = wrapper_win
 	state.menu_width = wc.width

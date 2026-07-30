@@ -32,7 +32,9 @@ end
 
 M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local h = math.max(1, (hint_height and (wrapper_conf.height - hint_height) or (wrapper_conf.height - 1)))
+	local padding_offset = 2
+	local hint_offset = hint_height and hint_height + padding_offset
+	local h = math.max(1, (hint_height and (wrapper_conf.height - hint_offset) or (wrapper_conf.height - 3)))
 	if row_override then
 		h = math.max(1, h - row_override)
 	end
@@ -139,12 +141,7 @@ M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 			group = sign_group,
 			id = display_idx,
 			lnum = display_idx,
-			name = pick_sign(
-				(e.is_active or e.is_hidden) and "•" or " ",
-				e.cat,
-				e.is_active,
-				e.is_hidden
-			),
+			name = pick_sign((e.is_active or e.is_hidden) and "•" or " ", e.cat, e.is_active, e.is_hidden),
 		}
 	end
 
