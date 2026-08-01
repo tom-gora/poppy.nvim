@@ -1,6 +1,7 @@
 local M = {}
 local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
+local util = require("poppy.core.util")
 local namespace = vim.api.nvim_create_namespace("poppy_header_panel")
 
 M.create = function(wrapper_win, width_override, col_override)
@@ -36,9 +37,9 @@ M.recreate = function(wrapper_win, buf, width_override, col_override)
 	local sep = " " .. string.rep("─", width - 2) .. " "
 	local title_line = string.rep(" ", title_col) .. title
 
-	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "", title_line, sep })
-	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+	util.with_modifiable(buf, function()
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "", title_line, sep })
+	end)
 
 	vim.api.nvim_buf_set_extmark(buf, namespace, 1, 0, { end_col = #title_line, hl_group = "NormalPoppyUIPanel" })
 	local dot_start = title_col + 1

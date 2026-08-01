@@ -19,46 +19,7 @@ ______________________________________________________________________
 
 ## 1. Code Conciseness / Duplication
 
-### 1.1 Major dedup
-
-- [ ] **`switching.switch_by_name` landing→content transition** —
-  `lua/poppy/core/session/switching.lua:93-114`. Re-creates content,
-  panels, and rewires the wrapper width — same as `manager.open`'s
-  normal path. Extract a `manager.transition_to_content()` once and
-  have both call it.
-
-- [ ] **`killing.recover` landing transition** —
-  `lua/poppy/core/session/killing.lua:30-65`. Re-implements
-  `manager.open`'s landing branch (resize wrapper, create landing
-  panels, focus list, set `is_landing`). Extract a
-  `manager.enter_landing()` once and have both call it.
-
-- [ ] **`config.merge` keys/icons sanitization loops** —
-  `lua/poppy/config.lua:89-108`. Two near-identical
-  `for k in ipairs({...}) do … end` blocks. One
-  `local sanitize_strings = function(defaults, user, keys) … end`
-  helper handles both.
-
-- [ ] **`pcall(nvim_set_option_value, "modifiable", true, {buf=buf}) … modifiable false` boilerplate** —
-  `lua/poppy/core/ui/header_panel.lua:39-41`,
-  `lua/poppy/core/ui/hints_panel.lua:51-53,154-156`,
-  `lua/poppy/core/ui/list_panel.lua:156-158`. Add a
-  `util.with_modifiable(buf, fn)` helper.
-
-- [ ] **`pcall(nvim_set_current_win, win)` pattern** —
-  `lua/poppy/core/session/killing.lua:63,86`,
-  `manager.lua:196`. Wrap once as `util.focus(win)`.
-
 ### 1.2 Minor dedup
-
-- [/] **`session/init.lua` forward decls in switching.lua** —
-  `lua/poppy/core/session/switching.lua:12-13`. `list_panel_update`
-  forward decl is actually needed — it's referenced inside
-  `M.refresh_panels` (defined at line 16, before its assignment at
-  line 39) so without the decl the closure would grab the global.
-  Either keep the decl or reorder the file so the helper is defined
-  before `M.refresh_panels`. `focus_list_with_cursor` forward decl
-  has been dropped; `local` was added at the definition site.
 
 - [ ] **`util.compute_landing_view_width` placeholder format** —
   `lua/poppy/core/util.lua:74-86`. The proposed dedup is wrong: the
@@ -70,12 +31,17 @@ ______________________________________________________________________
   `lua/poppy/core/ui/panels.lua:16, 104, 149`. `hint_height` has
   been dropped (set 3×, read 0× — fully dead). `state.header_height`
   is kept: it's read in `rebuild` (`panels.lua:68`). The deeper
-  refactor to derive both from `state.opts` is still open.
+  refactor to derive both from `state.opts` is still open. _Note: the
+  dead `hint_height` state field is gone; only the parameter on
+  `list_panel.create/recreate` + `panels.create` remains as
+  positional plumbing — also a candidate for the same opts-derivation
+  refactor._
 
 - [ ] **`lua/poppy/init.lua` callback indirection** —
-  `lua/poppy/core/session/init.lua:40-46`. `events.setup(state.opts, { toggle = M.toggle })`
-  captures the current binding. If `M.toggle` is ever replaced, the
-  callback still points to the old one. Either freeze the callbacks
+  `lua/poppy/core/session/init.lua:41-47`. `events.setup(state.opts, { toggle = M.toggle })`
+  and `commands.setup(state.opts, { toggle, open, close, toggle_menu })`
+  capture the current bindings. If `M.toggle` etc. are ever replaced,
+  the callbacks still point to the old ones. Either freeze the callbacks
   at setup time or document the capture.
 
 ______________________________________________________________________
@@ -84,13 +50,18 @@ ______________________________________________________________________
 
 ### 2.1 Deep nesting → early returns
 
-- [ ] **`killing.M.recover`** — `lua/poppy/core/session/killing.lua:11-67`.
-  ~57 lines, mostly the landing transition. After extracting
-  `manager.enter_landing()` (see 1.1), the body becomes a few
-  early-returns + the fallback search.
+- [ ] **`actions.M.recover`** — `lua/poppy/core/session/actions.lua:174-217`.
+  ~44 lines. After the `util.enter_landing()` extraction the
+  landing branch collapsed to cleanup + `util.enter_landing()` +
+  `setup_menu` + `refresh_panels`. The outer `vim.schedule` +
+  guards + fallback search are still inline. Extract
+  `_find_fallback_name` and pull the landing branch into
+  `_enter_landing_from_recover` (or just call `util.enter_landing`
+  directly without the schedule wrapper if the cleanup can be
+  done synchronously).
 
-- [ ] **`switching.M.switch_by_name`** —
-  `lua/poppy/core/session/switching.lua:75-138`. The function
+- [ ] **`actions.M.switch_by_name`** —
+  `lua/poppy/core/session/actions.lua:70-111`. The function
   captures state, runs the landing→content transition, dispatches
   the mode, focuses, starts insert in terminals, and refreshes.
   Split into
@@ -110,8 +81,8 @@ on `poppy_state.is_usable`)._
   `menu_autohide = merged.menu_autohide == true` →
   `menu_autohide = not not merged.menu_autohide`.
 
-- [ ] **`switching.M.refresh_panels` mode dispatch** —
-  `lua/poppy/core/session/switching.lua:35`.
+- [ ] **`actions.M.refresh_panels` mode dispatch** —
+  `lua/poppy/core/session/actions.lua:34`.
   `local mode = state.menu_focused and "active_focused" or "active_menu"`
   is already ternary — good. The same shape could replace the
   `if layout == "landing" then … elseif …` block in
@@ -155,19 +126,23 @@ ______________________________________________________________________
   two truths drift.
 
 - [ ] **`input.lua` inlines `require` inside callbacks** —
-  `lua/poppy/core/input.lua:11, 20, 29, 35`. Hoist
+  `lua/poppy/core/input.lua:5,11,20,29`. Hoist
   `local session = require("poppy.core.session")` to module top.
 
-- [ ] **`_watch_content_window` lives in `manager.lua`** —
-  `lua/poppy/core/session/manager.lua:22-46`. The augroup
-  `poppy_ui` it uses is also defined here. Both belong in
-  `events.lua` for consistency with the other autocmd setup.
+- [x] **`_watch_content_window` lives in `manager.lua`** —
+  moved to `lua/poppy/core/util.lua:156-181` alongside
+  `transition_to_content` (its sole caller). The `poppy_ui`
+  augroup was relocated too. Done as part of the §3 "2 callers
+  → util.lua" rule (called from `manager.open` + `actions.switch_by_name`).
 
 - [ ] **`util.lua` is getting large** — `lua/poppy/core/util.lua`
-  mixes title-fallback, term-spawn, term-resolve, term-buffer,
-  cursor, landing-width, sort, cat, session-state-accessors. If
-  a future change needs to grow any of those, split into
-  `util_text` / `util_term` / `util_session`.
+  (now ~225 lines) mixes leaf helpers (title-fallback,
+  term-spawn, term-resolve, term-buffer, cursor, landing-width,
+  sort, cat, session-state-accessors, `with_modifiable`) with
+  session-coordinator logic (`transition_to_content`,
+  `enter_landing`, `watch_content_window`). The session-coordinator
+  additions grew out of the dedup pass; splitting into
+  `util_text` / `util_term` / `util_session` is now overdue.
 
 ______________________________________________________________________
 
@@ -187,7 +162,9 @@ ______________________________________________________________________
 - [ ] **`TASK.md` open item** — `TODO.md:25`:
   *"restructure. modes also land in 'core' their helpers into util.
   Session needs breaking up into smaller logical structure scripts"*
-  — the dedup items in §1 already touch this; if the work is
-  scheduled, the refactor in §1.1 items 1–4 are a good first
-  slice.
+  — partial: `switching.lua` + `killing.lua` were merged into
+  `session/actions.lua`, and `transition_to_content` + `enter_landing`
+  + `watch_content_window` moved to `util.lua`. Remaining: modes
+  helpers (the first half of the TODO line) and any further session
+  internal splits (e.g. `util.lua` split per §3 item above).
 

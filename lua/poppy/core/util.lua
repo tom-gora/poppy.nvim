@@ -34,6 +34,14 @@ M.keys = function()
 	return state.opts and state.opts.keys
 end
 
+M.focus = function(win)
+	if win and vim.api.nvim_win_is_valid(win) then
+		vim.api.nvim_set_current_win(win)
+		return true
+	end
+	return false
+end
+
 M.menu_width = function()
 	return state.opts and state.opts.menu_width or 25
 end
@@ -60,6 +68,12 @@ M.term_resolve_command = function(poppy_opts)
 		return (shell and shell ~= "default") and shell or os.getenv("SHELL") or "bash"
 	end
 	return poppy_opts.exec
+end
+
+M.with_modifiable = function(buf, fn)
+	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+	fn()
+	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 end
 
 M.term_get_or_create_buffer = function(poppy_name, opts, p_state)
@@ -142,6 +156,76 @@ M.cat = function(poppy)
 	else
 		return "shell"
 	end
+end
+
+-- Augroup for per-window WinClosed watchers; cleared on cleanup/recover.
+vim.api.nvim_create_augroup("poppy_ui", { clear = false })
+
+local watch_content_window
+watch_content_window = function(win_id, menu_width)
+	if not win_id then
+		return
+	end
+	local menu_width = menu_width or 25
+	vim.api.nvim_create_autocmd("WinClosed", {
+		pattern = tostring(win_id),
+		once = true,
+		group = "poppy_ui",
+		callback = function()
+			if not M.session_is_open() then
+				return
+			end
+			local content = require("poppy.core.ui.content")
+			local c_win, c_buf = content.create(state.wrapper_win, menu_width)
+			state.content_win = c_win
+			state.content_buf = c_buf
+			watch_content_window(c_win, menu_width)
+			local actions = require("poppy.core.session.actions")
+			if state.current_poppy_name then
+				actions.kill_active()
+			else
+				actions.recover()
+			end
+		end,
+	})
+end
+
+M.transition_to_content = function()
+	local panels = require("poppy.core.ui.panels")
+	local layout = require("poppy.core.ui.layout")
+	if state.is_landing then
+		panels.destroy()
+		local wc = vim.api.nvim_win_get_config(state.wrapper_win)
+		local full_width = layout.compute_wrapper_dimensions(state.opts, vim.o.columns, vim.o.lines)
+		vim.api.nvim_win_set_config(state.wrapper_win, {
+			relative = wc.relative,
+			width = full_width,
+			height = wc.height,
+			col = math.floor((vim.o.columns - full_width) / 2),
+			row = wc.row,
+		})
+	end
+	local menu_width = M.menu_width()
+	local hdr = layout.get_header_height(state.opts)
+	local c_win, c_buf = require("poppy.core.ui.content").create(state.wrapper_win, menu_width)
+	panels.create(state.wrapper_win, menu_width, 4, hdr)
+	watch_content_window(c_win, menu_width)
+	state.content_win = c_win
+	state.content_buf = c_buf
+	state.is_landing = false
+end
+
+M.enter_landing = function()
+	local panels = require("poppy.core.ui.panels")
+	local layout = require("poppy.core.ui.layout")
+	panels.create_landing(state.wrapper_win, layout.get_header_height(state.opts))
+	state.content_win = nil
+	state.content_buf = nil
+	state.is_landing = true
+	local list_buf = panels.get_list_buf()
+	vim.bo[list_buf].filetype = "poppy_menu"
+	local list_win = panels.get_list_win()
+	M.focus(list_win)
 end
 
 return M

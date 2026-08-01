@@ -1,6 +1,7 @@
 local M = {}
 local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
+local util = require("poppy.core.util")
 local namespace = vim.api.nvim_create_namespace("poppy_hints_bar")
 
 local PADDING = { landing = 1, menu = 3 }
@@ -66,9 +67,9 @@ M.create_bottom_right = function(parent_win, keys)
 	local win = vim.api.nvim_open_win(buf, false, config)
 	style.apply_hints_panel_style(win)
 
-	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, { text })
-	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+	util.with_modifiable(buf, function()
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { text })
+	end)
 
 	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 
@@ -142,9 +143,9 @@ M.update = function(buf, keys, count, wrapper_width, kind, mode)
 	end
 
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
-	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+	util.with_modifiable(buf, function()
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	end)
 
 	for line_idx, segments in ipairs(per_line_segments) do
 		local col = 0

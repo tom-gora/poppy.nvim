@@ -2,8 +2,7 @@ local M = {}
 
 local state = require("poppy.core.session.state")
 local poppy_state = require("poppy.core.session.poppy_state")
-local killing = require("poppy.core.session.killing")
-local switching = require("poppy.core.session.switching")
+local actions = require("poppy.core.session.actions")
 local panels = require("poppy.core.ui.panels")
 local util = require("poppy.core.util")
 
@@ -43,7 +42,7 @@ M.setup = function(opts, callbacks)
 
 			poppy_state.runtime_remove(poppy_name)
 			if util.session_is_open() and state.current_poppy_name == poppy_name then
-				killing.recover()
+				actions.recover()
 			end
 		end,
 	})
@@ -53,7 +52,7 @@ M.setup = function(opts, callbacks)
 			group = "poppy_group",
 			callback = function()
 				if vim.bo.filetype == "poppy_menu" then
-					switching.exit_menu()
+					actions.exit_menu()
 				end
 			end,
 		})

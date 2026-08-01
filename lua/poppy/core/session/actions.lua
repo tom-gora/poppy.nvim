@@ -42,10 +42,9 @@ end
 
 local focus_list_with_cursor = function()
 	local list_win = panels.get_list_win()
-	if not list_win or not vim.api.nvim_win_is_valid(list_win) then
+	if not util.focus(list_win) then
 		return
 	end
-	vim.api.nvim_set_current_win(list_win)
 	if not state.current_poppy_name then
 		return
 	end
@@ -82,25 +81,7 @@ M.switch_by_name = function(poppy_name)
 	end
 
 	if state.is_landing then
-		panels.destroy()
-		local menu_width = util.menu_width()
-		local wc = vim.api.nvim_win_get_config(state.wrapper_win)
-		local full_width = layout.compute_wrapper_dimensions(state.opts, vim.o.columns, vim.o.lines)
-		vim.api.nvim_win_set_config(state.wrapper_win, {
-			relative = wc.relative,
-			width = full_width,
-			height = wc.height,
-			col = math.floor((vim.o.columns - full_width) / 2),
-			row = wc.row,
-		})
-		local hdr = layout.get_header_height(state.opts)
-		local c_win, c_buf = content.create(state.wrapper_win, menu_width)
-		panels.create(state.wrapper_win, menu_width, 4, hdr)
-		local manager = require("poppy.core.session.manager")
-		manager.watch_content_window(c_win, menu_width)
-		state.content_win = c_win
-		state.content_buf = c_buf
-		state.is_landing = false
+		util.transition_to_content()
 		input.setup_menu(panels.get_list_buf(), util.keys())
 	end
 
@@ -121,9 +102,7 @@ M.switch_by_name = function(poppy_name)
 	end
 
 	M.refresh_panels(poppy_state.entries())
-	vim.api.nvim_set_current_win(state.content_win)
-
-	if vim.bo[vim.api.nvim_win_get_buf(state.content_win)].buftype == "terminal" then
+	if util.focus(state.content_win) and vim.bo[vim.api.nvim_win_get_buf(state.content_win)].buftype == "terminal" then
 		vim.cmd("startinsert")
 	end
 end
@@ -160,9 +139,7 @@ M.toggle_menu = function()
 			focus_list_with_cursor()
 		else
 			panels.unfocus_menu()
-			if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
-				vim.api.nvim_set_current_win(state.content_win)
-			end
+			util.focus(state.content_win)
 		end
 		M.refresh_panels(poppy_state.entries())
 	end
@@ -180,12 +157,116 @@ M.exit_menu = function()
 		panels.unfocus_menu()
 	end
 	M.refresh_panels(poppy_state.entries())
-	if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
-		vim.api.nvim_set_current_win(state.content_win)
+	if util.focus(state.content_win) then
 		local cbuf = vim.api.nvim_win_get_buf(state.content_win)
 		if vim.bo[cbuf].buftype == "terminal" then
 			vim.cmd("startinsert")
 		end
+	end
+end
+
+M.recover = function()
+	state.current_poppy_name = nil
+	vim.schedule(function()
+		if not util.session_is_open() or state.is_landing or state.current_poppy_name then
+			return
+		end
+
+		local fallback_name = nil
+		for name, ps in poppy_state.iter() do
+			if ps.hidden then
+				fallback_name = name
+				break
+			end
+		end
+
+		if fallback_name then
+			M.switch_by_name(fallback_name)
+		else
+			panels.destroy()
+			util.close_menu_hint()
+
+			vim.api.nvim_create_augroup("poppy_ui", { clear = true })
+
+			if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
+				vim.api.nvim_win_close(state.content_win, true)
+			end
+
+			local landing_width = poppy_state.landing_view_width()
+			local wc = vim.api.nvim_win_get_config(state.wrapper_win)
+			vim.api.nvim_win_set_config(state.wrapper_win, {
+				relative = wc.relative,
+				width = landing_width,
+				height = wc.height,
+				col = math.floor((vim.o.columns - landing_width) / 2),
+				row = wc.row,
+			})
+
+			util.enter_landing()
+
+			input.setup_menu(panels.get_list_buf(), util.keys())
+			M.refresh_panels(poppy_state.entries())
+		end
+	end)
+end
+
+M.kill_active = function()
+	if not state.current_poppy_name then
+		return
+	end
+	local target = state.current_poppy_name
+	local p_state = poppy_state.runtime_get(target)
+	local target_bufnr = p_state and p_state.bufnr
+
+	-- Drop the target buffer up-front so any callback recover() schedules
+	-- (via vim.schedule) lands on a clean state without referencing a
+	-- half-dead window's buffer.
+	if target_bufnr and vim.api.nvim_buf_is_valid(target_bufnr) then
+		vim.api.nvim_buf_delete(target_bufnr, { force = true })
+	end
+
+	poppy_state.runtime_remove(target)
+	state.current_poppy_name = nil
+	M.recover()
+
+	util.focus(state.content_win)
+end
+
+local _kill = function(resolved)
+	if not resolved then
+		return
+	end
+	if resolved.name == state.current_poppy_name then
+		return M.kill_active()
+	end
+	if not resolved.runtime then
+		return
+	end
+
+	local target_bufnr = resolved.runtime.bufnr
+	poppy_state.runtime_remove(resolved.name)
+
+	if target_bufnr and vim.api.nvim_buf_is_valid(target_bufnr) then
+		vim.api.nvim_buf_delete(target_bufnr, { force = true })
+	end
+
+	if util.session_is_open() and not state.is_landing then
+		M.refresh_panels(poppy_state.entries())
+	end
+end
+
+M.kill_by_name = function(name)
+	return _kill(poppy_state.resolve(name))
+end
+
+M.kill_by_index = function(index)
+	return _kill(poppy_state.resolve(index))
+end
+
+M.kill_by_cursor = function()
+	local idx = util.cursor_to_poppy_index(poppy_state.entries())
+	if idx then
+		M.kill_by_index(idx)
 	end
 end
 

@@ -145,9 +145,9 @@ M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 		}
 	end
 
-	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+	util.with_modifiable(buf, function()
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	end)
 
 	for display_idx, e in ipairs(entries) do
 		if e.hl then
