@@ -1,7 +1,7 @@
 local M = {}
 local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
-local util = require("poppy.core.util")
+local shared = require("poppy.core.shared")
 local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
 
 local sign_group = "poppy_list"
@@ -102,7 +102,7 @@ M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 	local entries = {}
 
 	for display_idx, item in ipairs(sorted_poppies) do
-		local cat = util.cat(item.config)
+		local cat = shared.cat(item.config)
 		local icon = (icons and icons[cat]) or " "
 		local raw_title = item.config.title or item.name
 		local ps = poppies[item.name]
@@ -145,7 +145,7 @@ M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 		}
 	end
 
-	util.with_modifiable(buf, function()
+	shared.with_modifiable(buf, function()
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)
 

@@ -4,7 +4,7 @@ local state = require("poppy.core.session.state")
 local poppy_state = require("poppy.core.session.poppy_state")
 local actions = require("poppy.core.session.actions")
 local panels = require("poppy.core.ui.panels")
-local util = require("poppy.core.util")
+local shared = require("poppy.core.shared")
 
 M.setup_exclusive_float = function()
 	vim.api.nvim_create_autocmd("WinEnter", {
@@ -32,7 +32,7 @@ M.setup = function(opts, callbacks)
 	vim.api.nvim_create_autocmd("BufUnload", {
 		group = "poppy_group",
 		callback = function(ctx)
-			if not util.session_is_open() then
+			if not shared.session_is_open() then
 				return
 			end
 			local ok, poppy_name = pcall(vim.api.nvim_buf_get_var, ctx.buf, "poppy_popup")
@@ -41,7 +41,7 @@ M.setup = function(opts, callbacks)
 			end
 
 			poppy_state.runtime_remove(poppy_name)
-			if util.session_is_open() and state.current_poppy_name == poppy_name then
+			if shared.session_is_open() and state.current_poppy_name == poppy_name then
 				actions.recover()
 			end
 		end,
@@ -62,12 +62,12 @@ M.setup = function(opts, callbacks)
 		vim.api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, {
 			group = "poppy_group",
 			callback = function()
-				if not util.session_is_open() then
+				if not shared.session_is_open() then
 					return
 				end
 				-- Defer so nvim_get_current_win() reports the new window.
 				vim.schedule(function()
-					if not util.session_is_open() then
+					if not shared.session_is_open() then
 						return
 					end
 					local cur = vim.api.nvim_get_current_win()

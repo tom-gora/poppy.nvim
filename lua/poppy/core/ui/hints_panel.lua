@@ -1,7 +1,7 @@
 local M = {}
 local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
-local util = require("poppy.core.util")
+local shared = require("poppy.core.shared")
 local namespace = vim.api.nvim_create_namespace("poppy_hints_bar")
 
 local PADDING = { landing = 1, menu = 3 }
@@ -67,7 +67,7 @@ M.create_bottom_right = function(parent_win, keys)
 	local win = vim.api.nvim_open_win(buf, false, config)
 	style.apply_hints_panel_style(win)
 
-	util.with_modifiable(buf, function()
+	shared.with_modifiable(buf, function()
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { text })
 	end)
 
@@ -143,7 +143,7 @@ M.update = function(buf, keys, count, wrapper_width, kind, mode)
 	end
 
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
-	util.with_modifiable(buf, function()
+	shared.with_modifiable(buf, function()
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)
 

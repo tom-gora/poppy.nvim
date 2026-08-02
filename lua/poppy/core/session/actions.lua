@@ -7,7 +7,7 @@ local hints_panel = require("poppy.core.ui.hints_panel")
 local content = require("poppy.core.ui.content")
 local input = require("poppy.core.input")
 local layout = require("poppy.core.ui.layout")
-local util = require("poppy.core.util")
+local shared = require("poppy.core.shared")
 
 local list_panel_update
 
@@ -16,33 +16,32 @@ M.refresh_panels = function(sorted_poppies)
 	if state.is_landing and state.wrapper_win then
 		local menu_width = vim.api.nvim_win_get_width(state.wrapper_win)
 		list_panel_update(sorted_poppies, menu_width)
-		hints_panel.update(
-			panels.get_hints_buf(),
-			util.keys(),
-			#sorted_poppies,
-			menu_width,
-			"landing",
-			"landing"
-		)
+		hints_panel.update(panels.get_hints_buf(), shared.keys(), #sorted_poppies, menu_width, "landing", "landing")
 		return
 	end
 	if panels.is_hidden() then
 		return
 	end
-	local menu_width = util.menu_width()
+	local menu_width = shared.menu_width()
 	list_panel_update(sorted_poppies, menu_width)
 	local mode = state.menu_focused and "active_focused" or "active_menu"
-	hints_panel.update(panels.get_hints_buf(), util.keys(), #sorted_poppies, menu_width, "menu", mode)
+	hints_panel.update(panels.get_hints_buf(), shared.keys(), #sorted_poppies, menu_width, "menu", mode)
 end
 
 list_panel_update = function(sorted_poppies, menu_width)
 	local list_panel = require("poppy.core.ui.list_panel")
-	list_panel.update(panels.get_list_buf(), sorted_poppies, poppy_state.entries(), state.opts and state.opts.icons, menu_width)
+	list_panel.update(
+		panels.get_list_buf(),
+		sorted_poppies,
+		poppy_state.entries(),
+		state.opts and state.opts.icons,
+		menu_width
+	)
 end
 
 local focus_list_with_cursor = function()
 	local list_win = panels.get_list_win()
-	if not util.focus(list_win) then
+	if not shared.focus(list_win) then
 		return
 	end
 	if not state.current_poppy_name then
@@ -59,16 +58,15 @@ end
 M.focus_list_with_cursor = focus_list_with_cursor
 
 local show_menu_hint_or_close = function()
-	util.close_menu_hint()
+	shared.close_menu_hint()
 	if state.content_win and vim.api.nvim_win_is_valid(state.content_win) then
-		state.menu_hint_win, state.menu_hint_buf =
-			hints_panel.create_bottom_right(state.content_win, util.keys())
+		state.menu_hint_win, state.menu_hint_buf = hints_panel.create_bottom_right(state.content_win, shared.keys())
 	end
 end
 
 M.switch_by_name = function(poppy_name)
 	if
-		not util.session_is_open()
+		not shared.session_is_open()
 		or not state.opts
 		or not state.opts.poppies_resolved
 		or not state.opts.poppies_resolved[poppy_name]
@@ -81,8 +79,8 @@ M.switch_by_name = function(poppy_name)
 	end
 
 	if state.is_landing then
-		util.transition_to_content()
-		input.setup_menu(panels.get_list_buf(), util.keys())
+		shared.transition_to_content()
+		input.setup_menu(panels.get_list_buf(), shared.keys())
 	end
 
 	local poppy_opts = state.opts.poppies_resolved[poppy_name]
@@ -91,7 +89,7 @@ M.switch_by_name = function(poppy_name)
 	local mode = poppy_opts.mode
 	require("poppy.core.modes." .. mode).run(poppy_name, state.opts, state.content_win)
 
-	input.setup_content(vim.api.nvim_win_get_buf(state.content_win), util.keys())
+	input.setup_content(vim.api.nvim_win_get_buf(state.content_win), shared.keys())
 
 	state.menu_focused = false
 	if state.opts.menu_autohide then
@@ -102,7 +100,10 @@ M.switch_by_name = function(poppy_name)
 	end
 
 	M.refresh_panels(poppy_state.entries())
-	if util.focus(state.content_win) and vim.bo[vim.api.nvim_win_get_buf(state.content_win)].buftype == "terminal" then
+	if
+		shared.focus(state.content_win)
+		and vim.bo[vim.api.nvim_win_get_buf(state.content_win)].buftype == "terminal"
+	then
 		vim.cmd("startinsert")
 	end
 end
@@ -115,19 +116,19 @@ M.switch_by_index = function(index)
 end
 
 M.switch_by_cursor = function()
-	local idx = util.cursor_to_poppy_index(poppy_state.entries())
+	local idx = shared.cursor_to_poppy_index(poppy_state.entries())
 	if idx then
 		M.switch_by_index(idx)
 	end
 end
 
 M.toggle_menu = function()
-	if state.is_landing or not util.session_is_open() then
+	if state.is_landing or not shared.session_is_open() then
 		return
 	end
 
 	if panels.is_hidden() then
-		util.close_menu_hint()
+		shared.close_menu_hint()
 		panels.show_menu(state.content_win)
 		state.menu_focused = true
 		focus_list_with_cursor()
@@ -139,7 +140,7 @@ M.toggle_menu = function()
 			focus_list_with_cursor()
 		else
 			panels.unfocus_menu()
-			util.focus(state.content_win)
+			shared.focus(state.content_win)
 		end
 		M.refresh_panels(poppy_state.entries())
 	end
@@ -157,7 +158,7 @@ M.exit_menu = function()
 		panels.unfocus_menu()
 	end
 	M.refresh_panels(poppy_state.entries())
-	if util.focus(state.content_win) then
+	if shared.focus(state.content_win) then
 		local cbuf = vim.api.nvim_win_get_buf(state.content_win)
 		if vim.bo[cbuf].buftype == "terminal" then
 			vim.cmd("startinsert")
@@ -168,7 +169,7 @@ end
 M.recover = function()
 	state.current_poppy_name = nil
 	vim.schedule(function()
-		if not util.session_is_open() or state.is_landing or state.current_poppy_name then
+		if not shared.session_is_open() or state.is_landing or state.current_poppy_name then
 			return
 		end
 
@@ -184,7 +185,7 @@ M.recover = function()
 			M.switch_by_name(fallback_name)
 		else
 			panels.destroy()
-			util.close_menu_hint()
+			shared.close_menu_hint()
 
 			vim.api.nvim_create_augroup("poppy_ui", { clear = true })
 
@@ -202,9 +203,9 @@ M.recover = function()
 				row = wc.row,
 			})
 
-			util.enter_landing()
+			shared.enter_landing()
 
-			input.setup_menu(panels.get_list_buf(), util.keys())
+			input.setup_menu(panels.get_list_buf(), shared.keys())
 			M.refresh_panels(poppy_state.entries())
 		end
 	end)
@@ -229,7 +230,7 @@ M.kill_active = function()
 	state.current_poppy_name = nil
 	M.recover()
 
-	util.focus(state.content_win)
+	shared.focus(state.content_win)
 end
 
 local _kill = function(resolved)
@@ -250,7 +251,7 @@ local _kill = function(resolved)
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
 	end
 
-	if util.session_is_open() and not state.is_landing then
+	if shared.session_is_open() and not state.is_landing then
 		M.refresh_panels(poppy_state.entries())
 	end
 end
@@ -264,7 +265,7 @@ M.kill_by_index = function(index)
 end
 
 M.kill_by_cursor = function()
-	local idx = util.cursor_to_poppy_index(poppy_state.entries())
+	local idx = shared.cursor_to_poppy_index(poppy_state.entries())
 	if idx then
 		M.kill_by_index(idx)
 	end

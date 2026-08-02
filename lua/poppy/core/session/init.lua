@@ -9,7 +9,7 @@ local commands = require("poppy.core.session.commands")
 local style = require("poppy.core.ui.style")
 local config = require("poppy.config")
 local input = require("poppy.core.input")
-local util = require("poppy.core.util")
+local shared = require("poppy.core.shared")
 
 -- Public session API.
 M.open = manager.open
@@ -29,15 +29,15 @@ M.get_poppies = poppy_state.get_poppies
 M.get_poppy_by_name = poppy_state.get_poppy_by_name
 M.get_poppy_by_index = poppy_state.get_poppy_by_index
 M.get_current_poppy = poppy_state.get_current_poppy
-M.get_current_poppy_name = util.session_get_current_poppy_name
-M.is_open = util.session_is_open
+M.get_current_poppy_name = shared.session_get_current_poppy_name
+M.is_open = shared.session_is_open
 
 M.setup = function(user_opts)
 	state.init()
 	style.setup()
 	state.opts = config.merge(user_opts)
-	poppy_state.rebuild_from_sorted(util.get_sorted_poppies(state.opts))
-	input.setup_global(util.keys())
+	poppy_state.rebuild_from_sorted(shared.get_sorted_poppies(state.opts))
+	input.setup_global(shared.keys())
 	events.setup(state.opts, { toggle = M.toggle })
 	commands.setup(state.opts, {
 		toggle = M.toggle,

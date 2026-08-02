@@ -5,7 +5,7 @@ local poppy_state = require("poppy.core.session.poppy_state")
 local panels = require("poppy.core.ui.panels")
 local wrapper = require("poppy.core.ui.wrapper")
 local input = require("poppy.core.input")
-local util = require("poppy.core.util")
+local shared = require("poppy.core.shared")
 local actions = require("poppy.core.session.actions")
 local events = require("poppy.core.session.events")
 
@@ -26,7 +26,7 @@ local cleanup = function(drop_poppies)
 	end
 
 	local hint_buf = state.menu_hint_buf
-	util.close_menu_hint()
+	shared.close_menu_hint()
 
 	panels.destroy()
 
@@ -72,7 +72,7 @@ M.close = function()
 end
 
 M.toggle = function()
-	if util.session_is_open() then
+	if shared.session_is_open() then
 		cleanup()
 	else
 		M.open()
@@ -89,7 +89,7 @@ local open_wrapper = function(width_override)
 end
 
 M.open = function(poppy_name)
-	if util.session_is_open() then
+	if shared.session_is_open() then
 		if poppy_name then
 			actions.switch_by_name(poppy_name)
 		end
@@ -112,13 +112,13 @@ M.open = function(poppy_name)
 	state.is_landing = should_land
 
 	if has_content then
-		util.transition_to_content()
+		shared.transition_to_content()
 		actions.switch_by_name(poppy_name or last_poppy)
 	else
-		util.enter_landing()
+		shared.enter_landing()
 	end
 
-	input.setup_menu(panels.get_list_buf(), util.keys())
+	input.setup_menu(panels.get_list_buf(), shared.keys())
 	actions.refresh_panels(poppy_state.entries())
 	return state.wrapper_win
 end

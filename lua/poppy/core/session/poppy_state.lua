@@ -1,7 +1,7 @@
 local M = {}
 
 local state = require("poppy.core.session.state")
-local util = require("poppy.core.util")
+local shared = require("poppy.core.shared")
 
 local _poppies = {}
 
@@ -93,12 +93,12 @@ end
 
 M.ensure_entries_loaded = function()
 	if #_poppies == 0 and state.opts and state.opts.poppies and next(state.opts.poppies) then
-		M.rebuild_from_sorted(util.get_sorted_poppies(state.opts))
+		M.rebuild_from_sorted(shared.get_sorted_poppies(state.opts))
 	end
 end
 
 M.landing_view_width = function()
-	return util.compute_landing_view_width(state.opts, _poppies)
+	return shared.compute_landing_view_width(state.opts, _poppies)
 end
 
 local build_poppy_public_data = function(i, entry)
@@ -110,7 +110,7 @@ local build_poppy_public_data = function(i, entry)
 		index = i,
 		title = entry.config and entry.config.title or name,
 		mode = entry.config and entry.config.mode,
-		cat = util.cat(entry.config or {}),
+		cat = shared.cat(entry.config or {}),
 		is_current = state.current_poppy_name == name,
 		active = opened and runtime.active or false,
 		hidden = opened and runtime.hidden or false,

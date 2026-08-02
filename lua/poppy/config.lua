@@ -22,7 +22,7 @@
 local M = {}
 
 local layout = require("poppy.core.ui.layout")
-local util = require("poppy.core.util")
+local shared = require("poppy.core.shared")
 
 local DEFAULT_KEYS = { "poppy_action", "select", "kill", "exit_menu" }
 local DEFAULT_ICONS = { "exec", "shell", "file" }
@@ -82,10 +82,10 @@ local resolve_poppy = function(name, poppy)
 
 	local title = poppy.title
 	if not title then
-		title = util.title_fallback(mode, poppy.exec or poppy.file or poppy.shell or os.getenv("SHELL") or "shell")
+		title = shared.title_fallback(mode, poppy.exec or poppy.file or poppy.shell or os.getenv("SHELL") or "shell")
 	end
 
-	-- `cat` is derived at use sites via util.cat(poppy).
+	-- `cat` is derived at use sites via shared.cat(poppy).
 	return {
 		exec = poppy.exec,
 		file = poppy.file,
