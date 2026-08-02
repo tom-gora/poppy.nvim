@@ -46,9 +46,9 @@ M.create_bottom_right = function(parent_win, keys)
 	vim.bo[buf].modifiable = false
 
 	local text = " " .. keys.poppy_action .. " Menu "
-	local pw = vim.api.nvim_win_get_config(parent_win)
-	local row = math.max(0, pw.height)
-	local col = math.max(0, pw.width + 1)
+	local win_conf = vim.api.nvim_win_get_config(parent_win)
+	local row = math.max(0, win_conf.height)
+	local col = math.max(0, win_conf.width + 1)
 
 	local config = {
 		relative = "win",

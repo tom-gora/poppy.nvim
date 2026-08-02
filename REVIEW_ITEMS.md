@@ -39,12 +39,12 @@ ______________________________________________________________________
   refactor._
 
 - [ ] **`setup.lua` callback indirection** —
-  `lua/poppy/core/session/setup.lua:155-163`. Re-export block
+  `lua/poppy/core/session/setup.lua:243-258`. Re-export block
   (`M.open = manager.open`, etc.) and the callbacks handed to
-  `events.setup` / `commands.setup` capture the current bindings.
-  If `M.toggle` etc. are ever replaced, the callbacks still point
-  to the old ones. Either freeze the callbacks at setup time or
-  document the capture.
+  `M.setup_autocmds` / `M.setup_command` capture the current
+  bindings. If `M.toggle` etc. are ever replaced, the callbacks
+  still point to the old ones. Either freeze the callbacks at setup
+  time or document the capture.
 
 ______________________________________________________________________
 
@@ -52,9 +52,9 @@ ______________________________________________________________________
 
 ### 2.1 Deep nesting → early returns
 
-- [ ] **`actions.M.recover`** — `lua/poppy/core/session/actions.lua:218-260`.
+- [ ] **`actions.M.recover`** — `lua/poppy/core/session/actions.lua:232-274`.
   ~43 lines. The else branch (no fallback) is now `panels.destroy`
-  + `close_menu_hint` + augroup reset + `close_menu_win` +
+  + `close_menu_hint` + augroup reset + `close_content_win` +
   wrapper resize + `M.enter_landing()` + `refresh_panels` inline.
   The outer `vim.schedule` + early-return guards + fallback-name
   for-loop are still inline. Extract `_find_fallback_name` and
@@ -64,7 +64,7 @@ ______________________________________________________________________
   done synchronously).
 
 - [ ] **`actions.M.switch_by_name`** —
-  `lua/poppy/core/session/actions.lua:164-211`. The function
+  `lua/poppy/core/session/actions.lua:175-227`. The function
   captures state, runs the landing→content transition (calls
   `M.transition_to_content()`), dispatches the mode, sets up
   content keys, focuses, starts insert in terminals, and
@@ -84,8 +84,8 @@ was collapsed to a local `usable(name)` (see §1.2 review notes)._
   → `menu_autohide = not not merged.menu_autohide`.
 
 - [ ] **`actions.M.refresh_panels` mode dispatch** —
-  `lua/poppy/core/session/actions.lua:142`.
-  `local mode = state.menu_focused and "active_focused" or "active_menu"`
+  `lua/poppy/core/session/actions.lua:148`.
+  `local mode = state.windows.menu_focused and "active_focused" or "active_menu"`
   is already ternary — good. The same shape could replace the
   `if layout == "landing" then … elseif …` block in
   `hints_panel.update` (see 2.5).
@@ -106,33 +106,13 @@ cascade in `M.update` was replaced with a single lookup table._
 ### 2.6 Dead pcall / dead guards
 
 - [ ] **`panels.M.is_hidden` wrapper** —
-  `lua/poppy/core/ui/panels.lua:206-208`. Single-line passthrough
-  to `state.hidden`. Either inline at the 2 call sites or keep,
-  but don't add a third indirection layer.
+  `lua/poppy/core/ui/panels.lua:193-195`. Single-line passthrough
+  to `state.windows.hidden`. Either inline at the 2 call sites or
+  keep, but don't add a third indirection layer.
 
 ______________________________________________________________________
 
 ## 3. Module / State Organization
-
-- [ ] **`state` is a god-object** — `lua/poppy/core/session/state.lua:3-12`
-  exposes `M.wrapper_win`, `M.menu_hint_win`, etc. as bare module
-  fields mutated from 6+ files. Either group them by area
-  (`state.windows`, `state.buffers`, `state.poppy`, `state.ui`)
-  or expose `state.set(key, val)` / `state.get(key)` so the
-  mutation surface is grep-friendly.
-
-- [ ] **`panels` has its own parallel `state`** —
-  `lua/poppy/core/ui/panels.lua:6-17`. The wrapper_win / hints_win /
-  list_win / header_win / header_height etc. all belong in the
-  central state module alongside `content_win`. The two truths
-  drift.
-
-- [x] **`_watch_content_window` lives in `manager.lua`** —
-  moved to `lua/poppy/core/session/actions.lua:56-103` alongside
-  `transition_to_content` + `enter_landing` (its sole callers).
-  The `poppy_ui` augroup was relocated too. Done as part of the
-  Path 2-alt coordinator-moves refactor (called from
-  `manager.open` + `actions.switch_by_name`).
 
 - [ ] **`shared.lua` is getting large** — `lua/poppy/core/shared.lua`
   (now ~87 lines) hosts leaf helpers (`session_is_open`,
@@ -152,18 +132,6 @@ ______________________________________________________________________
   is ~110 straight-line lines. Split into
   `setup_base_colors`, `setup_category_colors`, `setup_hidden_fg`,
   `setup_current_row`, `setup_signs`, `setup_autocmd`.
-
-- [/] **`poppy_state` dual-index storage** —
-  `lua/poppy/core/session/poppy_state.lua`. The single-table
-  `M.poppies` is still indexed by both integer (list view order)
-  and string (runtime record lookup) — call sites do
-  `poppy_state.poppies[i]` and `poppy_state.poppies[name]`. The
-  earlier `runtime_get/runtime_set/runtime_remove`/`entries`/
-  `iter`/`is_empty`/`array_length` wrappers were collapsed during
-  the §3 poppy_state slim (now 76 lines). The remaining
-  dual-index is acceptable since the table is just a registry,
-  not an encapsulated object — but a `_entries`/`_runtime` split
-  would make the two roles explicit if a future refactor needs it.
 
 - [/] **`TASK.md` open item** — `TODO.md:25`:
   *"restructure. modes also land in 'core' their helpers into util.

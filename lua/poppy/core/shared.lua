@@ -8,11 +8,11 @@ local state = require("poppy.core.session.state")
 local CAT_ORDER = { exec = 0, file = 1, shell = 2 }
 
 M.session_is_open = function()
-	return state.wrapper_win ~= nil and vim.api.nvim_win_is_valid(state.wrapper_win)
+	return state.windows.wrapper_win ~= nil and vim.api.nvim_win_is_valid(state.windows.wrapper_win)
 end
 
 M.session_get_current_poppy_name = function()
-	return state.current_poppy_name
+	return state.windows.current_poppy_name
 end
 
 -- Pair: open or refresh the bottom-right menu-hint window. Lazy-requires
@@ -21,11 +21,10 @@ end
 -- across switch operations.
 M.show_menu_hint = function()
 	M.close_menu_hint()
-	local content_win = state.content_win
+	local content_win = state.windows.content_win
 	if content_win and vim.api.nvim_win_is_valid(content_win) then
 		local hints_panel = require("poppy.core.ui.hints_panel")
-		state.menu_hint_win, state.menu_hint_buf =
-			hints_panel.create_bottom_right(content_win, M.keys())
+		state.windows.menu_hint_win, state.windows.menu_hint_buf = hints_panel.create_bottom_right(content_win, M.keys())
 	end
 end
 
@@ -34,18 +33,18 @@ end
 -- hints_panel owns the open+text but the rest of the session owns "is
 -- the hint currently showing".
 M.close_menu_hint = function()
-	if state.menu_hint_win and vim.api.nvim_win_is_valid(state.menu_hint_win) then
-		vim.api.nvim_win_close(state.menu_hint_win, true)
+	if state.windows.menu_hint_win and vim.api.nvim_win_is_valid(state.windows.menu_hint_win) then
+		vim.api.nvim_win_close(state.windows.menu_hint_win, true)
 	end
-	state.menu_hint_win = nil
-	state.menu_hint_buf = nil
+	state.windows.menu_hint_win = nil
+	state.windows.menu_hint_buf = nil
 end
 
--- Accessors for state.opts fields. The `state.opts and state.opts.X`
+-- Accessors for state.windows.opts fields. The `state.windows.opts and state.windows.opts.X`
 -- chain was scattered across 10+ call sites; these centralize the
 -- nil-safety and make the call sites read cleanly.
 M.keys = function()
-	return state.opts and state.opts.keys
+	return state.windows.opts and state.windows.opts.keys
 end
 
 M.with_modifiable = function(buf, fn)

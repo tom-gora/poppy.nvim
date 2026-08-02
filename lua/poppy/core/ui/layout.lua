@@ -31,7 +31,7 @@ M.get_header_height = function(opts)
 	return (opts and opts.title_header ~= false) and HEADER_HEIGHT or 0
 end
 
-M.normalize_ratio_or_pixels = function(value, default)
+M.normalize_dimension = function(value, default)
 	if value == nil then
 		return default
 	end

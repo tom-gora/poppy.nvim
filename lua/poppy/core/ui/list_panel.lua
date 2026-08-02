@@ -34,15 +34,15 @@ M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
 	local padding_offset = 2
 	local hint_offset = hint_height and hint_height + padding_offset
-	local h = math.max(1, (hint_height and (wrapper_conf.height - hint_offset) or (wrapper_conf.height - 3)))
+	local height = math.max(1, (hint_height and (wrapper_conf.height - hint_offset) or (wrapper_conf.height - 3)))
 	if row_override then
-		h = math.max(1, h - row_override)
+		height = math.max(1, height - row_override)
 	end
 
 	local config = {
 		relative = "win",
 		width = menu_width,
-		height = h,
+		height = height,
 		col = wrapper_conf.width - menu_width,
 		row = row_override or 0,
 		style = "minimal",
@@ -105,9 +105,9 @@ M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 		local cat = shared.cat(item.config)
 		local icon = (icons and icons[cat]) or " "
 		local raw_title = item.config.title or item.name
-		local ps = poppies[item.name]
-		local is_hidden = ps and ps.hidden or false
-		local is_active = ps and ps.active or false
+		local runtime = poppies[item.name]
+		local is_hidden = runtime and runtime.hidden or false
+		local is_active = runtime and runtime.active or false
 		local title_max = menu_width - 1 - vim.fn.strdisplaywidth(icon) - 1 - idx_width - 1
 		local hl
 		if is_active then

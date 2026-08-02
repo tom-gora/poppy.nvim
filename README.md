@@ -35,7 +35,7 @@ require("poppy").setup({
     autoclose      = true,      -- Close the manager when focus leaves all poppy windows (WinLeave + TermEnter; fzf-lua, external terminals, `<C-w>w`, tmux nav). The `:` cmdline is exempted so `:Poppy` subcommands still work.
     exclusive_float = true,     -- When poppy opens, close all other floating windows (Telescope, snacks, LSP hovers, notifications, etc.)
     menu_width     = 25,        -- Width of the side menu panel
-    win_height     = 0.75,      -- Entire UI height: ratio (0.2–1.0), absolute pixels (>1), or function
+    win_height     = 0.75,      -- Entire UI height: ratio (0.2–1.0), absolute columns/lines (>1), or function
     win_width      = 0.8,       -- Same but witdth
     win_location   = "center",  -- Vertical offset: "center" | "top" | "bottom".
 

@@ -2,7 +2,6 @@ local M = {}
 
 local state = require("poppy.core.session.state")
 local panels = require("poppy.core.ui.panels")
-local poppy_state = require("poppy.core.session.poppy_state")
 local shared = require("poppy.core.shared")
 
 local focus = function(win)
@@ -18,12 +17,12 @@ local focus_list_with_cursor = function()
 	if not focus(list_win) then
 		return
 	end
-	if not state.current_poppy_name then
+	if not state.windows.current_poppy_name then
 		return
 	end
-	for i = 1, #poppy_state.poppies do
-		local entry = poppy_state.poppies[i]
-		if type(entry) == "table" and entry.name == state.current_poppy_name then
+for i = 1, #state.poppies do
+		local entry = state.poppies[i]
+		if type(entry) == "table" and entry.name == state.windows.current_poppy_name then
 			pcall(vim.api.nvim_win_set_cursor, list_win, { i, 0 })
 			break
 		end
@@ -34,58 +33,57 @@ M.focus_list_with_cursor = focus_list_with_cursor
 -- Refresh the bottom-right hint to reflect the current keys.
 local show_menu_hint = function()
 	shared.close_menu_hint()
-	local content_win = state.content_win
+	local content_win = state.windows.content_win
 	if content_win and vim.api.nvim_win_is_valid(content_win) then
 		local hints_panel = require("poppy.core.ui.hints_panel")
-		state.menu_hint_win, state.menu_hint_buf =
-			hints_panel.create_bottom_right(content_win, shared.keys())
+		state.windows.menu_hint_win, state.windows.menu_hint_buf = hints_panel.create_bottom_right(content_win, shared.keys())
 	end
 end
 
 -- menu only needs `refresh_panels` from actions; lazy-require keeps the
 -- dependency one-way (actions doesn't import menu).
 local refresh = function()
-	require("poppy.core.session.actions").refresh_panels(poppy_state.poppies)
+	require("poppy.core.session.actions").refresh_panels(state.poppies)
 end
 
 M.toggle_menu = function()
-	if state.is_landing or not shared.session_is_open() then
+	if state.windows.is_landing or not shared.session_is_open() then
 		return
 	end
 
 	if panels.is_hidden() then
 		shared.close_menu_hint()
-		panels.show_menu(state.content_win)
-		state.menu_focused = true
+		panels.show_menu(state.windows.content_win)
+		state.windows.menu_focused = true
 		focus_list_with_cursor()
 		refresh()
 	else
-		state.menu_focused = not state.menu_focused
-		if state.menu_focused then
+		state.windows.menu_focused = not state.windows.menu_focused
+		if state.windows.menu_focused then
 			panels.focus_menu()
 			focus_list_with_cursor()
 		else
 			panels.unfocus_menu()
-			focus(state.content_win)
+			focus(state.windows.content_win)
 		end
 		refresh()
 	end
 end
 
 M.exit_menu = function()
-	if not state.menu_focused or state.is_landing then
+	if not state.windows.menu_focused or state.windows.is_landing then
 		return
 	end
-	state.menu_focused = false
-	if state.opts and state.opts.menu_autohide then
-		panels.hide_menu(state.content_win)
+	state.windows.menu_focused = false
+	if state.windows.opts and state.windows.opts.menu_autohide then
+		panels.hide_menu(state.windows.content_win)
 		show_menu_hint()
 	else
 		panels.unfocus_menu()
 	end
 	refresh()
-	if focus(state.content_win) then
-		local cbuf = vim.api.nvim_win_get_buf(state.content_win)
+	if focus(state.windows.content_win) then
+		local cbuf = vim.api.nvim_win_get_buf(state.windows.content_win)
 		if vim.bo[cbuf].buftype == "terminal" then
 			vim.cmd("startinsert")
 		end

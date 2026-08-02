@@ -85,10 +85,10 @@ M.setup = function()
 	end
 
 	for _, entry in ipairs({
-		{ "PoppyLineNr",       lnr },
+		{ "PoppyLineNr", lnr },
 		{ "PoppyCursorLineNr", clnr },
-		{ "PoppyLineNrAbove",  lnra },
-		{ "PoppyLineNrBelow",  lnrb },
+		{ "PoppyLineNrAbove", lnra },
+		{ "PoppyLineNrBelow", lnrb },
 	}) do
 		vim.api.nvim_set_hl(0, entry[1], { fg = entry[2].fg, bg = nf.bg })
 	end

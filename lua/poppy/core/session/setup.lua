@@ -1,7 +1,6 @@
 local M = {}
 
 local state = require("poppy.core.session.state")
-local poppy_state = require("poppy.core.session.poppy_state")
 local actions = require("poppy.core.session.actions")
 local manager = require("poppy.core.session.manager")
 local menu = require("poppy.core.session.menu")
@@ -18,10 +17,18 @@ end
 -- Register the :Poppy user command (toggle | close | menu | open [<name>]).
 M.setup_command = function(opts, callbacks)
 	local sub_handlers = {
-		toggle = function() callbacks.toggle() end,
-		close = function() callbacks.close() end,
-		menu = function() callbacks.toggle_menu() end,
-		open = function(name) callbacks.open(name ~= "" and name or nil) end,
+		toggle = function()
+			callbacks.toggle()
+		end,
+		close = function()
+			callbacks.close()
+		end,
+		menu = function()
+			callbacks.toggle_menu()
+		end,
+		open = function(name)
+			callbacks.open(name ~= "" and name or nil)
+		end,
 	}
 	vim.api.nvim_create_user_command("Poppy", function(cmd_opts)
 		local sub = cmd_opts.fargs[1]
@@ -73,17 +80,17 @@ M.setup_autocmds = function(opts, callbacks)
 
 	vim.api.nvim_create_autocmd("BufUnload", {
 		group = "poppy_group",
-		callback = function(ctx)
+		callback = function(e)
 			if not shared.session_is_open() then
 				return
 			end
-			local ok, poppy_name = pcall(vim.api.nvim_buf_get_var, ctx.buf, "poppy_popup")
-			if not ok or not poppy_name or not poppy_state.poppies[poppy_name] then
+			local ok, poppy_name = pcall(vim.api.nvim_buf_get_var, e.buf, "poppy_popup")
+			if not ok or not poppy_name or not state.poppies[poppy_name] then
 				return
 			end
 
-			poppy_state.poppies[poppy_name] = nil
-			if shared.session_is_open() and state.current_poppy_name == poppy_name then
+			state.poppies[poppy_name] = nil
+			if shared.session_is_open() and state.windows.current_poppy_name == poppy_name then
 				actions.recover()
 			end
 		end,
@@ -151,6 +158,90 @@ M.setup_exclusive_float = function()
 	})
 end
 
+-- Reset all runtime state to fresh defaults. Called once at the start of
+-- M.setup before populating from config.
+local init_or_reset_state = function()
+	state.windows = {
+		wrapper_win = nil,
+		wrapper_buf = nil,
+		content_win = nil,
+		content_buf = nil,
+		menu_hint_win = nil,
+		menu_hint_buf = nil,
+		hints_win = nil,
+		hints_buf = nil,
+		list_win = nil,
+		list_buf = nil,
+		header_win = nil,
+		header_buf = nil,
+		current_poppy_name = nil,
+		is_landing = false,
+		menu_focused = false,
+		hidden = false,
+		menu_width = 25,
+		header_height = 0,
+		opts = nil,
+	}
+	state.poppies = {}
+end
+
+-- Projection: build the public-facing shape for a poppy entry at index i.
+local build_poppy_public_data = function(i, entry)
+	local name = entry.name
+	local runtime = state.poppies[name]
+	local opened = runtime ~= nil
+	return {
+		name = name,
+		index = i,
+		title = entry.config and entry.config.title or name,
+		mode = entry.config and entry.config.mode,
+		cat = shared.cat(entry.config or {}),
+		is_current = state.windows.current_poppy_name == name,
+		active = opened and runtime.active or false,
+		hidden = opened and runtime.hidden or false,
+		has_been_opened = opened,
+		bufnr = opened and runtime.bufnr or nil,
+		win = opened and runtime.win or nil,
+	}
+end
+
+M.get_poppy_by_name = function(name)
+	for i = 1, #state.poppies do
+		local entry = state.poppies[i]
+		if entry and entry.name == name then
+			return build_poppy_public_data(i, entry)
+		end
+	end
+	return nil
+end
+
+M.get_poppy_by_index = function(index)
+	local entry = state.poppies[index]
+	if not entry or not entry.name then
+		return nil
+	end
+	return build_poppy_public_data(index, entry)
+end
+
+M.get_current_poppy = function()
+	local current_name = state.windows.current_poppy_name
+	if not current_name then
+		return nil
+	end
+	return M.get_poppy_by_name(current_name)
+end
+
+M.get_poppies = function()
+	local result = {}
+	for i = 1, #state.poppies do
+		local entry = state.poppies[i]
+		if entry and entry.name then
+			result[i] = build_poppy_public_data(i, entry)
+		end
+	end
+	return result
+end
+
 -- Public session API surface (re-exported from each module's M).
 M.open = manager.open
 M.close = manager.close
@@ -165,27 +256,20 @@ M.kill_by_name = actions.kill_by_name
 M.kill_by_index = actions.kill_by_index
 M.kill_by_cursor = actions.kill_by_cursor
 
-M.get_poppies = poppy_state.get_poppies
-M.get_poppy_by_name = poppy_state.get_poppy_by_name
-M.get_poppy_by_index = poppy_state.get_poppy_by_index
-M.get_current_poppy = poppy_state.get_current_poppy
 M.get_current_poppy_name = shared.session_get_current_poppy_name
 M.is_open = shared.session_is_open
 
 M.setup = function(user_opts)
-	state.init()
+	init_or_reset_state()
 	style.setup()
-	state.opts = config.merge(user_opts)
-	for k in pairs(poppy_state.poppies) do
-		poppy_state.poppies[k] = nil
-	end
-	local sorted = shared.get_sorted_poppies(state.opts)
+	state.windows.opts = config.merge(user_opts)
+	local sorted = shared.get_sorted_poppies(state.windows.opts)
 	for i, v in ipairs(sorted) do
-		poppy_state.poppies[i] = v
+		state.poppies[i] = v
 	end
 	setup_global_key()
-	M.setup_autocmds(state.opts, { toggle = M.toggle })
-	M.setup_command(state.opts, {
+	M.setup_autocmds(state.windows.opts, { toggle = M.toggle })
+	M.setup_command(state.windows.opts, {
 		toggle = M.toggle,
 		open = M.open,
 		close = M.close,

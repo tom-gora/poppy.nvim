@@ -7,8 +7,8 @@
 ---@field autoclose? boolean # Close the manager when focus leaves all poppy windows. Default: true
 ---@field exclusive_float? boolean # When poppy opens close all other floating windows
 ---@field menu_width? number # Width of side panels. Default: 25
----@field win_height? number|function # Height ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.75
----@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute pixels (>1), or function returning same. Default: 0.8
+---@field win_height? number|function # Height ratio of screen (0.2-1.0), or absolute columns/lines (>1), or function returning same. Default: 0.75
+---@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute columns/lines (>1), or function returning same. Default: 0.8
 ---@field win_location? "center"|"top"|"bottom" # Vertical position of the wrapper. Default: "center"
 ---@field poppies? table<string, PoppyItemConfig>
 ---
@@ -146,8 +146,8 @@ M.merge = function(user_opts)
 		autoclose = merged.autoclose,
 		exclusive_float = merged.exclusive_float,
 		menu_width = merged.menu_width,
-		win_height = layout.normalize_ratio_or_pixels(merged.win_height, 0.75),
-		win_width = layout.normalize_ratio_or_pixels(merged.win_width, 0.8),
+		win_height = layout.normalize_dimension(merged.win_height, 0.75),
+		win_width = layout.normalize_dimension(merged.win_width, 0.8),
 		win_location = win_location,
 		poppies = poppies,
 		poppies_resolved = poppies_resolved,
