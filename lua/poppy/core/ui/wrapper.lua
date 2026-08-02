@@ -27,8 +27,6 @@ M.create = function(poppy_opts, width_override)
 	return win, buf
 end
 
-M.recreate = function(buf, poppy_opts, width_override)
-	return open_with(buf, poppy_opts, width_override)
-end
+M.recreate = open_with
 
 return M

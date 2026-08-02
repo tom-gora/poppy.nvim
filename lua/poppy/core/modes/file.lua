@@ -1,16 +1,26 @@
 local M = {}
 local poppy_state = require("poppy.core.session.poppy_state")
 
+-- Reuse a hidden poppy's buffer if it's still alive. Returns nil otherwise.
+local usable = function(name)
+	local ps = poppy_state.poppies[name]
+	if not (ps and ps.hidden and ps.bufnr) then
+		return nil
+	end
+	if not vim.api.nvim_buf_is_valid(ps.bufnr) then
+		return nil
+	end
+	return ps.bufnr
+end
+
 M.run = function(poppy_name, opts, parent_win)
 	local poppy_opts = opts.poppies_resolved[poppy_name]
 	if not poppy_opts or not parent_win then
 		return
 	end
 
-	local p_state = poppy_state.runtime_get(poppy_name)
-	local bufnr
-	if poppy_state.is_usable(poppy_name) then
-		bufnr = p_state.bufnr
+	local bufnr = usable(poppy_name)
+	if bufnr then
 		vim.api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
 	else
 		bufnr = vim.api.nvim_create_buf(false, false)
@@ -33,8 +43,13 @@ M.run = function(poppy_name, opts, parent_win)
 
 	vim.api.nvim_win_set_buf(parent_win, bufnr)
 
-	poppy_state.runtime_set(poppy_name,
-		{ active = true, hidden = false, bufnr = bufnr, win = parent_win, title = poppy_opts.title })
+	poppy_state.poppies[poppy_name] = {
+		active = true,
+		hidden = false,
+		bufnr = bufnr,
+		win = parent_win,
+		title = poppy_opts.title,
+	}
 end
 
 return M

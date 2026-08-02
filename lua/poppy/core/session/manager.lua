@@ -4,21 +4,26 @@ local state = require("poppy.core.session.state")
 local poppy_state = require("poppy.core.session.poppy_state")
 local panels = require("poppy.core.ui.panels")
 local wrapper = require("poppy.core.ui.wrapper")
-local input = require("poppy.core.input")
+local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 local actions = require("poppy.core.session.actions")
-local events = require("poppy.core.session.events")
 
 -- Soft close (default): drops UI but keeps poppies alive for next open.
 -- Hard close (drop_poppies=true): also kills every live poppy buffer.
+local clear_poppies = function()
+	for _, p_state in pairs(poppy_state.poppies) do
+		if p_state and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
+			vim.api.nvim_buf_delete(p_state.bufnr, { force = true })
+		end
+	end
+	for k in pairs(poppy_state.poppies) do
+		poppy_state.poppies[k] = nil
+	end
+end
+
 local cleanup = function(drop_poppies)
 	if drop_poppies then
-		for _, p_state in poppy_state.iter() do
-			if p_state and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
-				vim.api.nvim_buf_delete(p_state.bufnr, { force = true })
-			end
-		end
-		poppy_state.clear()
+		clear_poppies()
 	end
 
 	if state.current_poppy_name then
@@ -39,7 +44,7 @@ local cleanup = function(drop_poppies)
 		end
 	end
 
-	local has_running_popies = not poppy_state.is_empty()
+	local has_running_popies = next(poppy_state.poppies) ~= nil
 	local buffers = { state.content_buf }
 	if not has_running_popies then
 		table.insert(buffers, state.wrapper_buf)
@@ -96,15 +101,26 @@ M.open = function(poppy_name)
 		return state.wrapper_win
 	end
 
-	poppy_state.ensure_entries_loaded()
+	-- Lazy first-time population of the registry from config if the user
+	-- reopens without going through the public init entry.
+	if
+		#poppy_state.poppies == 0
+		and state.opts
+		and state.opts.poppies
+		and next(state.opts.poppies)
+	then
+		for i, v in ipairs(shared.get_sorted_poppies(state.opts)) do
+			poppy_state.poppies[i] = v
+		end
+	end
 	if state.opts.exclusive_float then
-		events.setup_exclusive_float()
+		require("poppy.core.session.setup").setup_exclusive_float()
 	end
 
 	local last_poppy = state.current_poppy_name
-	local has_content = poppy_name or (last_poppy and poppy_state.runtime_get(last_poppy))
+	local has_content = poppy_name or (last_poppy and poppy_state.poppies[last_poppy])
 	local should_land = not has_content
-	local landing_width = should_land and poppy_state.landing_view_width() or nil
+	local landing_width = should_land and layout.compute_landing_view_width(state.opts, poppy_state.poppies) or nil
 
 	local win = open_wrapper(landing_width)
 	state.wrapper_win = win
@@ -112,14 +128,13 @@ M.open = function(poppy_name)
 	state.is_landing = should_land
 
 	if has_content then
-		shared.transition_to_content()
+		actions.transition_to_content()
 		actions.switch_by_name(poppy_name or last_poppy)
 	else
-		shared.enter_landing()
+		actions.enter_landing()
 	end
 
-	input.setup_menu(panels.get_list_buf(), shared.keys())
-	actions.refresh_panels(poppy_state.entries())
+	actions.refresh_panels(poppy_state.poppies)
 	return state.wrapper_win
 end
 

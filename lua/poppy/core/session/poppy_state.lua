@@ -3,73 +3,12 @@ local M = {}
 local state = require("poppy.core.session.state")
 local shared = require("poppy.core.shared")
 
-local _poppies = {}
+-- The poppy registry. Indexed by both integer (list view order) and
+-- string (runtime record lookup). External code reads/writes directly.
+M.poppies = {}
 
--- ─── Internal storage API (used by modes, switching, killing, manager) ───
-
-M.entries = function()
-	return _poppies
-end
-
-M.runtime_get = function(name)
-	return _poppies[name]
-end
-
-M.runtime_set = function(name, record)
-	_poppies[name] = record
-end
-
-M.runtime_remove = function(name)
-	_poppies[name] = nil
-end
-
-M.iter = function()
-	return pairs(_poppies)
-end
-
-M.is_empty = function()
-	return next(_poppies) == nil
-end
-
-M.array_length = function()
-	return #_poppies
-end
-
--- The poppy has been opened at least once, is currently hidden, and its
--- buffer is still valid for re-display. Used by both file/term modes to
--- decide whether to reuse the existing buffer or create a fresh one.
-M.is_usable = function(name)
-	local p = _poppies[name]
-	if not (p and p.hidden and p.bufnr) then
-		return false
-	end
-	return vim.api.nvim_buf_is_valid(p.bufnr)
-end
-
--- Resolve a name-or-index to {name, runtime}. runtime is nil if the
--- poppy has never been opened. Returns nil for invalid index or nil name.
-M.resolve = function(name_or_index)
-	local name
-	if type(name_or_index) == "number" then
-		local item = _poppies[name_or_index]
-		if not item or not item.name then
-			return nil
-		end
-		name = item.name
-	else
-		name = name_or_index
-	end
-	if not name then
-		return nil
-	end
-	return { name = name, runtime = _poppies[name] }
-end
-
--- Mark a poppy as no-longer-visible: drop active, set hidden, drop the
--- window reference. Idempotent. Used in transitions (switching) and
--- teardown (cleanup).
 M.hide = function(name)
-	local ps = _poppies[name]
+	local ps = M.poppies[name]
 	if not ps then
 		return
 	end
@@ -78,32 +17,9 @@ M.hide = function(name)
 	ps.win = nil
 end
 
-M.clear = function()
-	for k in pairs(_poppies) do
-		_poppies[k] = nil
-	end
-end
-
-M.rebuild_from_sorted = function(sorted)
-	M.clear()
-	for i, v in ipairs(sorted) do
-		_poppies[i] = v
-	end
-end
-
-M.ensure_entries_loaded = function()
-	if #_poppies == 0 and state.opts and state.opts.poppies and next(state.opts.poppies) then
-		M.rebuild_from_sorted(shared.get_sorted_poppies(state.opts))
-	end
-end
-
-M.landing_view_width = function()
-	return shared.compute_landing_view_width(state.opts, _poppies)
-end
-
 local build_poppy_public_data = function(i, entry)
 	local name = entry.name
-	local runtime = _poppies[name]
+	local runtime = M.poppies[name]
 	local opened = runtime ~= nil
 	return {
 		name = name,
@@ -121,8 +37,8 @@ local build_poppy_public_data = function(i, entry)
 end
 
 M.get_poppy_by_name = function(name)
-	for i = 1, #_poppies do
-		local entry = _poppies[i]
+	for i = 1, #M.poppies do
+		local entry = M.poppies[i]
 		if entry and entry.name == name then
 			return build_poppy_public_data(i, entry)
 		end
@@ -131,7 +47,7 @@ M.get_poppy_by_name = function(name)
 end
 
 M.get_poppy_by_index = function(index)
-	local entry = _poppies[index]
+	local entry = M.poppies[index]
 	if not entry or not entry.name then
 		return nil
 	end
@@ -148,8 +64,8 @@ end
 
 M.get_poppies = function()
 	local result = {}
-	for i = 1, #_poppies do
-		local entry = _poppies[i]
+	for i = 1, #M.poppies do
+		local entry = M.poppies[i]
 		if entry and entry.name then
 			result[i] = build_poppy_public_data(i, entry)
 		end

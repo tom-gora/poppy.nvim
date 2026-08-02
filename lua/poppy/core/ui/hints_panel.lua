@@ -59,7 +59,7 @@ M.create_bottom_right = function(parent_win, keys)
 		anchor = "NE",
 		style = "minimal",
 		border = "none",
-		zindex = layout.POPPY_Z_INDEX,
+		zindex = layout.POPPY_Z_INDEX + 1,
 		focusable = false,
 		win = parent_win,
 	}

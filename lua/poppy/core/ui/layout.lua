@@ -11,6 +11,22 @@ M.POPPY_Z_INDEX = 48
 
 local HEADER_HEIGHT = 3
 
+local shared = require("poppy.core.shared")
+
+M.compute_landing_view_width = function(opts, poppies)
+	local max_line = 0
+	for i, item in ipairs(poppies) do
+		local icon = (opts and opts.icons and opts.icons[shared.cat(item.config)]) or " "
+		local title = item.config.title or item.name
+		local line = string.format(" %s %s %d %s", " ", icon, i, title)
+		max_line = math.max(max_line, #line)
+	end
+	local keys = (opts and opts.keys) or { poppy_action = "<C-_>", select = "<CR>" }
+	local hints_text = string.format(" %s Select   %s Toggle Off ", keys.select, keys.poppy_action)
+	local hints_len = #hints_text
+	return math.max(max_line, hints_len) + 4
+end
+
 M.get_header_height = function(opts)
 	return (opts and opts.title_header ~= false) and HEADER_HEIGHT or 0
 end

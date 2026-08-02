@@ -60,6 +60,19 @@ local default_opts = {
 }
 
 -- Returns nil on validation error (and notifies). Never mutates the input.
+local title_fallback = function(mode, value)
+	if type(value) == "function" then
+		value = value()
+	end
+	if mode == "file" then
+		return vim.fs.basename(vim.fn.expand(value))
+	end
+	-- mode is "term" (the only other resolved mode; "exec" is mapped to it
+	-- in config.resolve_poppy and so never reaches here).
+	local first_arg = type(value) == "table" and value[1] or vim.split(value, " ")[1]
+	return vim.fs.basename(first_arg)
+end
+
 local resolve_poppy = function(name, poppy)
 	if not poppy then
 		return nil
@@ -82,7 +95,7 @@ local resolve_poppy = function(name, poppy)
 
 	local title = poppy.title
 	if not title then
-		title = shared.title_fallback(mode, poppy.exec or poppy.file or poppy.shell or os.getenv("SHELL") or "shell")
+		title = title_fallback(mode, poppy.exec or poppy.file or poppy.shell or os.getenv("SHELL") or "shell")
 	end
 
 	-- `cat` is derived at use sites via shared.cat(poppy).
