@@ -138,27 +138,19 @@ M.refresh_panels = function(sorted_poppies)
 		require("poppy.core.ui.hints_panel").update(
 			panels.get_hints_buf(),
 			shared.keys(),
-			#sorted_poppies,
 			menu_width,
 			"landing",
 			"landing"
 		)
 		return
 	end
-	if panels.is_hidden() then
+	if state.windows.hidden then
 		return
 	end
 	local panel_width = menu_width()
 	list_panel_update(sorted_poppies, panel_width)
 	local mode = state.windows.menu_focused and "active_focused" or "active_menu"
-	require("poppy.core.ui.hints_panel").update(
-		panels.get_hints_buf(),
-		shared.keys(),
-		#sorted_poppies,
-		panel_width,
-		"menu",
-		mode
-	)
+	require("poppy.core.ui.hints_panel").update(panels.get_hints_buf(), shared.keys(), panel_width, "menu", mode)
 end
 
 list_panel_update = function(sorted_poppies, menu_width)

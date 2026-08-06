@@ -20,7 +20,7 @@ local focus_list_with_cursor = function()
 	if not state.windows.current_poppy_name then
 		return
 	end
-for i = 1, #state.poppies do
+	for i = 1, #state.poppies do
 		local entry = state.poppies[i]
 		if type(entry) == "table" and entry.name == state.windows.current_poppy_name then
 			pcall(vim.api.nvim_win_set_cursor, list_win, { i, 0 })
@@ -36,7 +36,8 @@ local show_menu_hint = function()
 	local content_win = state.windows.content_win
 	if content_win and vim.api.nvim_win_is_valid(content_win) then
 		local hints_panel = require("poppy.core.ui.hints_panel")
-		state.windows.menu_hint_win, state.windows.menu_hint_buf = hints_panel.create_bottom_right(content_win, shared.keys())
+		state.windows.menu_hint_win, state.windows.menu_hint_buf =
+			hints_panel.create_bottom_right(content_win, shared.keys())
 	end
 end
 
@@ -51,7 +52,7 @@ M.toggle_menu = function()
 		return
 	end
 
-	if panels.is_hidden() then
+	if state.windows.hidden then
 		shared.close_menu_hint()
 		panels.show_menu(state.windows.content_win)
 		state.windows.menu_focused = true

@@ -5,7 +5,6 @@ local shared = require("poppy.core.shared")
 local namespace = vim.api.nvim_create_namespace("poppy_hints_bar")
 
 local PADDING = { landing = 1, menu = 3 }
-local ROW_OFFSET = { landing = 0, menu = -1 }
 local CONTENT_HEIGHT = { landing = 3, menu = 4 }
 local INDENT = "  "
 local KEY_COL = 5
@@ -80,7 +79,7 @@ M.recreate = function(wrapper_win, buf, opts)
 	opts = opts or {}
 	local kind = opts.kind or "menu"
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local row = opts.row or (wrapper_conf.height + ROW_OFFSET[kind])
+	local row = opts.row or wrapper_conf.height
 	local col = opts.col or wrapper_conf.width
 	local width = opts.width or wrapper_conf.width
 	local height = opts.height or CONTENT_HEIGHT[kind]
@@ -105,7 +104,7 @@ M.recreate = function(wrapper_win, buf, opts)
 	return win
 end
 
-M.update = function(buf, keys, count, wrapper_width, kind, mode)
+M.update = function(buf, keys, wrapper_width, kind, mode)
 	if not keys then
 		return
 	end
@@ -121,7 +120,7 @@ M.update = function(buf, keys, count, wrapper_width, kind, mode)
 	local lines = {}
 	local per_line_segments = {}
 
-	for line_idx, segments in ipairs(line_specs) do
+	for _, segments in ipairs(line_specs) do
 		local left_len = 0
 		for _, seg in ipairs(segments) do
 			left_len = left_len + #seg.text

@@ -72,9 +72,15 @@ local rebuild = function(hl, focusable)
 	close_panel(state.windows.header_win)
 
 	if header_height > 0 and valid_buf(state.windows.header_buf) then
-		state.windows.header_win = header_panel.recreate(state.windows.wrapper_win, state.windows.header_buf, menu_width, wc.width - menu_width)
+		state.windows.header_win = header_panel.recreate(
+			state.windows.wrapper_win,
+			state.windows.header_buf,
+			menu_width,
+			wc.width - menu_width
+		)
 	end
-	state.windows.list_win = list_panel.recreate(state.windows.wrapper_win, state.windows.list_buf, menu_width, focusable, hl, header_height)
+	state.windows.list_win =
+		list_panel.recreate(state.windows.wrapper_win, state.windows.list_buf, menu_width, focusable, hl, header_height)
 	state.windows.hints_win = hints_panel.recreate(state.windows.wrapper_win, state.windows.hints_buf, {
 		width = menu_width,
 		col = wc.width,
@@ -188,10 +194,6 @@ end
 
 M.destroy = function()
 	close_all_panels()
-end
-
-M.is_hidden = function()
-	return state.windows.hidden
 end
 
 -- The single rule for "is this window one of ours?" Wrappers/content/list/

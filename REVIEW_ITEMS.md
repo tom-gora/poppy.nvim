@@ -1,146 +1,248 @@
-# REVIEW_ITEMS
+# Poppy.nvim — Code Review Items
 
-Refactor list for `poppy.nvim`. Scope: **make the code leaner and more
-idiomatic without changing behavior.** Out of scope: bug hunting, new
-features, API additions. The MVP is assumed to work; nothing here should
-introduce a regression.
+Concrete problems and follow-ups spotted while reading the codebase. Grouped by
+severity / area. No trivia — each item is something that can hurt users or
+maintainers.
 
-Style baseline (per project owner):
+## Bugs / Correctness
 
-- `local foo = function() … end` over `function foo() … end`
-- Lua ternary `a and b or c` over nested `if/else`
-- Early returns / `goto continue` over deep nesting
-- `pcall` only when there is a real reason; never as decoration
+- **`actions.lua:97-98` — dead `vim.schedule(function() end)` call.** Inside
+  `transition_to_content`, right after `panels.destroy()`, there's a no-op
+  scheduled function. It looks like a leftover from debugging and serves no
+  purpose; delete it.
 
-Conventions assumed: tabs, 1-based indexing, snake_case locals,
-UPPERCASE constants, `M.x` module API.
+- **`manager.lua:123` — unguarded `opts.exclusive_float` dereference.**
+  `if state.windows.opts.exclusive_float then` will crash with "attempt to
+  index a nil value" if a user calls `require("poppy").open()` (or any other
+  API) before `setup()`. The lazy-population block above it assumes `opts`
+  is non-nil when it inspects `opts.poppies`, but `exclusive_float` is read
+  from the same table without a nil check. Either guard it or document
+  loudly that `setup()` must run first.
 
-______________________________________________________________________
+- **`actions.lua:286-288` — `kill_active` focuses a likely-dead window.**
+  `M.kill_active()` calls `M.recover()` (which schedules teardown and
+  closes/destroys panels synchronously), then synchronously calls
+  `focus(state.windows.content_win)`. After `recover()` returns, the
+  content window may have been closed by the `WinClosed` watcher or by the
+  `recover` fallback path. `focus` does check `nvim_win_is_valid` so it
+  won't crash, but the user-visible behavior is a no-op focus flicker on
+  the wrapper. Fix by either (a) reordering so focus happens inside the
+  scheduled recover, or (b) re-resolving `content_win` after the call.
 
-## 1. Code Conciseness / Duplication
+- **`actions.lua:171-175` — silent no-op on unknown poppy name.**
+  `switch_by_name` returns silently if `poppies_resolved[poppy_name]` is
+  nil. There's no `vim.notify`, so a typo in `:Poppy open lzygt` looks
+  indistinguishable from success. Same applies to
+  `setup_command` completion (it does show available names, but the
+  runtime path is silent).
 
-### 1.2 Minor dedup
+- **`actions.lua:241-265` — `recover` "fallback or destroy" picks an
+  arbitrary hidden poppy.** When the current poppy dies and there are
+  multiple hidden poppies, the first one iterated (non-deterministic
+  table order) is chosen as the fallback. Could surprise users; document
+  the behavior or pick by last-active / last-opened.
 
-- [ ] **`compute_landing_view_width` placeholder format** —
-  `lua/poppy/core/ui/layout.lua:16`. The proposed dedup is wrong: the
-  format `" %s %s %d %s", " ", icon, i, title` produces 3 leading
-  spaces; `" %s %d %s", icon, i, title` produces 1. Dropping the
-  prefix arg shifts the landing width by 2 chars. Leave as-is.
+- **`header_panel.lua:36-47` — byte-based centering of a multibyte title.**
+  `title_col = math.ceil((width - #title) / 2)` uses byte length, but
+  `"P◉PPY.NVIM"` contains the 3-byte glyph `◉`. The center dot and the
+  extmark for `PoppyRed` are placed using the same byte offset, so on
+  terminals with wide glyphs the dot can sit one cell off from where it
+  looks centered. Use `vim.fn.strdisplaywidth` and `vim.fn.strchars`
+  (or compute column from char offsets).
 
-- [/] **`panels.lua` `state.hint_height` cache** —
-  `lua/poppy/core/ui/panels.lua:16, 86, 127`. `hint_height` has
-  been dropped from the panels state block (was set 3×, read 0×
-  — fully dead). `state.header_height` is kept: it's read in
-  `rebuild` (`panels.lua:96`). The deeper refactor to derive both
-  from `state.opts` is still open. _Note: the dead `hint_height`
-  state field is gone; only the parameter on
-  `list_panel.create/recreate` + `panels.create` remains as
-  positional plumbing — also a candidate for the same opts-derivation
-  refactor._
+- **`list_panel.lua:138` — `string.format("%s %..."` with user-controlled
+  icon.** If a user configures `icons.shell = "%"`, the format string
+  interprets `%` as a conversion spec and throws. Default icons are safe
+  but the surface is wide open. Either reject icon strings containing `%`
+  in `sanitize_string_fields`, or use `string.format("%%s ...")` after
+  percent-escaping the icon.
 
-- [ ] **`setup.lua` callback indirection** —
-  `lua/poppy/core/session/setup.lua:243-258`. Re-export block
-  (`M.open = manager.open`, etc.) and the callbacks handed to
-  `M.setup_autocmds` / `M.setup_command` capture the current
-  bindings. If `M.toggle` etc. are ever replaced, the callbacks
-  still point to the old ones. Either freeze the callbacks at setup
-  time or document the capture.
+- **`file.lua:32-34` — silently creates empty file when missing.**
+  `if vim.fn.filereadable(file_path) ~= 1 then vim.fn.writefile({}, file_path) end`
+  creates an empty file with no notification. For a "notes" poppy this is
+  probably intended; for a "config dump" poppy pointed at a typo'd path
+  it's a foot-gun. Add a notify, or only do it when the dir exists, or
+  respect a `create_if_missing` flag.
 
-______________________________________________________________________
+- **`term.lua:30-31` — `term_spawn` passes `nil` into `jobstart` if
+  `command` is a function that returns nil.** `jobstart(nil, {...})` errors
+  with a cryptic message. Validate the resolved command and bail with a
+  friendly `vim.notify` if nil.
 
-## 2. Idiomatic Style (matches the project baseline)
+- **`actions.lua:66` — module-load-time augroup creation.** The
+  `poppy_ui` augroup is created with `clear = false` at module import
+  time. If anything else (a theme plugin, a test harness, etc.) created
+  an autocmd under that name before poppy was required, those autocmds
+  will coexist with ours and `clear = true` calls inside `cleanup` /
+  `recover` will wipe user autocmds. Move the augroup creation into
+  `setup()` and own the namespace.
 
-### 2.1 Deep nesting → early returns
+- **`term.lua:54-69` — `not (p_state and (p_state.active or p_state.hidden))`
+  spawns only when no runtime exists.** But if a buffer survived a
+  `kill_active` cycle while its `BufUnload` callback (setup.lua:81-97)
+  raced in, you can get into a state where `state.poppies[name]` is nil
+  but the buffer still exists (or vice versa). The condition doesn't
+  defensively call `nvim_buf_is_valid` on `p_state.bufnr` before reusing.
+  Add the validity check, mirroring `file.lua`'s `usable`.
 
-- [ ] **`actions.M.recover`** — `lua/poppy/core/session/actions.lua:232-274`.
-  ~43 lines. The else branch (no fallback) is now `panels.destroy`
-  + `close_menu_hint` + augroup reset + `close_content_win` +
-  wrapper resize + `M.enter_landing()` + `refresh_panels` inline.
-  The outer `vim.schedule` + early-return guards + fallback-name
-  for-loop are still inline. Extract `_find_fallback_name` and
-  pull the landing branch into
-  `_enter_landing_from_recover` (or just call `M.enter_landing`
-  directly without the schedule wrapper if the cleanup can be
-  done synchronously).
+## Code Quality / Maintainability
 
-- [ ] **`actions.M.switch_by_name`** —
-  `lua/poppy/core/session/actions.lua:175-227`. The function
-  captures state, runs the landing→content transition (calls
-  `M.transition_to_content()`), dispatches the mode, sets up
-  content keys, focuses, starts insert in terminals, and
-  refreshes. Split into `M.switch_by_name` (entrypoint) +
-  private helpers `transition_from_landing` /
-  `setup_content_keys` / `focus_content`.
+- **`setup.lua:163-186` duplicates the state schema from `state.lua:5-25`.**
+  `init_or_reset_state` re-lists every key by hand. Two places to keep in
+  sync; both will rot. Either expose `state.reset()` in `state.lua` and
+  call it, or have `state.lua` export a single `default_state()` factory.
 
-### 2.2 De Morgan / readability
+- **`hide_poppy` is duplicated** between `manager.lua:13-21` and
+  `actions.lua:55-63` (the comment in manager.lua even calls this out).
+  Move it to `shared.lua` and import from both.
 
-_Nothing open in this section. The 4-condition chain in `modes/file.lua`
-was collapsed to a local `usable(name)` (see §1.2 review notes)._
+- **`show_menu_hint` is duplicated** between `menu.lua:34-42` and
+  `shared.lua:22-29`. `menu.lua`'s copy even calls `shared.close_menu_hint`
+  first — same logic, one extra file. Just call `shared.show_menu_hint()`
+  directly.
 
-### 2.3 Lua ternary (`a and b or c`)
+- **`menu.lua:100` comment lies about lazy-loading.**
+  ```lua
+  -- ...actions <-> menu cycle).
+  local actions = require("poppy.core.session.actions")
+  ```
+  The require is at module top-level, not lazy. Either move it inside
+  `setup_list_keys` / `setup_content_keys` (which is what the comment
+  describes) or update the comment.
 
-- [ ] **`config.merge` boolean coercion** —
-  `lua/poppy/config.lua:144`. `menu_autohide = merged.menu_autohide`
-  → `menu_autohide = not not merged.menu_autohide`.
+- **`actions.lua:9,156` — odd forward-declaration pattern.**
+  ```lua
+  local list_panel_update
+  -- ...
+  list_panel_update = function(...) ... end
+  ```
+  The `local list_panel_update` on its own line is redundant; the second
+  statement is already a local assignment. Pick one form.
 
-- [ ] **`actions.M.refresh_panels` mode dispatch** —
-  `lua/poppy/core/session/actions.lua:148`.
-  `local mode = state.windows.menu_focused and "active_focused" or "active_menu"`
-  is already ternary — good. The same shape could replace the
-  `if layout == "landing" then … elseif …` block in
-  `hints_panel.update` (see 2.5).
+- **`config.lua:70-73` comment is misleading.** "exec is mapped to term in
+  config.resolve_poppy and so never reaches here" — exec DOES reach the
+  term branch of `title_fallback`, with `value` being the exec string.
+  The comment makes it sound like exec is special-cased out.
 
-### 2.4 `goto` where it pays off
+- **`panels.lua:131-159` `create_landing` overwrites `state.windows.menu_width`
+  with the wrapper width**, while `create` uses the caller-supplied
+  `menu_width`. Two functions, two ways to set the same field. The
+  inconsistency makes it harder to reason about panel widths during a
+  landing→content transition.
 
-- [ ] The `goto continue` in `setup.setup_exclusive_float`
-  (`lua/poppy/core/session/setup.lua:138-146`) is the right call —
-  keep that style. When extracting dedup helpers, prefer
-  `goto next` over a nested `if` if the alternative is a flag
-  variable or early-return-with-state.
+## Documentation
 
-### 2.5 Long if/elseif dispatch → table
+- **`README.md` Structure section is out of date** — references files that
+  don't exist:
+  - `core/session/init.lua` (actual: `state.lua`, `setup.lua`,
+    `manager.lua`, `actions.lua`, `menu.lua`)
+  - `core/input.lua` (actual: keymaps live in `session/menu.lua`)
+  - `core/util.lua` (actual: `core/shared.lua`)
+  
+  Either rewrite to match reality or fold the split files back together.
 
-_Resolved (see §1.2 notes on `hints_panel.HINT_SPECS`). The if/elseif
-cascade in `M.update` was replaced with a single lookup table._
+- **No public API documentation in README.** `poppy.get_poppies`,
+  `get_poppy_by_name`, `get_poppy_by_index`, `get_current_poppy`,
+  `get_current_poppy_name`, `is_open`, `switch_by_cursor`,
+  `kill_by_cursor` are all exported but never mentioned. Users have to
+  read `init.lua` to discover them.
 
-### 2.6 Dead pcall / dead guards
+- **No `:checkhealth poppy` integration.** For a plugin that runs many
+  autocmds, schedules callbacks, and depends on highlight groups from
+  other plugins' themes, a health check is the cheapest UX win you can
+  ship.
 
-- [ ] **`panels.M.is_hidden` wrapper** —
-  `lua/poppy/core/ui/panels.lua:193-195`. Single-line passthrough
-  to `state.windows.hidden`. Either inline at the 2 call sites or
-  keep, but don't add a third indirection layer.
+- **No version constant / plugin version.** There's no `lua/poppy/_version.lua`
+  or `package.json`-equivalent. Tagging releases and providing
+  `:Poppy version` would help users file reproducible bug reports.
 
-______________________________________________________________________
+- **TODO.md mentions an "IN PROGRESS" task (`Code style and optimisations`)**
+  but lists no concrete items, so it's not actionable from a triage
+  standpoint. Either break it into subtasks or close it.
 
-## 3. Module / State Organization
+## Config Validation / UX
 
-- [ ] **`shared.lua` is getting large** — `lua/poppy/core/shared.lua`
-  (now ~87 lines) hosts leaf helpers (`session_is_open`,
-  `session_get_current_poppy_name`, `close_menu_hint`,
-  `show_menu_hint`, `keys`, `with_modifiable`, `get_sorted_poppies`,
-  `cat`). Previously it also hosted session-coordinator logic
-  (`transition_to_content` / `enter_landing` / `watch_content_window`);
-  those have since moved to `actions.lua`. The remaining 87 lines
-  are cohesive — splitting into `util_text`/`util_term`/`util_session`
-  is no longer overdue.
+- **`config.lua:117` — `vim.tbl_deep_extend("force", {}, default_opts, user)`
+  lets unknown keys through.** A user typo like `autoclose = treu` (truthy
+  string, not boolean) becomes part of `merged` and silently changes
+  behavior. Even a single `vim.log.levels.WARN` for unknown top-level
+  keys would help.
 
-______________________________________________________________________
+- **`config.lua:132-139` — invalid poppies are dropped silently.** No
+  summary of how many were dropped or which. A single `vim.notify` at the
+  end of merge listing dropped names would turn silent breakage into
+  observable breakage.
 
-## 4. Optional / lower priority
+- **`config.lua:34-47` — `sanitize_string_fields` only checks display width
+  ≤ 2.** Two cells is fine for one 2-wide nerdfont glyph but not for any
+  custom 3+ wide glyph. Either drop the upper bound or document it.
 
-- [ ] **`style.M.setup` split** — `lua/poppy/core/ui/style.lua:50-159`
-  is ~110 straight-line lines. Split into
-  `setup_base_colors`, `setup_category_colors`, `setup_hidden_fg`,
-  `setup_current_row`, `setup_signs`, `setup_autocmd`.
+- **`config.lua:55` — `exclusive_float = true` is a surprising default.**
+  Closing every other floating window (LSP hovers, snacks,
+  notifications) when the user opens their terminal picker is aggressive.
+  Default to `false` and let opt-in users flip it.
 
-- [/] **`TASK.md` open item** — `TODO.md:25`:
-  *"restructure. modes also land in 'core' their helpers into util.
-  Session needs breaking up into smaller logical structure scripts"*
-  — mostly resolved: `switching.lua` + `killing.lua` were merged
-  into `session/actions.lua`; `commands.lua` + `events.lua` +
-  `session/init.lua` merged into `session/setup.lua`; `input.lua`
-  inlined; `transition_to_content` + `enter_landing` +
-  `watch_content_window` moved to `actions.lua`. Remaining: any
-  further file consolidation within `session/` or `ui/` if it
-  earns its keep; modes helpers (the first half of the TODO line)
-  remain in `modes/{file,term}.lua`.
+- **`setup.lua:11-15` — global `poppy_action` is mapped at `setup()` but
+  never unmapped.** Calling `setup()` twice creates two keymaps pointing
+  to the same callback, and `nvim_del_keymap` is never called. For a
+  plugin loaded by `lazy.nvim` with multiple specs this can leak across
+  reloads.
+
+## Robustness
+
+- **`setup.lua:144-158` — `setup_exclusive_float` re-registers on every
+  open.** Each `poppy.open()` adds another `WinEnter` autocmd under
+  `poppy_group`; `once = true` ensures each fires exactly once, but the
+  pile-up is harmless only because the first fire closes the windows that
+  the subsequent ones would target. Still — register once at `setup()`.
+
+- **`actions.lua:152` — `mode = state.windows.menu_focused and "active_focused" or "active_menu"`**
+  drives hint text, but `HINT_SPECS.active_focused == ACTIVE == HINT_SPECS.active_menu`.
+  So the mode selector exists, the spec table treats them identically,
+  and the only difference is dead dispatch. Either make the hints differ
+  (e.g., show "Switch to content" when content-focused) or collapse the
+  branch.
+
+- **`panels.lua:48-63` `ensure_panel` doesn't validate that `recreate`
+  returns a win of the expected config.** If a downstream panel module
+  raises inside `recreate`, the state has stale `*_buf` but nil `*_win`.
+  Wrap with `pcall` or assert.
+
+- **`panels.lua:216-227` getter functions return raw `state.windows.*`
+  fields without validation.** Callers (e.g., `manager.lua:62-67`) check
+  validity, but exposing raw fields from a "module" looks intentional and
+  invites misuse. Either return `nil` when invalid or rename to
+  `*_buf_unchecked` so the unsafe intent is loud.
+
+## Tests / CI
+
+- **No test suite.** A plugin with this much stateful UI machinery (window
+  orchestration, autocmds, terminal spawn, file-edit side effects,
+  config validation) is the exact thing that benefits from `busted` /
+  `mini.test` even at low coverage. Start with `config.merge` and
+  `shared.get_sorted_poppies` — pure functions, easy wins.
+
+- **No CI.** No `.github/workflows`, no `Makefile`, no `stylua.toml`. Pick
+  at minimum a `stylua --check` step so formatting doesn't drift.
+
+## Minor / Style
+
+- `hl` in `hints_panel.lua:13-16` and `panels.lua:65-91` is overloaded
+  (hint height vs highlight); rename to `hint_height` / `highlight`.
+- `CAT_ORDER` in `shared.lua:9` and the category list in `style.lua:83`
+  are duplicated knowledge — keep one as the source of truth.
+- `actions.lua:225-266` `recover` is a 40-line function with three
+  branches (fallback, no-fallback, current still set). Worth splitting
+  into `pick_fallback_poppy`, `destroy_content_to_landing`, etc.
+- `manager.lua:25-34` `clear_poppies` reads `state.poppies` with
+  `pairs`, then `for k in pairs(state.poppies) state.poppies[k] = nil`
+  inside the same loop body... wait, no, the loop is over `pairs` and
+  the inner mutation is `state.poppies[k] = nil`. Lua's `pairs` may
+  visit the entry being mutated, so deleting during iteration can be
+  undefined behavior. Capture keys first:
+  ```lua
+  for k in pairs(state.poppies) do keys[k] = true end
+  for k in pairs(keys) do state.poppies[k] = nil end
+  ```
+  (In practice Lua handles this, but it's the kind of thing that bites
+  when the table is later swapped for a userdata-like structure.)
