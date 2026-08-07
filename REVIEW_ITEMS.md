@@ -5,11 +5,13 @@ severity / area. No trivia — each item is something that can hurt users or
 maintainers.
 
 ## Bugs / Correctness
+Below I added the intended actions I decided need to be taken per item after reviewing the list. Each resolution is marked as "mock comment" using "//".
 
 - **`actions.lua:97-98` — dead `vim.schedule(function() end)` call.** Inside
   `transition_to_content`, right after `panels.destroy()`, there's a no-op
   scheduled function. It looks like a leftover from debugging and serves no
   purpose; delete it.
+  // Remove line
 
 - **`manager.lua:123` — unguarded `opts.exclusive_float` dereference.**
   `if state.windows.opts.exclusive_float then` will crash with "attempt to
@@ -18,6 +20,9 @@ maintainers.
   is non-nil when it inspects `opts.poppies`, but `exclusive_float` is read
   from the same table without a nil check. Either guard it or document
   loudly that `setup()` must run first.
+  // Add nil check to prevent even if calling Poppy open sould not be possible before calling setup as setup is registering these commands.
+  // However I am not sure if this would not error if setup is called with config containing no defined "poppy" entries, thus better guard against nil
+  // use vim.notify with vim.log.levels.WARN to explicitly but in a short message form inform about what has gone wrong.
 
 - **`actions.lua:286-288` — `kill_active` focuses a likely-dead window.**
   `M.kill_active()` calls `M.recover()` (which schedules teardown and
@@ -28,6 +33,11 @@ maintainers.
   won't crash, but the user-visible behavior is a no-op focus flicker on
   the wrapper. Fix by either (a) reordering so focus happens inside the
   scheduled recover, or (b) re-resolving `content_win` after the call.
+  // Haven't observed in manual testing. recover either returns to landing view of panels if last opened poppy have been killed/closed
+  // OR it is supposed to recover to previously active poppy content window if more were opened. If there is a potential for racing to close a nilled win nr
+  // prepare suspected scenarios, then write smoke test scripts at /tmp and see if in any of them attempt to focus a nilled win happens.
+  // If you spot issues report first and we will think about it. If no issues can be caught then everything should be good.
+  // Ultimately we might need a check around to call focus only if win is valid window, else I presume this call be skipped.
 
 - **`actions.lua:171-175` — silent no-op on unknown poppy name.**
   `switch_by_name` returns silently if `poppies_resolved[poppy_name]` is
@@ -35,12 +45,17 @@ maintainers.
   indistinguishable from success. Same applies to
   `setup_command` completion (it does show available names, but the
   runtime path is silent).
+  // Yeah makes sense. Add notify with WARN log level. (Possibly connects to setup that should be checking if user declared any poppy keys in config.
+  // If config is empty, should warn and invite to create a key in config table "poppies") via notify and bail on setup early completely
+  //  as there is no poppy.nvim declarative tools, without tools declared. By this logic down the line completions will not be problematic if there is no faulty setup. 
+  // Am I missing something?
 
 - **`actions.lua:241-265` — `recover` "fallback or destroy" picks an
   arbitrary hidden poppy.** When the current poppy dies and there are
   multiple hidden poppies, the first one iterated (non-deterministic
   table order) is chosen as the fallback. Could surprise users; document
   the behavior or pick by last-active / last-opened.
+  // There is already logic path to recover to last active in case of killing/closing internally process or file. Investigate if this could be pulled in and reused in this edge case.
 
 - **`header_panel.lua:36-47` — byte-based centering of a multibyte title.**
   `title_col = math.ceil((width - #title) / 2)` uses byte length, but
@@ -49,6 +64,8 @@ maintainers.
   terminals with wide glyphs the dot can sit one cell off from where it
   looks centered. Use `vim.fn.strdisplaywidth` and `vim.fn.strchars`
   (or compute column from char offsets).
+  // did not take into account weird nerdfont/unicode. Worth taking into account in case in the future I decide to maybe allow users define their own header string?
+  // Not seeing need or value at the moment, but yeah, do implement a safer calc.
 
 - **`list_panel.lua:138` — `string.format("%s %..."` with user-controlled
   icon.** If a user configures `icons.shell = "%"`, the format string
@@ -56,6 +73,12 @@ maintainers.
   but the surface is wide open. Either reject icon strings containing `%`
   in `sanitize_string_fields`, or use `string.format("%%s ...")` after
   percent-escaping the icon.
+  // This is still prototype and naive impl. Yes it is worth sanitizing, maybe even inside existing config sanitisation routine.
+
+
+---
+// REVIEWED UP UNTIL THIS POINT. DO NOT PROGRESS WITHOUT MY FURTHER MANUAL REVIEW INVOLVEMENT
+---
 
 - **`file.lua:32-34` — silently creates empty file when missing.**
   `if vim.fn.filereadable(file_path) ~= 1 then vim.fn.writefile({}, file_path) end`
