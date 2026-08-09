@@ -158,30 +158,8 @@ M.setup_exclusive_float = function()
 	})
 end
 
--- Reset all runtime state to fresh defaults. Called once at the start of
--- M.setup before populating from config.
 local init_or_reset_state = function()
-	state.windows = {
-		wrapper_win = nil,
-		wrapper_buf = nil,
-		content_win = nil,
-		content_buf = nil,
-		menu_hint_win = nil,
-		menu_hint_buf = nil,
-		hints_win = nil,
-		hints_buf = nil,
-		list_win = nil,
-		list_buf = nil,
-		header_win = nil,
-		header_buf = nil,
-		current_poppy_name = nil,
-		is_landing = false,
-		menu_focused = false,
-		hidden = false,
-		menu_width = 25,
-		header_height = 0,
-		opts = nil,
-	}
+	state.windows = state.default_state()
 	state.poppies = {}
 end
 
@@ -263,6 +241,21 @@ M.setup = function(user_opts)
 	init_or_reset_state()
 	style.setup()
 	state.windows.opts = config.merge(user_opts)
+	if next(state.windows.opts.poppies_resolved or {}) == nil then
+		vim.notify(
+			"Poppy: no poppies declared in setup({poppies = {...}}); the manager will open empty.",
+			vim.log.levels.WARN
+		)
+	elseif #state.windows.opts.dropped_names > 0 then
+		vim.notify(
+			string.format(
+				"Poppy: %d poppy(s) had no exec/file/shell and were dropped: %s",
+				#state.windows.opts.dropped_names,
+				table.concat(state.windows.opts.dropped_names, ", ")
+			),
+			vim.log.levels.WARN
+		)
+	end
 	local sorted = shared.get_sorted_poppies(state.windows.opts)
 	for i, v in ipairs(sorted) do
 		state.poppies[i] = v

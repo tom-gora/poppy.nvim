@@ -135,7 +135,7 @@ M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 	local lines = {}
 	local placelist = {}
 	for display_idx, e in ipairs(entries) do
-		lines[display_idx] = string.format("%s %" .. idx_width .. "d %s", e.icon, display_idx, e.title)
+		lines[display_idx] = e.icon .. " " .. string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.title
 		placelist[display_idx] = {
 			buffer = buf,
 			group = sign_group,

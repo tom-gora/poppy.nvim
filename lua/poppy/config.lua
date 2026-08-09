@@ -33,13 +33,19 @@ local DEFAULT_ICONS = { "exec", "shell", "file" }
 -- all replaced with the default. When `max_display_width` is set, the
 -- value's display width must also fit (icons get 2 to allow a single
 -- 2-cell nerdfont glyph; longer nerd-font glyphs would break layout).
-local sanitize_string_fields = function(defaults, user, keys, max_display_width)
+-- When `reject_pct` is true, values containing `%` are rejected (icons
+-- are concatenated into a `string.format` call downstream, so `%`
+-- would be mis-interpreted as a conversion spec).
+local sanitize_string_fields = function(defaults, user, keys, max_display_width, reject_pct)
 	local out = {}
 	for _, k in ipairs(keys) do
 		local v = (type(user) == "table") and user[k] or nil
 		local valid = type(v) == "string" and v ~= ""
 		if valid and max_display_width then
 			valid = vim.fn.strdisplaywidth(v) <= max_display_width
+		end
+		if valid and reject_pct then
+			valid = not v:find("%%", 1, true)
 		end
 		out[k] = valid and v or defaults[k]
 	end
@@ -117,7 +123,7 @@ M.merge = function(user_opts)
 	local merged = vim.tbl_deep_extend("force", {}, default_opts, user)
 
 	local keys = sanitize_string_fields(default_opts.keys, merged.keys, DEFAULT_KEYS)
-	local icons = sanitize_string_fields(default_opts.icons, merged.icons, DEFAULT_ICONS, 2)
+	local icons = sanitize_string_fields(default_opts.icons, merged.icons, DEFAULT_ICONS, 2, true)
 
 	local valid_locations = { center = true, top = true, bottom = true }
 	local win_location = merged.win_location
@@ -131,10 +137,13 @@ M.merge = function(user_opts)
 
 	local poppies = merged.poppies or {}
 	local poppies_resolved = {}
+	local dropped_names = {}
 	for name, poppy in pairs(poppies) do
 		local resolved = resolve_poppy(name, poppy)
 		if resolved then
 			poppies_resolved[name] = resolved
+		else
+			table.insert(dropped_names, name)
 		end
 	end
 
@@ -151,6 +160,7 @@ M.merge = function(user_opts)
 		win_location = win_location,
 		poppies = poppies,
 		poppies_resolved = poppies_resolved,
+		dropped_names = dropped_names,
 	}
 end
 

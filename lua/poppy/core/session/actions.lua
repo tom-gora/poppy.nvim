@@ -95,7 +95,6 @@ end
 M.transition_to_content = function()
 	if state.windows.is_landing then
 		panels.destroy()
-		vim.schedule(function() end)
 		local wc = vim.api.nvim_win_get_config(state.windows.wrapper_win)
 		local full_width = layout.compute_wrapper_dimensions(state.windows.opts, vim.o.columns, vim.o.lines)
 		vim.api.nvim_win_set_config(state.windows.wrapper_win, {
@@ -171,6 +170,10 @@ M.switch_by_name = function(poppy_name)
 		or not state.windows.opts.poppies_resolved
 		or not state.windows.opts.poppies_resolved[poppy_name]
 	then
+		vim.notify(
+			string.format("Poppy: unknown poppy '%s'", tostring(poppy_name)),
+			vim.log.levels.WARN
+		)
 		return
 	end
 
@@ -183,6 +186,9 @@ M.switch_by_name = function(poppy_name)
 	end
 
 	local poppy_opts = state.windows.opts.poppies_resolved[poppy_name]
+	if state.windows.current_poppy_name and state.windows.current_poppy_name ~= poppy_name then
+		state.windows.last_poppy_name = state.windows.current_poppy_name
+	end
 	state.windows.current_poppy_name = poppy_name
 
 	local mode = poppy_opts.mode
@@ -229,10 +235,18 @@ M.recover = function()
 		end
 
 		local fallback_name = nil
-		for name, runtime in pairs(state.poppies) do
-			if runtime.hidden then
-				fallback_name = name
-				break
+		if state.windows.last_poppy_name then
+			local runtime = state.poppies[state.windows.last_poppy_name]
+			if runtime and runtime.hidden then
+				fallback_name = state.windows.last_poppy_name
+			end
+		end
+		if not fallback_name then
+			for name, runtime in pairs(state.poppies) do
+				if runtime.hidden then
+					fallback_name = name
+					break
+				end
 			end
 		end
 

@@ -106,6 +106,11 @@ local open_wrapper = function(width_override)
 end
 
 M.open = function(poppy_name)
+	if not state.windows.opts then
+		vim.notify("Poppy: setup() must be called before opening", vim.log.levels.WARN)
+		return nil
+	end
+
 	if shared.session_is_open() then
 		if poppy_name then
 			actions.switch_by_name(poppy_name)
@@ -115,7 +120,7 @@ M.open = function(poppy_name)
 
 	-- Lazy first-time population of the registry from config if the user
 	-- reopens without going through the public init entry.
-	if #state.poppies == 0 and state.windows.opts and state.windows.opts.poppies and next(state.windows.opts.poppies) then
+	if #state.poppies == 0 and state.windows.opts.poppies and next(state.windows.opts.poppies) then
 		for i, v in ipairs(shared.get_sorted_poppies(state.windows.opts)) do
 			state.poppies[i] = v
 		end

@@ -33,7 +33,8 @@ M.recreate = function(wrapper_win, buf, width_override, col_override)
 	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 
 	local title = "P◉PPY.NVIM"
-	local title_col = math.max(0, math.ceil((width - #title) / 2))
+	local title_w = vim.fn.strdisplaywidth(title)
+	local title_col = math.max(0, math.floor((width - title_w) / 2))
 	local sep = " " .. string.rep("─", width - 2) .. " "
 	local title_line = string.rep(" ", title_col) .. title
 
@@ -42,6 +43,9 @@ M.recreate = function(wrapper_win, buf, width_override, col_override)
 	end)
 
 	vim.api.nvim_buf_set_extmark(buf, namespace, 1, 0, { end_col = #title_line, hl_group = "NormalPoppyUIPanel" })
+	-- ◉ is the 2nd char of the title (byte offset 2, 1-indexed); leading
+	-- spaces are ASCII so byte == cell here. dot_start lands on the
+	-- 3-byte UTF-8 sequence for ◉.
 	local dot_start = title_col + 1
 	local dot_end = dot_start + 3
 	vim.api.nvim_buf_set_extmark(buf, namespace, 1, dot_start, { end_col = dot_end, hl_group = "PoppyRed" })

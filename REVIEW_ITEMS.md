@@ -4,6 +4,38 @@ Concrete problems and follow-ups spotted while reading the codebase. Grouped by
 severity / area. No trivia — each item is something that can hurt users or
 maintainers.
 
+## Status — completed in this pass
+
+Items marked ✅ below the "REVIEWED UP UNTIL THIS POINT" line (bugs 1–7) were
+addressed. Items past that line and in the other sections are still pending.
+
+| Item | Resolution | Verification |
+|---|---|---|
+| `actions.lua:97-98` dead `vim.schedule(function() end)` | Removed | smoke 1 |
+| `manager.lua:123` unguarded `opts.exclusive_float` | Added nil guard + WARN in `M.open` | (manual) |
+| `actions.lua:286-288` `kill_active` focuses dead window | Researched via 4 headless smoke tests; hypothesis did not reproduce — defensive `nvim_win_is_valid` in `focus` already protects; left as-is | `/tmp/poppy_smoke{1..4}_after.txt` |
+| `actions.lua:171-175` silent no-op on unknown poppy name | Added WARN notify | `/tmp/poppy_smoke6_item4.lua` case (a) |
+| `actions.lua:241-265` `recover` picks arbitrary hidden poppy | Added `state.windows.last_poppy_name`, set in `switch_by_name`, preferred in `recover` (Option A) | `/tmp/poppy_smoke5_last_active.lua` |
+| `header_panel.lua:36-47` byte-based centering of multibyte title | Switched to `vim.fn.strdisplaywidth` math; ◉ byte offset derived from display cells | (manual) |
+| `list_panel.lua:138` `string.format` with user icon containing `%` | (a) reject `%` in `sanitize_string_fields` for icons, (b) concat icon outside `format` for belt-and-braces | (manual + smoke 6c via `dropped_names`) |
+
+User opted for item 4 = **Option B (warn and proceed)** — setup still registers
+keymaps, command, and autocmds when `poppies` is empty, but emits a WARN.
+
+Defaults used where you didn't pick (revert if wrong):
+- `last_poppy_name` preserved across `poppy.open()` calls within one `setup()`,
+  reset only on `setup()` (via `state.default_state()`).
+- Dropped-poppies summary notify enabled (item 4c).
+
+DRY bonus: as part of item 5, `init_or_reset_state` now calls
+`state.default_state()` instead of inlining the schema — the duplicated-state
+complaint from the Code Quality section is resolved for `state.lua`.
+
+Smoke test scripts are at `/tmp/poppy_smoke{1..6}_*.lua` and corresponding
+`*_after.txt` / `*_output.txt` log files. None committed.
+
+---
+
 ## Bugs / Correctness
 Below I added the intended actions I decided need to be taken per item after reviewing the list. Each resolution is marked as "mock comment" using "//".
 
@@ -12,6 +44,7 @@ Below I added the intended actions I decided need to be taken per item after rev
   scheduled function. It looks like a leftover from debugging and serves no
   purpose; delete it.
   // Remove line
+  ✅ **DONE** — line removed from `transition_to_content`.
 
 - **`manager.lua:123` — unguarded `opts.exclusive_float` dereference.**
   `if state.windows.opts.exclusive_float then` will crash with "attempt to
@@ -23,6 +56,7 @@ Below I added the intended actions I decided need to be taken per item after rev
   // Add nil check to prevent even if calling Poppy open sould not be possible before calling setup as setup is registering these commands.
   // However I am not sure if this would not error if setup is called with config containing no defined "poppy" entries, thus better guard against nil
   // use vim.notify with vim.log.levels.WARN to explicitly but in a short message form inform about what has gone wrong.
+  ✅ **DONE** — `M.open` now bails early with `vim.notify("Poppy: setup() must be called before opening", WARN)` if `state.windows.opts` is nil.
 
 - **`actions.lua:286-288` — `kill_active` focuses a likely-dead window.**
   `M.kill_active()` calls `M.recover()` (which schedules teardown and
@@ -38,6 +72,17 @@ Below I added the intended actions I decided need to be taken per item after rev
   // prepare suspected scenarios, then write smoke test scripts at /tmp and see if in any of them attempt to focus a nilled win happens.
   // If you spot issues report first and we will think about it. If no issues can be caught then everything should be good.
   // Ultimately we might need a check around to call focus only if win is valid window, else I presume this call be skipped.
+  ✅ **DONE (research)** — 4 headless smoke tests at `/tmp/poppy_smoke{1..4}_*.lua`
+  exercising (single-kill, two-poppy-kill-active, file-kill, term-exit-while-kill).
+  Hypothesis did **not reproduce**: every `set_current_win` call hit a valid
+  handle. `focus` already checks `nvim_win_is_valid`, so a dead handle is a
+  no-op, and in practice the focus at line 287 always lands on the
+  freshly-created content window from the `WinClosed` watcher. Left as-is.
+  Side note surfaced by smoke: `kill_active` triggers `recover` and the
+  `WinClosed` callback can also call `kill_active` recursively, leading to
+  two scheduled `recover` calls. Harmless (the second short-circuits on
+  `current_poppy_name`), but worth refactoring if `recover` gets split
+  per the Minor/Style list.
 
 - **`actions.lua:171-175` — silent no-op on unknown poppy name.**
   `switch_by_name` returns silently if `poppies_resolved[poppy_name]` is
@@ -49,6 +94,10 @@ Below I added the intended actions I decided need to be taken per item after rev
   // If config is empty, should warn and invite to create a key in config table "poppies") via notify and bail on setup early completely
   //  as there is no poppy.nvim declarative tools, without tools declared. By this logic down the line completions will not be problematic if there is no faulty setup. 
   // Am I missing something?
+  ✅ **DONE (Option B)** — `switch_by_name` now emits
+  `vim.notify("Poppy: unknown poppy '<name>'", WARN)`. Empty `poppies` config
+  and silently-dropped-invalid-poppies also emit WARN notifies in `M.setup`
+  (warn-and-proceed, per Option B). Verified at `/tmp/poppy_smoke6_item4.lua`.
 
 - **`actions.lua:241-265` — `recover` "fallback or destroy" picks an
   arbitrary hidden poppy.** When the current poppy dies and there are
@@ -56,6 +105,16 @@ Below I added the intended actions I decided need to be taken per item after rev
   table order) is chosen as the fallback. Could surprise users; document
   the behavior or pick by last-active / last-opened.
   // There is already logic path to recover to last active in case of killing/closing internally process or file. Investigate if this could be pulled in and reused in this edge case.
+  ✅ **DONE (Option A)** — the "last active" path was missing; the
+  BufUnload handler did call `recover()` but `recover` had no last-active
+  intelligence. Added `state.windows.last_poppy_name` (set in
+  `switch_by_name` before overwriting `current_poppy_name`), and
+  `recover()` now prefers it before falling back to the existing
+  `pairs` scan. Verified with a 3-poppy scenario at
+  `/tmp/poppy_smoke5_last_active.lua`: after C→kill, recovery picks B
+  (last), not A (arbitrary). Path analysis also confirms that
+  terminal-exit and `:q`/`:bd` on file poppies all flow through this same
+  `BufUnload` → `recover` chain.
 
 - **`header_panel.lua:36-47` — byte-based centering of a multibyte title.**
   `title_col = math.ceil((width - #title) / 2)` uses byte length, but
@@ -66,6 +125,10 @@ Below I added the intended actions I decided need to be taken per item after rev
   (or compute column from char offsets).
   // did not take into account weird nerdfont/unicode. Worth taking into account in case in the future I decide to maybe allow users define their own header string?
   // Not seeing need or value at the moment, but yeah, do implement a safer calc.
+  ✅ **DONE** — `title_col` now uses `vim.fn.strdisplaywidth(title)` (cell-based
+  centering). `dot_start`/`dot_end` byte offsets are derived from the
+  cell-based `title_col` so ◉ lands exactly on the centered glyph at any
+  wrapper width.
 
 - **`list_panel.lua:138` — `string.format("%s %..."` with user-controlled
   icon.** If a user configures `icons.shell = "%"`, the format string
@@ -74,6 +137,13 @@ Below I added the intended actions I decided need to be taken per item after rev
   in `sanitize_string_fields`, or use `string.format("%%s ...")` after
   percent-escaping the icon.
   // This is still prototype and naive impl. Yes it is worth sanitizing, maybe even inside existing config sanitisation routine.
+  ✅ **DONE** — both belt and braces: (a) `sanitize_string_fields` in
+  `config.lua` got a `reject_pct` flag, applied to the icons call so
+  `icons.shell = "%"` falls back to the default; (b) the render-side
+  `string.format("%s %d %s", icon, ...)` in `list_panel.lua` was changed
+  to `icon .. " " .. string.format("%d", idx) .. " " .. title` so the
+  icon is concatenated outside `format` and can never be mis-interpreted
+  as a conversion spec.
 
 
 ---
@@ -269,3 +339,15 @@ Below I added the intended actions I decided need to be taken per item after rev
   ```
   (In practice Lua handles this, but it's the kind of thing that bites
   when the table is later swapped for a userdata-like structure.)
+
+---
+
+## Status of items past the review-cutoff line (still pending)
+
+Everything from `file.lua:32-34` onward, the Code Quality / Documentation /
+Config Validation / Robustness / Tests-CI / Minor-Style sections has not been
+touched. Re-evaluate when starting the next pass.
+
+The `setup.lua:163-186` DRY duplication complaint from Code Quality was
+incidentally resolved when item 5 was implemented (`init_or_reset_state` now
+calls `state.default_state()`).
