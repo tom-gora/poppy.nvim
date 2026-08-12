@@ -1,6 +1,6 @@
 local M = {}
 
-local PANELS_BG_LIGHTEN_FACTOR = 0.04
+local PANELS_BG_LIGHTEN_FACTOR = 0.03
 local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.4
 
 local adjust_brightness = function(color, factor)

@@ -3,6 +3,12 @@ local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
+--
+-- ##################################################################
+-- DEBUG: layout
+-- local debug = require("poppy._debug_helpers")
+-- debug.layout__setup_highlights()
+-- ##################################################################
 
 local sign_group = "poppy_list"
 
@@ -30,15 +36,23 @@ M.create = function(wrapper_win, menu_width, focusable, hint_height, row_overrid
 	return M.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override), buf
 end
 
+---@param wrapper_win integer
+---@param buf integer
+---@param menu_width integer
+---@param focusable boolean
+---@param hint_height? integer
+---@param row_override? integer
+---@return integer? win
 M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local padding_offset = 2
-	local hint_offset = hint_height and hint_height + padding_offset
+	local padding_offset = 3
+	local hint_offset = hint_height and hint_height + padding_offset or 5
 	local height = math.max(1, (hint_height and (wrapper_conf.height - hint_offset) or (wrapper_conf.height - 3)))
 	if row_override then
 		height = math.max(1, height - row_override)
 	end
 
+	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
 		width = menu_width,
@@ -55,6 +69,12 @@ M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_
 	local win = vim.api.nvim_open_win(buf, false, config)
 	vim.wo[win].signcolumn = "yes:1"
 	vim.api.nvim_set_option_value("statuscolumn", "%s", { win = win })
+	--
+	-- ##################################################################
+	-- DEBUG: layout
+	-- debug.layout__hightlight_window_visually(win)
+	-- ##################################################################
+	--
 	style.apply_list_panel_style(win)
 	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 	return win

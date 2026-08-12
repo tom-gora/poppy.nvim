@@ -133,7 +133,7 @@ M.create_landing = function(wrapper_win, header_height)
 	local header_height = header_height or 0
 
 	local list_win, list_buf = ensure_panel("list_buf", "list_win", function()
-		return list_panel.create(wrapper_win, wc.width, true, nil, header_height)
+		return list_panel.create(wrapper_win, wc.width, true, 1, header_height)
 	end, function(buf)
 		return list_panel.recreate(wrapper_win, buf, wc.width, true, nil, header_height)
 	end)
