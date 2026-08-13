@@ -53,6 +53,9 @@ M.with_modifiable = function(buf, fn)
 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 end
 
+---@type string[]
+M.NORM_TERM_MODES = { "n", "t" }
+
 M.get_sorted_poppies = function(opts)
 	local sorted = {}
 	if opts and opts.poppies_resolved then

@@ -1,3 +1,5 @@
+require("poppy._types")
+
 local M = {}
 local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
@@ -18,6 +20,7 @@ local COL_GAP = "  "
 
 ---@param key string
 ---@param label string
+---@param indent string
 local fmt_hint = function(key, label, indent)
 	local padded = key .. string.rep(" ", math.max(0, KEY_COL - #key))
 	return indent .. padded .. COL_GAP .. label .. " "
@@ -41,6 +44,10 @@ local HINT_SPECS = {
 	active_focused = ACTIVE,
 }
 
+---@param wrapper_win integer
+---@param opts? PoppyHintOpts
+---@return integer? win
+---@return integer? buf
 M.create = function(wrapper_win, opts)
 	opts = opts or {}
 	local buf = vim.api.nvim_create_buf(false, true)
@@ -48,6 +55,10 @@ M.create = function(wrapper_win, opts)
 	return M.recreate(wrapper_win, buf, opts), buf
 end
 
+---@param parent_win integer
+---@param keys PoppyKeys
+---@return integer? win
+---@return integer? buf
 M.create_bottom_right = function(parent_win, keys)
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
@@ -94,7 +105,7 @@ end
 
 ---@param wrapper_win integer
 ---@param buf integer
----@param opts? table
+---@param opts? PoppyHintOpts
 ---@return integer? win
 M.recreate = function(wrapper_win, buf, opts)
 	opts = opts or {}
@@ -133,10 +144,11 @@ M.recreate = function(wrapper_win, buf, opts)
 end
 
 ---@param buf integer
----@param keys table
+---@param keys PoppyKeys
 ---@param wrapper_width integer
----@param kind string
----@param mode string
+---@param kind "landing"|"menu"
+---@param mode "active_focused"|"active_menu"
+---@return nil
 M.update = function(buf, keys, wrapper_width, kind, mode)
 	if not keys then
 		return
@@ -183,10 +195,12 @@ M.update = function(buf, keys, wrapper_width, kind, mode)
 		local col = 0
 		for _, seg in ipairs(segments) do
 			if seg.hl then
-				vim.api.nvim_buf_set_extmark(buf, namespace, line_idx - 1, col, {
+				---@type vim.api.keyset.extmark
+				local hl_extmark = {
 					end_col = col + #seg.text,
 					hl_group = seg.hl,
-				})
+				}
+				vim.api.nvim_buf_set_extmark(buf, namespace, line_idx - 1, col, hl_extmark)
 			end
 			col = col + #seg.text
 		end

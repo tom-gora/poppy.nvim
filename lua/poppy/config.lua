@@ -1,23 +1,4 @@
----@diagnostic disable duplicate-doc-field
----@class PoppyConfig
----@field keys? table<string, string> # Keybindings: poppy_action, select, kill, exit_menu. Default: { poppy_action = "<C-_>", select = "<CR>", kill = "d", exit_menu = "<Esc>" }
----@field icons? table<string, string> # Icons per poppy type: exec, shell, file. Default: { exec = "🛠", shell = "$", file = "🗋" }
----@field menu_autohide? boolean # If true, hide sidebar style menu after selecting a poppy. Default: false
----@field title_header? boolean # Show "POPPY" header panel above list. Default: true
----@field autoclose? boolean # Close the manager when focus leaves all poppy windows. Default: true
----@field exclusive_float? boolean # When poppy opens close all other floating windows
----@field menu_width? number # Width of side panels. Default: 25
----@field win_height? number|function # Height ratio of screen (0.2-1.0), or absolute columns/lines (>1), or function returning same. Default: 0.75
----@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute columns/lines (>1), or function returning same. Default: 0.8
----@field win_location? "center"|"top"|"bottom" # Vertical position of the wrapper. Default: "center"
----@field poppies? table<string, PoppyItemConfig>
----
----@class PoppyItemConfig
----@field exec? string|string[]
----@field file? string
----@field shell? string|function
----@field title? string
----
+require("poppy._types")
 
 local M = {}
 
@@ -117,6 +98,8 @@ end
 -- User input is never mutated: keys/icons are copied into fresh tables,
 -- poppies is referenced, and a parallel `poppies_resolved` map carries
 -- engine-internal mode/title.
+---@param user_opts? PoppyConfig
+---@return PoppyMergedConfig
 M.merge = function(user_opts)
 	local user = user_opts or {}
 	-- Leading `{}` keeps default_opts and user untouched.

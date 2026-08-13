@@ -101,32 +101,46 @@ local actions = require("poppy.core.session.actions")
 
 M.setup_list_keys = function(buf)
 	local keys = shared.keys()
-	vim.keymap.set({ "n", "t" }, keys.select, function()
+
+	---@param desc string
+	---@return vim.api.keyset.keymap
+	local opts_for = function(desc)
+		return { buffer = buf, desc = desc }
+	end
+
+	vim.keymap.set(shared.NORM_TERM_MODES, keys.select, function()
 		if vim.v.count > 0 then
 			actions.switch_by_index(vim.v.count)
 		else
 			actions.switch_by_cursor()
 		end
-	end, { buffer = buf, desc = "Poppy: Select" })
+	end, opts_for("Poppy: Select"))
 
-	vim.keymap.set({ "n", "t" }, keys.kill, function()
+	vim.keymap.set(shared.NORM_TERM_MODES, keys.kill, function()
 		if vim.v.count > 0 then
 			actions.kill_by_index(vim.v.count)
 		else
 			actions.kill_by_cursor()
 		end
-	end, { buffer = buf, desc = "Poppy: Kill" })
+	end, opts_for("Poppy: Kill"))
 
-	vim.keymap.set({ "n", "t" }, keys.exit_menu, function()
+	vim.keymap.set(shared.NORM_TERM_MODES, keys.exit_menu, function()
 		M.exit_menu()
-	end, { buffer = buf, desc = "Poppy: Exit menu" })
+	end, opts_for("Poppy: Exit menu"))
 end
 
 M.setup_content_keys = function(buf)
 	local keys = shared.keys()
-	vim.keymap.set({ "n", "t" }, keys.poppy_action, function()
+
+	---@param desc string
+	---@return vim.api.keyset.keymap
+	local opts_for = function(desc)
+		return { buffer = buf, desc = desc }
+	end
+
+	vim.keymap.set(shared.NORM_TERM_MODES, keys.poppy_action, function()
 		M.toggle_menu()
-	end, { buffer = buf, desc = "Poppy: Toggle menu" })
+	end, opts_for("Poppy: Toggle menu"))
 end
 
 return M

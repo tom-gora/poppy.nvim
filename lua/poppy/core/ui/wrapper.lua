@@ -1,9 +1,16 @@
+require("poppy._types")
+
 local M = {}
 local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 
+---@param buf integer
+---@param poppy_opts? PoppyConfig
+---@param width_override? integer
+---@return integer? win
 local open_with = function(buf, poppy_opts, width_override)
 	local width, height, row = layout.compute_wrapper_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override)
+	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "editor",
 		width = width,
@@ -21,6 +28,10 @@ local open_with = function(buf, poppy_opts, width_override)
 	return win
 end
 
+---@param poppy_opts? PoppyConfig
+---@param width_override? integer
+---@return integer? win
+---@return integer? buf
 M.create = function(poppy_opts, width_override)
 	local buf = vim.api.nvim_create_buf(false, true)
 	local win = open_with(buf, poppy_opts, width_override)

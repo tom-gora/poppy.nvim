@@ -71,7 +71,8 @@ watch_content_window = function(win_id, menu_width)
 		return
 	end
 	local menu_width = menu_width or 25
-	vim.api.nvim_create_autocmd("WinClosed", {
+	---@type vim.api.keyset.create_autocmd
+	local win_closed_autocmd = {
 		pattern = tostring(win_id),
 		once = true,
 		group = "poppy_ui",
@@ -89,7 +90,8 @@ watch_content_window = function(win_id, menu_width)
 				M.recover()
 			end
 		end,
-	})
+	}
+	vim.api.nvim_create_autocmd("WinClosed", win_closed_autocmd)
 end
 
 M.transition_to_content = function()

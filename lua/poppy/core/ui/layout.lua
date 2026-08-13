@@ -1,3 +1,5 @@
+require("poppy._types")
+
 local M = {}
 
 -- Stacking priority for all poppy UI windows. We sit just below
@@ -13,6 +15,9 @@ local HEADER_HEIGHT = 3
 
 local shared = require("poppy.core.shared")
 
+---@param opts? PoppyConfig
+---@param poppies PoppyEntry[]
+---@return integer
 M.compute_landing_view_width = function(opts, poppies)
 	local max_line = 0
 	for i, item in ipairs(poppies) do
@@ -27,10 +32,15 @@ M.compute_landing_view_width = function(opts, poppies)
 	return math.max(max_line, hints_len) + 4
 end
 
+---@param opts? PoppyConfig
+---@return integer
 M.get_header_height = function(opts)
 	return (opts and opts.title_header ~= false) and HEADER_HEIGHT or 0
 end
 
+---@param value number|function|nil
+---@param default number
+---@return number|function
 M.normalize_dimension = function(value, default)
 	if value == nil then
 		return default
@@ -50,6 +60,10 @@ end
 -- Resolve a raw dimension value (already resolved from function/static)
 -- to its final integer cell count. >1 means absolute columns/lines;
 -- <=1 means a ratio of `total`. Clamps to sane bounds and notifies.
+---@param value number
+---@param total integer
+---@param name string
+---@return integer
 local resolve_dimension = function(value, total, name)
 	if value > 1 then
 		local min_v = math.floor(total / 3)
@@ -66,6 +80,13 @@ local resolve_dimension = function(value, total, name)
 	return math.floor(total * ratio)
 end
 
+---@param opts? PoppyConfig
+---@param vim_cols integer
+---@param vim_lines integer
+---@param override_width? integer
+---@return integer width
+---@return integer height
+---@return integer row
 M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, override_width)
 	opts = opts or {}
 

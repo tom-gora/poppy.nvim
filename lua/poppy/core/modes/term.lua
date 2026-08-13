@@ -1,8 +1,14 @@
+require("poppy._types")
+
 local M = {}
 local actions = require("poppy.core.session.actions")
 local state = require("poppy.core.session.state")
 local shared = require("poppy.core.shared")
 
+---@param poppy_name string
+---@param opts PoppyMergedConfig
+---@param p_state PoppyRuntimeState|nil
+---@return integer|nil
 local term_get_or_create_buffer = function(poppy_name, opts, p_state)
 	local poppy_opts = opts.poppies_resolved and opts.poppies_resolved[poppy_name]
 	if not poppy_opts then
@@ -15,6 +21,8 @@ local term_get_or_create_buffer = function(poppy_name, opts, p_state)
 	return bufnr
 end
 
+---@param poppy_opts PoppyResolvedConfig
+---@return string|string[]|function|nil
 local term_resolve_command = function(poppy_opts)
 	if poppy_opts.mode == "term" and poppy_opts.shell then
 		local shell = poppy_opts.shell
@@ -26,6 +34,9 @@ local term_resolve_command = function(poppy_opts)
 	return poppy_opts.exec
 end
 
+---@param command string|string[]|function|nil
+---@param opts vim.api.keyset.jobstart
+---@return integer|nil
 local term_spawn = function(command, opts)
 	if type(command) == "function" then
 		command = command()
@@ -39,6 +50,10 @@ local term_spawn = function(command, opts)
 	end
 end
 
+---@param poppy_name string
+---@param opts PoppyMergedConfig
+---@param parent_win integer
+---@return nil
 M.run = function(poppy_name, opts, parent_win)
 	local poppy_opts = opts.poppies_resolved[poppy_name]
 	if not poppy_opts or not parent_win then
@@ -53,8 +68,11 @@ M.run = function(poppy_name, opts, parent_win)
 
 	if not (p_state and (p_state.active or p_state.hidden)) then
 		vim.api.nvim_buf_call(bufnr, function()
-			vim.api.nvim_set_option_value("modified", false, { buf = bufnr })
-			term_spawn(term_resolve_command(poppy_opts), {
+			---@type vim.api.keyset.set_option_value
+			local modified_opts = { buf = bufnr }
+			vim.api.nvim_set_option_value("modified", false, modified_opts)
+			---@type vim.api.keyset.jobstart
+			local spawn_opts = {
 				on_exit = function()
 					if vim.api.nvim_buf_is_valid(bufnr) then
 						vim.api.nvim_buf_delete(bufnr, { force = true })
@@ -65,7 +83,8 @@ M.run = function(poppy_name, opts, parent_win)
 						state.poppies[poppy_name] = nil
 					end
 				end,
-			})
+			}
+			term_spawn(term_resolve_command(poppy_opts), spawn_opts)
 		end)
 	end
 

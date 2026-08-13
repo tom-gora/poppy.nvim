@@ -1,7 +1,10 @@
+require("poppy._types")
+
 local M = {}
 local state = require("poppy.core.session.state")
 
--- Reuse a hidden poppy's buffer if it's still alive. Returns nil otherwise.
+---@param name string
+---@return integer|nil
 local usable = function(name)
 	local runtime = state.poppies[name]
 	if not (runtime and runtime.hidden and runtime.bufnr) then
@@ -13,6 +16,10 @@ local usable = function(name)
 	return runtime.bufnr
 end
 
+---@param poppy_name string
+---@param opts PoppyMergedConfig
+---@param parent_win integer
+---@return nil
 M.run = function(poppy_name, opts, parent_win)
 	local poppy_opts = opts.poppies_resolved[poppy_name]
 	if not poppy_opts or not parent_win then

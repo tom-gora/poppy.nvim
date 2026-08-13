@@ -9,9 +9,11 @@ local config = require("poppy.config")
 local shared = require("poppy.core.shared")
 
 local setup_global_key = function()
-	vim.keymap.set({ "n", "t" }, shared.keys().poppy_action, function()
+	---@type vim.api.keyset.keymap
+	local toggle_opts = { desc = "Poppy: Toggle UI" }
+	vim.keymap.set(shared.NORM_TERM_MODES, shared.keys().poppy_action, function()
 		manager.toggle()
-	end, { desc = "Poppy: Toggle UI" })
+	end, toggle_opts)
 end
 
 -- Register the :Poppy user command (toggle | close | menu | open [<name>]).
@@ -30,21 +32,8 @@ M.setup_command = function(opts, callbacks)
 			callbacks.open(name ~= "" and name or nil)
 		end,
 	}
-	vim.api.nvim_create_user_command("Poppy", function(cmd_opts)
-		local sub = cmd_opts.fargs[1]
-		local handler = sub_handlers[sub or "toggle"]
-		if not handler then
-			vim.notify(
-				string.format(
-					"Poppy: unknown subcommand '%s' (valid: toggle, close, menu, open [<name>])",
-					tostring(sub)
-				),
-				vim.log.levels.WARN
-			)
-			return
-		end
-		handler(table.concat(cmd_opts.fargs, " ", 2))
-	end, {
+	---@type vim.api.keyset.create_user_command
+	local cmd_opts = {
 		nargs = "*",
 		complete = function(arg_lead, cmd_line)
 			local body = cmd_line:gsub("^%s*:?[Pp]oppy%s+", "")
@@ -71,14 +60,30 @@ M.setup_command = function(opts, callbacks)
 			end
 			return {}
 		end,
-	})
+	}
+	vim.api.nvim_create_user_command("Poppy", function(cmd_opts)
+		local sub = cmd_opts.fargs[1]
+		local handler = sub_handlers[sub or "toggle"]
+		if not handler then
+			vim.notify(
+				string.format(
+					"Poppy: unknown subcommand '%s' (valid: toggle, close, menu, open [<name>])",
+					tostring(sub)
+				),
+				vim.log.levels.WARN
+			)
+			return
+		end
+		handler(table.concat(cmd_opts.fargs, " ", 2))
+	end, cmd_opts)
 end
 
 -- Register the autocmd set.
 M.setup_autocmds = function(opts, callbacks)
 	vim.api.nvim_create_augroup("poppy_group", { clear = true })
 
-	vim.api.nvim_create_autocmd("BufUnload", {
+	---@type vim.api.keyset.create_autocmd
+	local buf_unload_autocmd = {
 		group = "poppy_group",
 		callback = function(e)
 			if not shared.session_is_open() then
@@ -94,21 +99,25 @@ M.setup_autocmds = function(opts, callbacks)
 				actions.recover()
 			end
 		end,
-	})
+	}
+	vim.api.nvim_create_autocmd("BufUnload", buf_unload_autocmd)
 
 	if opts and opts.menu_autohide then
-		vim.api.nvim_create_autocmd("CursorHold", {
+		---@type vim.api.keyset.create_autocmd
+		local cursor_hold_autocmd = {
 			group = "poppy_group",
 			callback = function()
 				if vim.bo.filetype == "poppy_menu" then
 					menu.exit_menu()
 				end
 			end,
-		})
+		}
+		vim.api.nvim_create_autocmd("CursorHold", cursor_hold_autocmd)
 	end
 
 	if opts and opts.autoclose then
-		vim.api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, {
+		---@type vim.api.keyset.create_autocmd
+		local autoclose_autocmd = {
 			group = "poppy_group",
 			callback = function()
 				if not shared.session_is_open() then
@@ -134,12 +143,14 @@ M.setup_autocmds = function(opts, callbacks)
 					callbacks.toggle()
 				end)
 			end,
-		})
+		}
+		vim.api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, autoclose_autocmd)
 	end
 end
 
 M.setup_exclusive_float = function()
-	vim.api.nvim_create_autocmd("WinEnter", {
+	---@type vim.api.keyset.create_autocmd
+	local win_enter_autocmd = {
 		group = "poppy_group",
 		once = true,
 		callback = function()
@@ -155,7 +166,8 @@ M.setup_exclusive_float = function()
 				end
 			end)
 		end,
-	})
+	}
+	vim.api.nvim_create_autocmd("WinEnter", win_enter_autocmd)
 end
 
 local init_or_reset_state = function()

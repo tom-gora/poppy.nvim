@@ -1,13 +1,22 @@
+require("poppy._types")
+
 local M = {}
 local state = require("poppy.core.session.state")
 local hints_panel = require("poppy.core.ui.hints_panel")
 local list_panel = require("poppy.core.ui.list_panel")
 local header_panel = require("poppy.core.ui.header_panel")
 
+---@param b integer|nil
+---@return boolean
 local valid_buf = function(b)
 	return b and vim.api.nvim_buf_is_valid(b)
 end
 
+---@param win integer|nil
+---@param width integer
+---@param height integer
+---@param row? integer
+---@return nil
 local resize_content = function(win, width, height, row)
 	if not win or not vim.api.nvim_win_is_valid(win) then
 		return
@@ -23,6 +32,8 @@ local resize_content = function(win, width, height, row)
 	})
 end
 
+---@param win integer|nil
+---@return nil
 local close_panel = function(win)
 	if win and vim.api.nvim_win_is_valid(win) then
 		vim.api.nvim_win_close(win, true)
@@ -45,6 +56,13 @@ end
 -- Reuse the existing buffer if valid, else create. `create` returns
 -- (win, buf); `recreate` takes the buf and returns the win. `skip`
 -- nils out the state entries (matches the original header_height==0 path).
+---@param buf_key string
+---@param win_key string
+---@param create fun():integer?,integer?
+---@param recreate fun(buf:integer):integer?
+---@param skip? boolean
+---@return integer? win
+---@return integer? buf
 local ensure_panel = function(buf_key, win_key, create, recreate, skip)
 	if skip then
 		state.windows[win_key] = nil
@@ -62,6 +80,9 @@ local ensure_panel = function(buf_key, win_key, create, recreate, skip)
 	return win, buf
 end
 
+---@param hl integer
+---@param focusable boolean
+---@return nil
 local rebuild = function(hl, focusable)
 	local wc = vim.api.nvim_win_get_config(state.windows.wrapper_win)
 	local menu_width = state.windows.menu_width
@@ -90,6 +111,11 @@ local rebuild = function(hl, focusable)
 	})
 end
 
+---@param wrapper_win integer
+---@param menu_width integer
+---@param hint_height? integer
+---@param header_height? integer
+---@return PoppyPanelHandles
 M.create = function(wrapper_win, menu_width, hint_height, header_height)
 	local wc = vim.api.nvim_win_get_config(wrapper_win)
 	local hl = hint_height or 1
@@ -128,6 +154,9 @@ M.create = function(wrapper_win, menu_width, hint_height, header_height)
 	return { hints_win = hints_win, hints_buf = hints_buf, list_win = list_win, list_buf = list_buf }
 end
 
+---@param wrapper_win integer
+---@param header_height? integer
+---@return PoppyPanelHandles
 M.create_landing = function(wrapper_win, header_height)
 	local wc = vim.api.nvim_win_get_config(wrapper_win)
 	local header_height = header_height or 0
@@ -158,6 +187,7 @@ M.create_landing = function(wrapper_win, header_height)
 	return { hints_win = hints_win, hints_buf = hints_buf, list_win = list_win, list_buf = list_buf }
 end
 
+---@return nil
 M.focus_menu = function()
 	if state.windows.hidden then
 		return
@@ -165,6 +195,7 @@ M.focus_menu = function()
 	rebuild(3, true)
 end
 
+---@return nil
 M.unfocus_menu = function()
 	if state.windows.hidden then
 		return
@@ -172,6 +203,8 @@ M.unfocus_menu = function()
 	rebuild(4, false)
 end
 
+---@param content_win integer
+---@return nil
 M.hide_menu = function(content_win)
 	if state.windows.hidden then
 		return
@@ -182,6 +215,8 @@ M.hide_menu = function(content_win)
 	resize_content(content_win, wc.width - 2, wc.height - 2, 0)
 end
 
+---@param content_win integer
+---@return nil
 M.show_menu = function(content_win)
 	if not state.windows.hidden then
 		return
@@ -192,6 +227,7 @@ M.show_menu = function(content_win)
 	resize_content(content_win, wc.width - state.windows.menu_width - 2, wc.height - 2)
 end
 
+---@return nil
 M.destroy = function()
 	close_all_panels()
 end
@@ -202,10 +238,14 @@ end
 -- `M.mark_poppy_window(win)` for any new panel type.
 local UI_WINDOW_MARK = "poppy_ui_window"
 
+---@param win integer
+---@return nil
 M.mark_poppy_window = function(win)
 	vim.api.nvim_win_set_var(win, UI_WINDOW_MARK, true)
 end
 
+---@param win integer|nil
+---@return boolean
 M.is_poppy_window = function(win)
 	if not win or not vim.api.nvim_win_is_valid(win) then
 		return false
@@ -213,15 +253,23 @@ M.is_poppy_window = function(win)
 	local _, val = pcall(vim.api.nvim_win_get_var, win, UI_WINDOW_MARK)
 	return val == true
 end
+
+---@return integer|nil
 M.get_hints_buf = function()
 	return state.windows.hints_buf
 end
+
+---@return integer|nil
 M.get_list_buf = function()
 	return state.windows.list_buf
 end
+
+---@return integer|nil
 M.get_list_win = function()
 	return state.windows.list_win
 end
+
+---@return integer|nil
 M.get_header_buf = function()
 	return state.windows.header_buf
 end
