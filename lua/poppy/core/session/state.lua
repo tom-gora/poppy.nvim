@@ -16,10 +16,7 @@ local M = {}
 ---@field current_poppy_name string|nil Name of the currently active popup/menu
 ---@field last_poppy_name string|nil Name of the previously active popup/menu
 ---@field is_landing boolean Whether the user is currently on the initial landing state
----@field menu_focused boolean Whether the sidebar menu currently has input focus
----@field hidden boolean Whether the entire UI component is currently hidden
----@field menu_width integer Fixed width of the sidebar menu section in cells
----@field header_height integer Fixed height of the top header section in rows
+---@field hidden boolean Whether the sidebar panels are currently hidden (autohide mode)
 ---@field opts table|nil Configuration options passed down to the state instance
 
 ---Generates the default configuration and window tracking state.
@@ -41,10 +38,7 @@ M.default_state = function()
 		current_poppy_name = nil,
 		last_poppy_name = nil,
 		is_landing = false,
-		menu_focused = false,
 		hidden = false,
-		menu_width = 25,
-		header_height = 0,
 		opts = nil,
 	}
 end

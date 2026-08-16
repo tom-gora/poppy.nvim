@@ -36,7 +36,7 @@ local cleanup = function(drop_poppies)
 	local hint_buf = state.windows.menu_hint_buf
 	shared.close_menu_hint()
 
-	panels.destroy()
+	panels.unmount()
 
 	-- Wipe WinClosed watchers before closing windows to avoid re-fire.
 	vim.api.nvim_create_augroup("poppy_ui", { clear = true })
@@ -72,7 +72,6 @@ local cleanup = function(drop_poppies)
 	state.windows.content_win = nil
 	state.windows.content_buf = nil
 	state.windows.is_landing = false
-	state.windows.menu_focused = false
 end
 
 M.close = function()

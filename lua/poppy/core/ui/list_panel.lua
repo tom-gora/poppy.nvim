@@ -8,8 +8,8 @@ local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
 --
 -- ##################################################################
 -- DEBUG: layout
--- local debug = require("poppy._debug_helpers")
--- debug.layout__setup_highlights()
+local debug = require("poppy._debug_helpers")
+debug.layout__setup_highlights()
 -- ##################################################################
 
 local sign_group = "poppy_list"
@@ -61,9 +61,9 @@ end
 ---@return integer? win
 M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local padding_offset = 3
-	local hint_offset = hint_height and hint_height + padding_offset or 5
-	local height = math.max(1, (hint_height and (wrapper_conf.height - hint_offset) or (wrapper_conf.height - 3)))
+	local hint_offset = hint_height and hint_height or 5
+	local height = math.max(1, hint_offset and (wrapper_conf.height - hint_offset) or wrapper_conf.height)
+	local row = wrapper_conf.height - hint_offset
 	if row_override then
 		height = math.max(1, height - row_override)
 	end
@@ -73,8 +73,9 @@ M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_
 		relative = "win",
 		width = menu_width,
 		height = height,
-		col = wrapper_conf.width - menu_width,
-		row = row_override or 0,
+		anchor = "SE",
+		col = wrapper_conf.width,
+		row = row,
 		style = "minimal",
 		border = "none",
 		zindex = layout.POPPY_Z_INDEX,
@@ -90,10 +91,10 @@ M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_
 	--
 	-- ##################################################################
 	-- DEBUG: layout
-	-- debug.layout__hightlight_window_visually(win)
+	debug.layout__hightlight_window_visually(win)
 	-- ##################################################################
 	--
-	style.apply_list_panel_style(win)
+	-- style.apply_list_panel_style(win)
 	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 	return win
 end

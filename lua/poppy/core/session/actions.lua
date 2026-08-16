@@ -96,7 +96,7 @@ end
 
 M.transition_to_content = function()
 	if state.windows.is_landing then
-		panels.destroy()
+		panels.unmount()
 		local wc = vim.api.nvim_win_get_config(state.windows.wrapper_win)
 		local full_width = layout.compute_wrapper_dimensions(state.windows.opts, vim.o.columns, vim.o.lines)
 		vim.api.nvim_win_set_config(state.windows.wrapper_win, {
@@ -106,22 +106,21 @@ M.transition_to_content = function()
 			col = math.floor((vim.o.columns - full_width) / 2),
 			row = wc.row,
 		})
+		state.windows.is_landing = false
 	end
 	local panel_width = state.windows.opts and state.windows.opts.menu_width or 25
-	local header_height = layout.get_header_height(state.windows.opts)
 	local c_win, c_buf = content.create(state.windows.wrapper_win, panel_width)
-	panels.create(state.windows.wrapper_win, panel_width, 4, header_height)
+	panels.mount(state.windows.wrapper_win)
 	watch_content_window(c_win, panel_width)
 	state.windows.content_win = c_win
 	state.windows.content_buf = c_buf
-	state.windows.is_landing = false
 end
 
 M.enter_landing = function()
-	panels.create_landing(state.windows.wrapper_win, layout.get_header_height(state.windows.opts))
+	state.windows.is_landing = true
+	panels.mount(state.windows.wrapper_win)
 	state.windows.content_win = nil
 	state.windows.content_buf = nil
-	state.windows.is_landing = true
 	local list_buf = panels.get_list_buf()
 	vim.bo[list_buf].filetype = "poppy_menu"
 	local list_win = panels.get_list_win()
@@ -131,20 +130,19 @@ M.enter_landing = function()
 	require("poppy.core.session.menu").setup_list_keys(list_buf)
 end
 
--- Refresh sidebar + hints after every pop-changing action.
+-- Refresh sidebar list after every pop-changing action. Hints are static
+-- (written once at mount time), so this only re-renders the list rows.
 M.refresh_panels = function(sorted_poppies)
-	if state.windows.is_landing and state.windows.wrapper_win then
-		local w = vim.api.nvim_win_get_width(state.windows.wrapper_win)
-		list_panel_update(sorted_poppies, w)
-		require("poppy.core.ui.hints_panel").update(panels.get_hints_buf(), shared.keys(), w, "landing", "landing")
-		return
-	end
 	if state.windows.hidden then
 		return
 	end
-	local panel_width = menu_width()
+	if state.windows.is_landing and state.windows.wrapper_win then
+		local w = vim.api.nvim_win_get_width(state.windows.wrapper_win)
+		list_panel_update(sorted_poppies, w)
+		return
+	end
+	local panel_width = state.windows.opts and state.windows.opts.menu_width or 25
 	list_panel_update(sorted_poppies, panel_width)
-	require("poppy.core.ui.hints_panel").update(panels.get_hints_buf(), shared.keys(), panel_width, "menu", "active_menu")
 end
 
 M.switch_by_name = function(poppy_name)
@@ -177,12 +175,11 @@ M.switch_by_name = function(poppy_name)
 
 	require("poppy.core.session.menu").setup_content_keys(vim.api.nvim_win_get_buf(state.windows.content_win))
 
-	state.windows.menu_focused = false
 	if state.windows.opts.menu_autohide then
-		panels.hide_menu(state.windows.content_win)
+		panels.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	else
-		panels.unfocus_menu()
+		panels.set_focused(false)
 	end
 
 	M.refresh_panels(state.poppies)
@@ -234,7 +231,7 @@ M.recover = function()
 		if fallback_name then
 			M.switch_by_name(fallback_name)
 		else
-			panels.destroy()
+			panels.unmount()
 			shared.close_menu_hint()
 
 			vim.api.nvim_create_augroup("poppy_ui", { clear = true })

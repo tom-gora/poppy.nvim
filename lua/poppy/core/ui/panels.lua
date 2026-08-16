@@ -2,14 +2,33 @@ require("poppy._types")
 
 local M = {}
 local state = require("poppy.core.session.state")
+local layout = require("poppy.core.ui.layout")
 local hints_panel = require("poppy.core.ui.hints_panel")
 local list_panel = require("poppy.core.ui.list_panel")
 local header_panel = require("poppy.core.ui.header_panel")
+local shared = require("poppy.core.shared")
 
 ---@param b integer|nil
 ---@return boolean
 local valid_buf = function(b)
 	return b and vim.api.nvim_buf_is_valid(b)
+end
+
+---@param win integer|nil
+---@return nil
+local close_panel = function(win)
+	if win and vim.api.nvim_win_is_valid(win) then
+		vim.api.nvim_win_close(win, true)
+	end
+end
+
+local close_all_panels = function()
+	close_panel(state.windows.hints_win)
+	close_panel(state.windows.list_win)
+	close_panel(state.windows.header_win)
+	state.windows.hints_win = nil
+	state.windows.list_win = nil
+	state.windows.header_win = nil
 end
 
 ---@param win integer|nil
@@ -30,27 +49,6 @@ local resize_content = function(win, width, height, row)
 		row = row or win_conf.row,
 		win = win_conf.win,
 	})
-end
-
----@param win integer|nil
----@return nil
-local close_panel = function(win)
-	if win and vim.api.nvim_win_is_valid(win) then
-		vim.api.nvim_win_close(win, true)
-	end
-end
-
--- Tear down the side panel trio (hints/list/header) in one place. Used by
--- destroy() and hide_menu() — both walk the same three windows and zero
--- out the corresponding state fields. Module-private; callers outside
--- panels shouldn't be closing these directly.
-local close_all_panels = function()
-	close_panel(state.windows.hints_win)
-	close_panel(state.windows.list_win)
-	close_panel(state.windows.header_win)
-	state.windows.hints_win = nil
-	state.windows.list_win = nil
-	state.windows.header_win = nil
 end
 
 -- Reuse the existing buffer if valid, else create. `create` returns
@@ -80,162 +78,167 @@ local ensure_panel = function(buf_key, win_key, create, recreate, skip)
 	return win, buf
 end
 
----@param hl integer
----@param focusable boolean
----@return nil
-local rebuild = function(hl, focusable)
-	local wc = vim.api.nvim_win_get_config(state.windows.wrapper_win)
-	local menu_width = state.windows.menu_width
-	local header_height = state.windows.header_height
-
-	close_panel(state.windows.hints_win)
-	close_panel(state.windows.list_win)
-	close_panel(state.windows.header_win)
-
-	if header_height > 0 and valid_buf(state.windows.header_buf) then
-		state.windows.header_win = header_panel.recreate(
-			state.windows.wrapper_win,
-			state.windows.header_buf,
-			menu_width,
-			wc.width - menu_width
-		)
-	end
-	state.windows.list_win =
-		list_panel.recreate(state.windows.wrapper_win, state.windows.list_buf, menu_width, focusable, hl, header_height)
-	state.windows.hints_win = hints_panel.recreate(state.windows.wrapper_win, state.windows.hints_buf, {
-		width = menu_width,
-		col = wc.width,
-		row = wc.height,
-		height = hl,
-		kind = "menu",
-	})
+local header_height = function()
+	return layout.get_header_height(state.windows.opts)
 end
 
----@param wrapper_win integer
----@param menu_width integer
----@param hint_height? integer
----@param header_height? integer
----@return PoppyPanelHandles
-M.create = function(wrapper_win, menu_width, hint_height, header_height)
+local menu_width = function()
+	return state.windows.opts and state.windows.opts.menu_width or 25
+end
+
+local mount_sidebar_panels = function(wrapper_win)
 	local wc = vim.api.nvim_win_get_config(wrapper_win)
-	local hl = hint_height or 1
-	local header_height = header_height or 0
+	local mw = menu_width()
+	local hh = header_height()
+	local hl = hints_panel.HINT_LINES.menu
 
-	local list_win, list_buf = ensure_panel("list_buf", "list_win", function()
-		return list_panel.create(wrapper_win, menu_width, false, hl, header_height)
+	ensure_panel("list_buf", "list_win", function()
+		return list_panel.create(wrapper_win, mw, false, hl, hh)
 	end, function(buf)
-		return list_panel.recreate(wrapper_win, buf, menu_width, false, hl, header_height)
+		return list_panel.recreate(wrapper_win, buf, mw, false, hl + 2, hh)
 	end)
 
-	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win", function()
-		return hints_panel.create(
-			wrapper_win,
-			{ width = menu_width, col = wc.width, row = wc.height - 1, height = hl, kind = "menu" }
-		)
+	ensure_panel("hints_buf", "hints_win", function()
+		return hints_panel.create(wrapper_win, {
+			width = mw,
+			col = wc.width,
+			row = wc.height - 1,
+			height = hl,
+			kind = "menu",
+		})
 	end, function(buf)
-		return hints_panel.recreate(
-			wrapper_win,
-			buf,
-			{ width = menu_width, col = wc.width, row = wc.height - 1, height = hl, kind = "menu" }
-		)
+		return hints_panel.recreate(wrapper_win, buf, {
+			width = mw,
+			col = wc.width,
+			row = wc.height - 1,
+			height = hl,
+			kind = "menu",
+		})
 	end)
 
-	local header_win, header_buf = ensure_panel("header_buf", "header_win", function()
-		return header_panel.create(wrapper_win, menu_width, wc.width - menu_width)
+	ensure_panel("header_buf", "header_win", function()
+		return header_panel.create(wrapper_win, mw, wc.width - mw)
 	end, function(buf)
-		return header_panel.recreate(wrapper_win, buf, menu_width, wc.width - menu_width)
-	end, header_height == 0)
+		return header_panel.recreate(wrapper_win, buf, mw, wc.width - mw)
+	end, hh == 0)
+
+	if valid_buf(state.windows.hints_buf) then
+		hints_panel.write_static(state.windows.hints_buf, shared.keys(), "menu", mw)
+	end
 
 	state.windows.wrapper_win = wrapper_win
-	state.windows.menu_width = menu_width
 	state.windows.hidden = false
-	state.windows.header_height = header_height
-
-	return { hints_win = hints_win, hints_buf = hints_buf, list_win = list_win, list_buf = list_buf }
 end
 
----@param wrapper_win integer
----@param header_height? integer
----@return PoppyPanelHandles
-M.create_landing = function(wrapper_win, header_height)
+local mount_landing_panels = function(wrapper_win)
 	local wc = vim.api.nvim_win_get_config(wrapper_win)
-	local header_height = header_height or 0
+	local hh = header_height()
+	local hl = hints_panel.HINT_LINES.landing + 2
 
-	local list_win, list_buf = ensure_panel("list_buf", "list_win", function()
-		return list_panel.create(wrapper_win, wc.width, true, 1, header_height)
+	ensure_panel("list_buf", "list_win", function()
+		return list_panel.create(wrapper_win, wc.width, true, hl, hh)
 	end, function(buf)
-		return list_panel.recreate(wrapper_win, buf, wc.width, true, nil, header_height)
+		return list_panel.recreate(wrapper_win, buf, wc.width, true, hl, hh)
 	end)
 
-	local hints_win, hints_buf = ensure_panel("hints_buf", "hints_win", function()
+	ensure_panel("hints_buf", "hints_win", function()
 		return hints_panel.create(wrapper_win, { kind = "landing" })
 	end, function(buf)
 		return hints_panel.recreate(wrapper_win, buf, { kind = "landing" })
 	end)
 
-	local header_win, header_buf = ensure_panel("header_buf", "header_win", function()
+	ensure_panel("header_buf", "header_win", function()
 		return header_panel.create(wrapper_win)
 	end, function(buf)
 		return header_panel.recreate(wrapper_win, buf)
-	end, header_height == 0)
+	end, hh == 0)
+
+	if valid_buf(state.windows.hints_buf) then
+		hints_panel.write_static(state.windows.hints_buf, shared.keys(), "landing", wc.width)
+	end
 
 	state.windows.wrapper_win = wrapper_win
-	state.windows.menu_width = wc.width
 	state.windows.hidden = false
-	state.windows.header_height = header_height
-
-	return { hints_win = hints_win, hints_buf = hints_buf, list_win = list_win, list_buf = list_buf }
 end
 
+---@param wrapper_win integer
 ---@return nil
-M.focus_menu = function()
-	if state.windows.hidden then
-		return
+M.mount = function(wrapper_win)
+	M.unmount()
+	if state.windows.is_landing then
+		mount_landing_panels(wrapper_win)
+	else
+		mount_sidebar_panels(wrapper_win)
 	end
-	rebuild(3, true)
 end
 
 ---@return nil
-M.unfocus_menu = function()
-	if state.windows.hidden then
-		return
-	end
-	rebuild(4, false)
-end
-
----@param content_win integer
----@return nil
-M.hide_menu = function(content_win)
-	if state.windows.hidden then
-		return
-	end
-	local wc = vim.api.nvim_win_get_config(state.windows.wrapper_win)
-	close_all_panels()
-	state.windows.hidden = true
-	resize_content(content_win, wc.width - 2, wc.height - 2, 0)
-end
-
----@param content_win integer
----@return nil
-M.show_menu = function(content_win)
-	if not state.windows.hidden then
-		return
-	end
-	rebuild(3, true)
-	state.windows.hidden = false
-	local wc = vim.api.nvim_win_get_config(state.windows.wrapper_win)
-	resize_content(content_win, wc.width - state.windows.menu_width - 2, wc.height - 2)
-end
-
----@return nil
-M.destroy = function()
+M.unmount = function()
 	close_all_panels()
 end
 
--- The single rule for "is this window one of ours?" Wrappers/content/list/
--- hints/header/bottom-right all set the marker on creation. Internal hop
--- detection (events.lua) reads it here. Add the marker via
--- `M.mark_poppy_window(win)` for any new panel type.
+-- Sidebar visibility (autohide mode). No-op in landing. When visible=true,
+-- mounts the sidebar panels and shrinks content to leave room; when
+-- visible=false, closes panels and grows content back to wrapper width.
+---@param visible boolean
+---@param content_win integer
+---@return nil
+M.set_visible = function(visible, content_win)
+	if state.windows.is_landing or not state.windows.wrapper_win then
+		return
+	end
+	local wrapper_win = state.windows.wrapper_win
+	if not vim.api.nvim_win_is_valid(wrapper_win) then
+		return
+	end
+	local wc = vim.api.nvim_win_get_config(wrapper_win)
+
+	if visible then
+		if not state.windows.hidden then
+			return
+		end
+		mount_sidebar_panels(wrapper_win)
+		if content_win and vim.api.nvim_win_is_valid(content_win) then
+			resize_content(content_win, wc.width - menu_width() - 2, wc.height - 2)
+		end
+	else
+		if state.windows.hidden then
+			return
+		end
+		close_all_panels()
+		state.windows.hidden = true
+		if content_win and vim.api.nvim_win_is_valid(content_win) then
+			resize_content(content_win, wc.width - 2, wc.height - 2, 0)
+		end
+	end
+end
+
+-- The only runtime dial within sidebar: flip the list panel's focusable.
+-- No rebuild — just sets the focusable option on the existing window.
+---@param focused boolean
+---@return nil
+M.set_focused = function(focused)
+	local list_win = state.windows.list_win
+	if not list_win or not vim.api.nvim_win_is_valid(list_win) then
+		return
+	end
+	local conf = vim.api.nvim_win_get_config(list_win)
+	if conf.focusable ~= focused then
+		conf.focusable = focused
+		vim.api.nvim_win_set_config(list_win, conf)
+	end
+end
+
+-- Derived from Neovim's current window. No sync point needed.
+---@return boolean
+M.is_menu_focused = function()
+	local list_win = state.windows.list_win
+	if not list_win or not vim.api.nvim_win_is_valid(list_win) then
+		return false
+	end
+	return vim.api.nvim_get_current_win() == list_win
+end
+
 local UI_WINDOW_MARK = "poppy_ui_window"
 
 ---@param win integer

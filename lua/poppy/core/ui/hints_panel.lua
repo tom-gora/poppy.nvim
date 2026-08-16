@@ -5,15 +5,7 @@ local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 local namespace = vim.api.nvim_create_namespace("poppy_hints_bar")
---
--- ##################################################################
--- DEBUG: layout
--- local debug = require("poppy._debug_helpers")
--- debug.layout__setup_highlights()
--- ##################################################################
 
-local PADDING = { landing = 1, menu = 3 }
-local CONTENT_HEIGHT = { landing = 3, menu = 4 }
 local INDENT = "  "
 local KEY_COL = 5
 local COL_GAP = "  "
@@ -26,9 +18,8 @@ local fmt_hint = function(key, label, indent)
 	return indent .. padded .. COL_GAP .. label .. " "
 end
 
--- Each entry is `[config_key, label]`. `config_key` is looked up on
--- `keys` (so all four keybindings stay in one place); `label` is the
--- hint text shown to the user.
+-- Each entry is `[config_key, label]`. `config_key` is looked up on `keys`
+-- so all four keybindings stay in one place; `label` is the hint text.
 local ACTIVE = {
 	{ "select", "Select" },
 	{ "kill", "Kill" },
@@ -40,8 +31,14 @@ local HINT_SPECS = {
 		{ "select", "Select" },
 		{ "poppy_action", "Toggle Off" },
 	},
-	active_menu = ACTIVE,
-	active_focused = ACTIVE,
+	menu = ACTIVE,
+}
+
+-- Total rendered lines per kind = 1 separator + N hint entries. Single
+-- source of truth for the window-height math in panels.lua.
+M.HINT_LINES = {
+	landing = #HINT_SPECS.landing,
+	menu = #HINT_SPECS.menu,
 }
 
 ---@param wrapper_win integer
@@ -65,8 +62,8 @@ M.create_bottom_right = function(parent_win, keys)
 
 	local text = " " .. keys.poppy_action .. " Menu "
 	local win_conf = vim.api.nvim_win_get_config(parent_win)
-	-- offset position to zindex over the parent's border tucked in the corner,
-	-- not interfering with displayed buffer or TUI as a small subtle hint
+	-- Tucked into the bottom-right corner above the content border so it
+	-- sits on top of the z stack without overlapping the TUI.
 	local row = math.max(0, win_conf.height) + 1
 	local col = math.max(0, win_conf.width) + 1
 
@@ -86,12 +83,6 @@ M.create_bottom_right = function(parent_win, keys)
 	}
 
 	local win = vim.api.nvim_open_win(buf, false, config)
-	--
-	-- ##################################################################
-	-- DEBUG: layout
-	-- debug.layout__hightlight_window_visually(win)
-	-- ##################################################################
-	--
 	style.apply_hints_panel_style(win)
 
 	shared.with_modifiable(buf, function()
@@ -111,16 +102,19 @@ M.recreate = function(wrapper_win, buf, opts)
 	opts = opts or {}
 	local kind = opts.kind or "menu"
 	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
-	local row = opts.row or wrapper_conf.height
 	local col = opts.col or wrapper_conf.width
+	local row = opts.row or wrapper_conf.height
 	local width = opts.width or wrapper_conf.width
-	local height = opts.height or CONTENT_HEIGHT[kind]
+	local height = opts.height or M.HINT_LINES[kind]
+	if kind == "menu" then
+		row = row + 1
+	end
 
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
 		width = width,
-		height = height + PADDING[kind],
+		height = height + 2,
 		col = col,
 		row = row,
 		anchor = "SE",
@@ -132,79 +126,48 @@ M.recreate = function(wrapper_win, buf, opts)
 	}
 
 	local win = vim.api.nvim_open_win(buf, false, config)
-	--
-	-- ##################################################################
-	-- DEBUG: layout
-	-- debug.layout__hightlight_window_visually(win)
-	-- ##################################################################
-	--
 	style.apply_hints_panel_style(win)
 	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 	return win
 end
 
+-- Write the hint lines once. Hints are static (config keys + layout kind);
+-- no runtime mutations. Called from panels.lua at mount time only.
 ---@param buf integer
 ---@param keys PoppyKeys
----@param wrapper_width integer
 ---@param kind "landing"|"menu"
----@param mode "active_menu"
+---@param wrapper_width integer
 ---@return nil
-M.update = function(buf, keys, wrapper_width, kind, mode)
+M.write_static = function(buf, keys, kind, wrapper_width)
 	if not keys then
 		return
 	end
-	kind = kind or "menu"
 	local sep = " " .. string.rep("─", math.max(0, wrapper_width - #INDENT - 1)) .. " "
-	local spec = HINT_SPECS[kind == "landing" and "landing" or mode] or {}
+	local spec = HINT_SPECS[kind] or {}
 
-	local line_specs = { { { text = sep, hl = nil } } }
+	local lines = { sep }
+	local per_line_segments = { { { text = sep, hl = nil } } }
+
 	for _, kp in ipairs(spec) do
-		table.insert(line_specs, { { text = fmt_hint(keys[kp[1]], kp[2], INDENT), hl = nil } })
-	end
-
-	local lines = {}
-	local per_line_segments = {}
-
-	for _, segments in ipairs(line_specs) do
-		local left_len = 0
-		for _, seg in ipairs(segments) do
-			left_len = left_len + #seg.text
-		end
+		local hint_text = fmt_hint(keys[kp[1]], kp[2], INDENT)
+		local left_len = #hint_text
 		local padding = math.max(1, wrapper_width - left_len)
-		table.insert(segments, { text = string.rep(" ", padding), hl = nil })
-
-		local line = {}
-		for _, seg in ipairs(segments) do
-			table.insert(line, seg.text)
-		end
-		table.insert(lines, table.concat(line))
+		local segments = { { text = hint_text, hl = nil }, { text = string.rep(" ", padding), hl = nil } }
 		table.insert(per_line_segments, segments)
+		table.insert(lines, hint_text .. string.rep(" ", padding))
 	end
 
+	-- Defensive: zero entries -> blank line.
 	if #lines == 0 then
 		table.insert(lines, "")
 		table.insert(per_line_segments, {})
 	end
+	table.insert(lines, " ")
 
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 	shared.with_modifiable(buf, function()
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)
-
-	for line_idx, segments in ipairs(per_line_segments) do
-		local col = 0
-		for _, seg in ipairs(segments) do
-			if seg.hl then
-				---@type vim.api.keyset.extmark
-				local hl_extmark = {
-					end_col = col + #seg.text,
-					hl_group = seg.hl,
-				}
-				vim.api.nvim_buf_set_extmark(buf, namespace, line_idx - 1, col, hl_extmark)
-			end
-			col = col + #seg.text
-		end
-	end
 end
 
 return M

@@ -114,7 +114,6 @@ M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, override_widt
 	else
 		row = math.floor((vim_lines - height) / 2)
 	end
-
 	return width, height, row
 end
 

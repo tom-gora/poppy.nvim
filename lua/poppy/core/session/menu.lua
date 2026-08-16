@@ -3,6 +3,7 @@ local M = {}
 local state = require("poppy.core.session.state")
 local panels = require("poppy.core.ui.panels")
 local shared = require("poppy.core.shared")
+local actions = require("poppy.core.session.actions")
 
 local focus = function(win)
 	if win and vim.api.nvim_win_is_valid(win) then
@@ -30,47 +31,46 @@ local focus_list_with_cursor = function()
 end
 M.focus_list_with_cursor = focus_list_with_cursor
 
--- menu only needs `refresh_panels` from actions; lazy-require keeps the
--- dependency one-way (actions doesn't import menu).
 local refresh = function()
-	require("poppy.core.session.actions").refresh_panels(state.poppies)
+	actions.refresh_panels(state.poppies)
 end
 
+-- One path for both autohide on/off: the autohide flag only decides
+-- whether to also toggle sidebar visibility; focusability toggles
+-- unconditionally because the list panel exists in both modes (just
+-- not visible when autohide hides it).
 M.toggle_menu = function()
 	if state.windows.is_landing or not shared.session_is_open() then
 		return
 	end
 
-	if state.windows.hidden then
-		shared.close_menu_hint()
-		panels.show_menu(state.windows.content_win)
-		state.windows.menu_focused = true
+	local want_focus = not panels.is_menu_focused()
+
+	if state.windows.opts.menu_autohide then
+		panels.set_visible(want_focus, state.windows.content_win)
+	end
+	panels.set_focused(want_focus)
+
+	refresh()
+	if want_focus then
 		focus_list_with_cursor()
-		refresh()
 	else
-		state.windows.menu_focused = not state.windows.menu_focused
-		if state.windows.menu_focused then
-			panels.focus_menu()
-			focus_list_with_cursor()
-		else
-			panels.unfocus_menu()
-			focus(state.windows.content_win)
-		end
-		refresh()
+		focus(state.windows.content_win)
 	end
 end
 
 M.exit_menu = function()
-	if not state.windows.menu_focused or state.windows.is_landing then
+	if not panels.is_menu_focused() or state.windows.is_landing then
 		return
 	end
-	state.windows.menu_focused = false
-	if state.windows.opts and state.windows.opts.menu_autohide then
-		panels.hide_menu(state.windows.content_win)
+
+	if state.windows.opts.menu_autohide then
+		panels.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	else
-		panels.unfocus_menu()
+		panels.set_focused(false)
 	end
+
 	refresh()
 	if focus(state.windows.content_win) then
 		local cbuf = vim.api.nvim_win_get_buf(state.windows.content_win)
@@ -81,11 +81,8 @@ M.exit_menu = function()
 end
 
 -- Buffer-local keymaps for the list and content panes. Bound to the
--- buffer because there are multiple windows in the plugin UI and we only
--- want these to fire when the relevant pane is focused. Called from
--- `actions.transition_to_content` and `actions.switch_by_name`.
-
-local actions = require("poppy.core.session.actions")
+-- buffer because there are multiple windows in the plugin UI and we
+-- only want these to fire when the relevant pane is focused.
 
 M.setup_list_keys = function(buf)
 	local keys = shared.keys()
