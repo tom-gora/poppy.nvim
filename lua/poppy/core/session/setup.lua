@@ -254,6 +254,7 @@ M.setup = function(user_opts)
 	style.setup()
 	vim.api.nvim_create_augroup("poppy_ui", { clear = true })
 	state.windows.opts = config.merge(user_opts)
+	style.define_icon_signs(state.windows.opts.icons)
 	if next(state.windows.opts.poppies_resolved or {}) == nil then
 		vim.notify(
 			"Poppy: no poppies declared in setup({poppies = {...}}); the manager will open empty.",

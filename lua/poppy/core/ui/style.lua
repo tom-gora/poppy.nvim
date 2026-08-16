@@ -47,6 +47,35 @@ local define_poppy_signs = function()
 	end
 end
 
+-- Define the per-cat icon signs from the user's configured icons. Called
+-- once at setup after config.merge so user overrides reach the signs.
+-- Each icon is padded to 2 cells so the gutter stays the same width
+-- regardless of glyph width.
+---@param icons? PoppyIcons
+M.define_icon_signs = function(icons)
+	---@param icon string
+	---@return string
+	local pad_icon = function(icon)
+		local w = vim.fn.strdisplaywidth(icon)
+		if w >= 2 then
+			return icon
+		end
+		return icon .. string.rep(" ", 2 - w)
+	end
+
+	local map = {
+		{ "File", icons and icons.file or " " },
+		{ "Exec", icons and icons.exec or " " },
+		{ "Shell", icons and icons.shell or " " },
+	}
+	for _, e in ipairs(map) do
+		local cap, icon_text = e[1], e[2]
+		local padded = pad_icon(icon_text)
+		pcall(vim.fn.sign_define, "PoppyIcon" .. cap, { text = padded, texthl = "Poppy" .. cap })
+		pcall(vim.fn.sign_define, "PoppyIconCurrent" .. cap, { text = padded, texthl = "PoppyCurrentRow" .. cap })
+	end
+end
+
 -- Validate-inside-schedule so we don't schedule work that would
 -- no-op anyway. All panel/window winhl assignments use this.
 ---@param win integer
@@ -134,19 +163,18 @@ M.setup = function()
 			---@type vim.api.keyset.highlight
 			local poppy_cat_hidden_hl = {
 				fg = adjust_brightness(hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR),
-				bold = true,
 			}
 			vim.api.nvim_set_hl(0, "Poppy" .. name .. "Hidden", poppy_cat_hidden_hl)
 		else
 			---@type vim.api.keyset.highlight
-			local poppy_cat_hidden_hl = { link = "Comment", bold = true }
+			local poppy_cat_hidden_hl = { link = "Comment" }
 			vim.api.nvim_set_hl(0, "Poppy" .. name .. "Hidden", poppy_cat_hidden_hl)
 		end
 	end
 
 	for _, entry in ipairs(CATEGORY) do
 		---@type vim.api.keyset.highlight
-		local poppy_cat_current_hl = { bg = entry[2].fg, fg = nf.bg }
+		local poppy_cat_current_hl = { fg = entry[2].fg, bold = true }
 		vim.api.nvim_set_hl(0, "PoppyCurrentRow" .. entry[1], poppy_cat_current_hl)
 	end
 

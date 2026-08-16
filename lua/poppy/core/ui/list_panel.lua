@@ -8,8 +8,8 @@ local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
 --
 -- ##################################################################
 -- DEBUG: layout
-local debug = require("poppy._debug_helpers")
-debug.layout__setup_highlights()
+-- local debug = require("poppy._debug_helpers")
+-- debug.layout__setup_highlights()
 -- ##################################################################
 
 local sign_group = "poppy_list"
@@ -29,6 +29,23 @@ local pick_sign = function(dot, cat, is_active, is_hidden)
 	end
 	local prefix = "PoppyDot" .. cat:sub(1, 1):upper() .. cat:sub(2)
 	return prefix .. (is_hidden and "H" or "A")
+end
+
+-- Cell 1 = dot, cells 2-3 = icon. Two signs per line at different priorities.
+-- Higher priority renders leftmost, so dot (priority 10) wins cell 1 and
+-- icon (priority 5) renders to the right of it.
+local DOT_PRIORITY = 10
+local ICON_PRIORITY = 5
+
+---@param cat "exec"|"file"|"shell"
+---@param is_active boolean
+---@return string
+local pick_icon_sign = function(cat, is_active)
+	local cap = cat:sub(1, 1):upper() .. cat:sub(2)
+	if is_active then
+		return "PoppyIconCurrent" .. cap
+	end
+	return "PoppyIcon" .. cap
 end
 
 ---@param wrapper_win integer
@@ -84,17 +101,8 @@ M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_
 	}
 
 	local win = vim.api.nvim_open_win(buf, false, config)
-	vim.wo[win].signcolumn = "yes:1"
-	---@type vim.api.keyset.set_option_value
-	local statuscol_opts = { win = win }
-	vim.api.nvim_set_option_value("statuscolumn", "%s", statuscol_opts)
-	--
-	-- ##################################################################
-	-- DEBUG: layout
-	debug.layout__hightlight_window_visually(win)
-	-- ##################################################################
-	--
-	-- style.apply_list_panel_style(win)
+	vim.wo[win].signcolumn = "yes:3"
+	style.apply_list_panel_style(win)
 	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
 	return win
 end
@@ -186,16 +194,31 @@ M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 	---@type vim.api.keyset.sign_placelist[]
 	local placelist = {}
 	for display_idx, e in ipairs(entries) do
-		lines[display_idx] = e.icon .. " " .. string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.title
+		lines[display_idx] = string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.title
+		-- Cell 1: dot sign (priority 5)
 		---@type vim.api.keyset.sign_placelist
-		local placement = {
+		local dot_placement = {
 			buffer = buf,
 			group = sign_group,
-			id = display_idx,
+			id = display_idx * 10,
 			lnum = display_idx,
+			priority = DOT_PRIORITY,
 			name = pick_sign((e.is_active or e.is_hidden) and "•" or " ", e.cat, e.is_active, e.is_hidden),
 		}
-		placelist[display_idx] = placement
+		placelist[#placelist + 1] = dot_placement
+		-- Cells 2-3: icon sign (priority 5). Skip for the empty-list placeholder.
+		if e.cat ~= "" then
+			---@type vim.api.keyset.sign_placelist
+			local icon_placement = {
+				buffer = buf,
+				group = sign_group,
+				id = display_idx * 10 + 1,
+				lnum = display_idx,
+				priority = ICON_PRIORITY,
+				name = pick_icon_sign(e.cat, e.is_active),
+			}
+			placelist[#placelist + 1] = icon_placement
+		end
 	end
 
 	shared.with_modifiable(buf, function()
