@@ -14,10 +14,6 @@ local focus = function(win)
 	return false
 end
 
-local menu_width = function()
-	return state.windows.opts and state.windows.opts.menu_width or 25
-end
-
 local cursor_to_poppy_index = function()
 	local ok, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
 	if not ok then
@@ -108,7 +104,7 @@ M.transition_to_content = function()
 		})
 		state.windows.is_landing = false
 	end
-	local panel_width = state.windows.opts and state.windows.opts.menu_width or 25
+	local panel_width = panels.menu_width()
 	local c_win, c_buf = content.create(state.windows.wrapper_win, panel_width)
 	panels.mount(state.windows.wrapper_win)
 	watch_content_window(c_win, panel_width)
@@ -141,7 +137,7 @@ M.refresh_panels = function(sorted_poppies)
 		list_panel_update(sorted_poppies, w)
 		return
 	end
-	local panel_width = state.windows.opts and state.windows.opts.menu_width or 25
+	local panel_width = panels.menu_width()
 	list_panel_update(sorted_poppies, panel_width)
 end
 

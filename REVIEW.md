@@ -198,10 +198,6 @@ Architectural notes:
   Only used in `switch_by_name`. The `poppies_resolved` naming is
   redundant — it's resolved at config-time, not at use-time — but
   it's load-bearing so leave it.
-- `panels.lua:99` `rebuild` references `state.windows.menu_width` and
-  `state.windows.header_height` which are local state — but the panel
-  width is also passed in as `menu_width` and silently ignored in
-  favor of the state field. Either remove the parameter or use it.
 
 ## Real bugs
 

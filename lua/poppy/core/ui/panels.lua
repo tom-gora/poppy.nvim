@@ -277,4 +277,8 @@ M.get_header_buf = function()
 	return state.windows.header_buf
 end
 
+-- Exposed so callers (e.g. actions.lua) can read the same default-handled
+-- value without re-implementing the `state.windows.opts and ... or 25` chain.
+M.menu_width = menu_width
+
 return M

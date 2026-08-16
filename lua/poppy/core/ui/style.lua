@@ -4,6 +4,10 @@ local M = {}
 
 local PANELS_BG_LIGHTEN_FACTOR = 0.03
 local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.4
+-- Blend factor for default (never-opened) list items: 0 = full category
+-- color, 1 = full Normal fg. Tuned so the cat color peeks through while
+-- the row reads as "almost normal text". Single knob; tweak as desired.
+local NORMAL_LIST_ITEM_TINT_FACTOR = 0.6
 
 ---@param color integer
 ---@param factor number
@@ -17,6 +21,24 @@ local adjust_brightness = function(color, factor)
 	r = math.max(0, math.min(255, math.floor(r + (target - r) * f)))
 	g = math.max(0, math.min(255, math.floor(g + (target - g) * f)))
 	b = math.max(0, math.min(255, math.floor(b + (target - b) * f)))
+	return r * 65536 + g * 256 + b
+end
+
+-- Linear blend of `color` toward `target` by `factor` (0..1).
+---@param color integer
+---@param target integer
+---@param factor number
+---@return integer
+local blend_towards = function(color, target, factor)
+	local r1 = math.floor(color / 65536)
+	local g1 = math.floor((color % 65536) / 256)
+	local b1 = color % 256
+	local r2 = math.floor(target / 65536)
+	local g2 = math.floor((target % 65536) / 256)
+	local b2 = target % 256
+	local r = math.max(0, math.min(255, math.floor(r1 + (r2 - r1) * factor)))
+	local g = math.max(0, math.min(255, math.floor(g1 + (g2 - g1) * factor)))
+	local b = math.max(0, math.min(255, math.floor(b1 + (b2 - b1) * factor)))
 	return r * 65536 + g * 256 + b
 end
 
@@ -138,11 +160,18 @@ M.setup = function()
 	local lnra = vim.api.nvim_get_hl(0, { name = "LineNrAbove" })
 	local lnrb = vim.api.nvim_get_hl(0, { name = "LineNrBelow" })
 
+	-- Normal's fg is the blend target for default-state list rows so they
+	-- read as "almost normal text with hints of category color". Fall back
+	-- to white if Normal has no fg (rare; defensive against transparent Normals).
+	local n = vim.api.nvim_get_hl(0, { name = "Normal" })
+	local n_fg = n.fg or 0xFFFFFF
+
 	local CATEGORY = { { "File", type_hl }, { "Exec", string_hl }, { "Shell", func_hl } }
 
 	for _, entry in ipairs(CATEGORY) do
+		local fg = entry[2].fg and blend_towards(entry[2].fg, n_fg, NORMAL_LIST_ITEM_TINT_FACTOR) or n_fg
 		---@type vim.api.keyset.highlight
-		local poppy_cat_hl = { fg = entry[2].fg }
+		local poppy_cat_hl = { fg = fg }
 		vim.api.nvim_set_hl(0, "Poppy" .. entry[1], poppy_cat_hl)
 	end
 
