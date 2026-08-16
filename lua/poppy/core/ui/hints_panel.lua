@@ -147,7 +147,7 @@ end
 ---@param keys PoppyKeys
 ---@param wrapper_width integer
 ---@param kind "landing"|"menu"
----@param mode "active_focused"|"active_menu"
+---@param mode "active_menu"
 ---@return nil
 M.update = function(buf, keys, wrapper_width, kind, mode)
 	if not keys then

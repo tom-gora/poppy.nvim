@@ -6,8 +6,6 @@ local content = require("poppy.core.ui.content")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 
-local list_panel_update
-
 local focus = function(win)
 	if win and vim.api.nvim_win_is_valid(win) then
 		vim.api.nvim_set_current_win(win)
@@ -49,28 +47,30 @@ local resolve = function(name_or_index)
 	return { name = name_or_index, runtime = state.poppies[name_or_index] }
 end
 
--- Mark a poppy as no-longer-visible: drop active, set hidden, drop the
--- window reference. Idempotent. Used in transitions (switching) and
--- teardown (cleanup).
-local hide_poppy = function(name)
-	local runtime = state.poppies[name]
-	if not runtime then
-		return
-	end
-	runtime.active = false
-	runtime.hidden = true
-	runtime.win = nil
+local list_panel_update = function(sorted_poppies, menu_w)
+	local list_panel = require("poppy.core.ui.list_panel")
+	list_panel.update(
+		panels.get_list_buf(),
+		sorted_poppies,
+		state.poppies,
+		state.windows.opts and state.windows.opts.icons,
+		menu_w
+	)
 end
 
--- Augroup for per-window WinClosed watchers; cleared on cleanup/recover.
-vim.api.nvim_create_augroup("poppy_ui", { clear = false })
+-- Mark a poppy as no-longer-visible is done via shared.hide_poppy.
 
-local watch_content_window
-watch_content_window = function(win_id, menu_width)
+-- Augroup for per-window WinClosed watchers; cleared on cleanup/recover.
+-- Owned by M.setup in setup.lua (moved out of module-load to avoid
+-- clobbering any third-party autocmds registered under the same name).
+--
+-- pre-initialised for working scoping due to recursive call inside
+local watch_content_window = nil
+watch_content_window = function(win_id, menu_w)
 	if not win_id then
 		return
 	end
-	local menu_width = menu_width or 25
+	local w = menu_w or 25
 	---@type vim.api.keyset.create_autocmd
 	local win_closed_autocmd = {
 		pattern = tostring(win_id),
@@ -80,10 +80,10 @@ watch_content_window = function(win_id, menu_width)
 			if not shared.session_is_open() then
 				return
 			end
-			local c_win, c_buf = content.create(state.windows.wrapper_win, menu_width)
+			local c_win, c_buf = content.create(state.windows.wrapper_win, w)
 			state.windows.content_win = c_win
 			state.windows.content_buf = c_buf
-			watch_content_window(c_win, menu_width)
+			watch_content_window(c_win, w)
 			if state.windows.current_poppy_name then
 				M.kill_active()
 			else
@@ -134,15 +134,9 @@ end
 -- Refresh sidebar + hints after every pop-changing action.
 M.refresh_panels = function(sorted_poppies)
 	if state.windows.is_landing and state.windows.wrapper_win then
-		local menu_width = vim.api.nvim_win_get_width(state.windows.wrapper_win)
-		list_panel_update(sorted_poppies, menu_width)
-		require("poppy.core.ui.hints_panel").update(
-			panels.get_hints_buf(),
-			shared.keys(),
-			menu_width,
-			"landing",
-			"landing"
-		)
+		local w = vim.api.nvim_win_get_width(state.windows.wrapper_win)
+		list_panel_update(sorted_poppies, w)
+		require("poppy.core.ui.hints_panel").update(panels.get_hints_buf(), shared.keys(), w, "landing", "landing")
 		return
 	end
 	if state.windows.hidden then
@@ -150,19 +144,7 @@ M.refresh_panels = function(sorted_poppies)
 	end
 	local panel_width = menu_width()
 	list_panel_update(sorted_poppies, panel_width)
-	local mode = state.windows.menu_focused and "active_focused" or "active_menu"
-	require("poppy.core.ui.hints_panel").update(panels.get_hints_buf(), shared.keys(), panel_width, "menu", mode)
-end
-
-list_panel_update = function(sorted_poppies, menu_width)
-	local list_panel = require("poppy.core.ui.list_panel")
-	list_panel.update(
-		panels.get_list_buf(),
-		sorted_poppies,
-		state.poppies,
-		state.windows.opts and state.windows.opts.icons,
-		menu_width
-	)
+	require("poppy.core.ui.hints_panel").update(panels.get_hints_buf(), shared.keys(), panel_width, "menu", "active_menu")
 end
 
 M.switch_by_name = function(poppy_name)
@@ -172,15 +154,12 @@ M.switch_by_name = function(poppy_name)
 		or not state.windows.opts.poppies_resolved
 		or not state.windows.opts.poppies_resolved[poppy_name]
 	then
-		vim.notify(
-			string.format("Poppy: unknown poppy '%s'", tostring(poppy_name)),
-			vim.log.levels.WARN
-		)
+		vim.notify(string.format("Poppy: unknown poppy '%s'", tostring(poppy_name)), vim.log.levels.WARN)
 		return
 	end
 
 	if state.windows.current_poppy_name then
-		hide_poppy(state.windows.current_poppy_name)
+		shared.hide_poppy(state.windows.current_poppy_name)
 	end
 
 	if state.windows.is_landing then

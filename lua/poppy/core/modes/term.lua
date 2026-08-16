@@ -8,17 +8,19 @@ local shared = require("poppy.core.shared")
 ---@param poppy_name string
 ---@param opts PoppyMergedConfig
 ---@param p_state PoppyRuntimeState|nil
----@return integer|nil
+---@return integer|nil bufnr
+---@return boolean reused True iff bufnr is the same buffer p_state points to and is still alive.
 local term_get_or_create_buffer = function(poppy_name, opts, p_state)
 	local poppy_opts = opts.poppies_resolved and opts.poppies_resolved[poppy_name]
 	if not poppy_opts then
-		return nil
+		return nil, false
 	end
-	local bufnr = (p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr))
-			and p_state.bufnr
-		or vim.api.nvim_create_buf(false, false)
+	if p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
+		return p_state.bufnr, true
+	end
+	local bufnr = vim.api.nvim_create_buf(false, false)
 	pcall(vim.api.nvim_buf_set_name, bufnr, " Poppy: " .. poppy_name .. " ")
-	return bufnr
+	return bufnr, false
 end
 
 ---@param poppy_opts PoppyResolvedConfig
@@ -41,6 +43,9 @@ local term_spawn = function(command, opts)
 	if type(command) == "function" then
 		command = command()
 	end
+	if not command then
+		return nil
+	end
 	if vim.fn.has("nvim-0.11") == 1 then
 		opts.term = true
 		return vim.fn.jobstart(command, opts)
@@ -61,12 +66,12 @@ M.run = function(poppy_name, opts, parent_win)
 	end
 
 	local p_state = state.poppies[poppy_name]
-	local bufnr = term_get_or_create_buffer(poppy_name, opts, p_state)
+	local bufnr, reused = term_get_or_create_buffer(poppy_name, opts, p_state)
 	if not bufnr then
 		return
 	end
 
-	if not (p_state and (p_state.active or p_state.hidden)) then
+	if not reused then
 		vim.api.nvim_buf_call(bufnr, function()
 			---@type vim.api.keyset.set_option_value
 			local modified_opts = { buf = bufnr }
@@ -84,8 +89,22 @@ M.run = function(poppy_name, opts, parent_win)
 					end
 				end,
 			}
-			term_spawn(term_resolve_command(poppy_opts), spawn_opts)
+			local job_id = term_spawn(term_resolve_command(poppy_opts), spawn_opts)
+			if not job_id then
+				vim.notify(
+					string.format(
+						"Poppy exec command resolved to nil. Cannot spawn. Have you provided correct exec key in your config for poppy '%s'?",
+						poppy_name
+					),
+					vim.log.levels.ERROR
+				)
+				bufnr = nil
+			end
 		end)
+	end
+
+	if not bufnr then
+		return
 	end
 
 	vim.api.nvim_win_set_buf(parent_win, bufnr)

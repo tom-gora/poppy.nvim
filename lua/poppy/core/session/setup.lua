@@ -252,6 +252,7 @@ M.is_open = shared.session_is_open
 M.setup = function(user_opts)
 	init_or_reset_state()
 	style.setup()
+	vim.api.nvim_create_augroup("poppy_ui", { clear = true })
 	state.windows.opts = config.merge(user_opts)
 	if next(state.windows.opts.poppies_resolved or {}) == nil then
 		vim.notify(

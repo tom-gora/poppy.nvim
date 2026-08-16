@@ -15,6 +15,17 @@ M.session_get_current_poppy_name = function()
 	return state.windows.current_poppy_name
 end
 
+---@param name string
+M.hide_poppy = function(name)
+	local runtime = state.poppies[name]
+	if not runtime then
+		return
+	end
+	runtime.active = false
+	runtime.hidden = true
+	runtime.win = nil
+end
+
 -- Pair: open or refresh the bottom-right menu-hint window. Lazy-requires
 -- hints_panel to avoid a load-time cycle (hints_panel imports shared).
 -- Closes any previous hint first to prevent orphaned windows accumulating

@@ -8,17 +8,8 @@ local shared = require("poppy.core.shared")
 local actions = require("poppy.core.session.actions")
 
 -- Mark a poppy as no-longer-visible: drop active, set hidden, drop the
--- window reference. Idempotent. Same logic as actions.hide_poppy —
--- duplicated here so manager doesn't need to lazy-require actions.
-local hide_poppy = function(name)
-	local runtime = state.poppies[name]
-	if not runtime then
-		return
-	end
-	runtime.active = false
-	runtime.hidden = true
-	runtime.win = nil
-end
+-- window reference. Idempotent. Lives in shared.lua so manager and
+-- actions both use the same definition without duplicating.
 
 -- Soft close (default): drops UI but keeps poppies alive for next open.
 -- Hard close (drop_poppies=true): also kills every live poppy buffer.
@@ -39,7 +30,7 @@ local cleanup = function(drop_poppies)
 	end
 
 	if state.windows.current_poppy_name then
-		hide_poppy(state.windows.current_poppy_name)
+		shared.hide_poppy(state.windows.current_poppy_name)
 	end
 
 	local hint_buf = state.windows.menu_hint_buf

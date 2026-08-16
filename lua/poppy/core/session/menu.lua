@@ -30,17 +30,6 @@ local focus_list_with_cursor = function()
 end
 M.focus_list_with_cursor = focus_list_with_cursor
 
--- Refresh the bottom-right hint to reflect the current keys.
-local show_menu_hint = function()
-	shared.close_menu_hint()
-	local content_win = state.windows.content_win
-	if content_win and vim.api.nvim_win_is_valid(content_win) then
-		local hints_panel = require("poppy.core.ui.hints_panel")
-		state.windows.menu_hint_win, state.windows.menu_hint_buf =
-			hints_panel.create_bottom_right(content_win, shared.keys())
-	end
-end
-
 -- menu only needs `refresh_panels` from actions; lazy-require keeps the
 -- dependency one-way (actions doesn't import menu).
 local refresh = function()
@@ -78,7 +67,7 @@ M.exit_menu = function()
 	state.windows.menu_focused = false
 	if state.windows.opts and state.windows.opts.menu_autohide then
 		panels.hide_menu(state.windows.content_win)
-		show_menu_hint()
+		shared.show_menu_hint()
 	else
 		panels.unfocus_menu()
 	end
@@ -94,8 +83,7 @@ end
 -- Buffer-local keymaps for the list and content panes. Bound to the
 -- buffer because there are multiple windows in the plugin UI and we only
 -- want these to fire when the relevant pane is focused. Called from
--- `actions.transition_to_content` and `actions.switch_by_name` (lazy-
--- required from there to break the actions <-> menu cycle).
+-- `actions.transition_to_content` and `actions.switch_by_name`.
 
 local actions = require("poppy.core.session.actions")
 

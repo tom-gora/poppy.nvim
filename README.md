@@ -118,28 +118,63 @@ Poppies are switched from inside the menu.
 
 `:Poppy open` has tab-completion for all configured poppy names.
 
+### Public Lua API
+
+`require("poppy")` returns a table; everything below is on it.
+
+| Function                       | Purpose                                                 |
+| ------------------------------ | ------------------------------------------------------- |
+| `poppy.setup({...})`           | Configure the plugin. Call once at startup.             |
+| `poppy.toggle()`               | Open the manager if closed, close if open.              |
+| `poppy.open([name])`           | Open the manager; optionally switch to `<name>`.         |
+| `poppy.close()`                | Close the manager and all live poppies.                 |
+| `poppy.switch_by_name(name)`   | Switch to the named poppy (must be opened).             |
+| `poppy.switch_by_index(index)` | Switch by 1-based index in the registered poppy list.   |
+| `poppy.kill_by_name(name)`     | Kill the named poppy and delete its buffer.             |
+| `poppy.kill_by_index(index)`   | Kill by 1-based index.                                  |
+| `poppy.kill_active()`          | Kill whichever poppy is currently active.               |
+| `poppy.get_poppies()`          | List of all configured poppies (open + never-opened).   |
+| `poppy.get_poppy_by_name(n)`   | Lookup a single poppy by name (or `nil`).               |
+| `poppy.get_poppy_by_index(i)`  | Lookup by 1-based index (or `nil`).                     |
+| `poppy.get_current_poppy()`    | The currently focused poppy, or `nil`.                 |
+| `poppy.get_current_poppy_name()` | Name of the currently focused poppy, or `nil`.        |
+| `poppy.is_open()`              | `true` while the manager UI is on screen.               |
+
 ## Structure
 
 ```
 lua/poppy/
-  init.lua              Thin public API: toggle, open, close, setup
-  config.lua            Defaults, merge, validation
+  init.lua              Thin public API (re-exports from core.session.setup)
+  config.lua            Defaults, merge, shape validation, WARN on bad input
+  _types.lua            LuaCATS class definitions (PoppyConfig, PoppyKeys, ...)
+  _debug_helpers.lua    Manual debug helper for layout/color triage
+
   core/
-    session/init.lua    Engine: state, opts, window orchestration, mode dispatch
-    input.lua           Keybind setup (global, sidebar-local, content-local)
-    util.lua            Shared helpers (title_fallback, is_open, etc.)
+    shared.lua            Cross-module helpers (session_is_open, hide_poppy,
+                          show_menu_hint, get_sorted_poppies, cat, keys, ...)
+    session/
+      state.lua             Runtime window/buffer IDs, current/last poppy,
+                             menu state. Single mutable instance via default_state().
+      setup.lua             Entry point: setup, open, close, toggle,
+                             switch_*, kill_*, state getters (get_poppies, ...).
+      manager.lua           Outer wrapper + content window create/destroy.
+      actions.lua           State transitions: switch, kill, recover, hide.
+                             Owns the WinClosed watcher for content windows.
+      menu.lua              Buffer-local keymaps, focus/unfocus, exit_menu.
+
     ui/
-      wrapper.lua       Outer floating window
-      content.lua       Inner content window (holds the active poppy's buffer)
-      panels.lua        Sidebar container: list + hints + optional header
-      list_panel.lua    Numbered poppy list (signs + extmark highlights)
-      hints_panel.lua   Keybinding hints panel + bottom-right menu indicator
-      header_panel.lua  "P◉PPY.NVIM" header (shown when title_header = true)
-      layout.lua        Wrapper/content dimensions + z-index constants
-      style.lua         Highlight group definitions + ColorScheme refresh
+      wrapper.lua           Outer floating window (relative='editor').
+      content.lua           Inner content window (the active poppy's buffer).
+      panels.lua            Sidebar container; create/destroy/hide/show/focus.
+      list_panel.lua        Numbered poppy list with sign + extmark highlights.
+      hints_panel.lua       Keybinding hints panel + bottom-right menu hint.
+      header_panel.lua      "P◉PPY.NVIM" header (shown when title_header = true).
+      layout.lua            Dimensions, z-index, landing-view width helpers.
+      style.lua             Highlight group definitions + ColorScheme refresh.
+
   modes/
-    term.lua            Terminal mode (exec + shell configs)
-    file.lua            File buffer mode
+    term.lua              Terminal mode (handles `exec` and `shell` poppies).
+    file.lua              File-buffer mode (handles `file` poppies).
 ```
 
 ## License
