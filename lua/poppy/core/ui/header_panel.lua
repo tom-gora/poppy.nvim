@@ -43,7 +43,7 @@ M.recreate = function(wrapper_win, buf, width_override, col_override)
 
 	local win = vim.api.nvim_open_win(buf, false, config)
 	style.apply_list_panel_style(win)
-	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
+	shared.apply_win_marker(win)
 
 	local title = "P◉PPY.NVIM"
 	local title_w = vim.fn.strdisplaywidth(title)

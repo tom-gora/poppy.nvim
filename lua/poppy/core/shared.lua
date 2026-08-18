@@ -7,6 +7,14 @@ local state = require("poppy.core.session.state")
 -- order fall to the end (sorted by name below).
 local CAT_ORDER = { exec = 0, file = 1, shell = 2 }
 
+M.try_focus_win = function(win)
+	if win and vim.api.nvim_win_is_valid(win) then
+		vim.api.nvim_set_current_win(win)
+		return true
+	end
+	return false
+end
+
 M.session_is_open = function()
 	return state.windows.wrapper_win ~= nil and vim.api.nvim_win_is_valid(state.windows.wrapper_win)
 end
@@ -35,7 +43,8 @@ M.show_menu_hint = function()
 	local content_win = state.windows.content_win
 	if content_win and vim.api.nvim_win_is_valid(content_win) then
 		local hints_panel = require("poppy.core.ui.hints_panel")
-		state.windows.menu_hint_win, state.windows.menu_hint_buf = hints_panel.create_bottom_right(content_win, M.keys())
+		state.windows.menu_hint_win, state.windows.menu_hint_buf =
+			hints_panel.create_bottom_right(content_win, M.keys())
 	end
 end
 
@@ -95,6 +104,24 @@ M.cat = function(poppy)
 	else
 		return "shell"
 	end
+end
+
+local WIN_MARKER = "poppy_window"
+
+---@param win integer
+---@return nil
+M.apply_win_marker = function(win)
+	vim.api.nvim_win_set_var(win, WIN_MARKER, true)
+end
+
+---@param win integer|nil
+---@return boolean
+M.is_poppy_window = function(win)
+	if not win or not vim.api.nvim_win_is_valid(win) then
+		return false
+	end
+	local _, val = pcall(vim.api.nvim_win_get_var, win, WIN_MARKER)
+	return val == true
 end
 
 return M

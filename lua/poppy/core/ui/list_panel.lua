@@ -103,7 +103,7 @@ M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_
 	local win = vim.api.nvim_open_win(buf, false, config)
 	vim.wo[win].signcolumn = "yes:3"
 	style.apply_list_panel_style(win)
-	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
+	shared.apply_win_marker(win)
 	return win
 end
 

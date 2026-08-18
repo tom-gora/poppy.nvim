@@ -239,24 +239,6 @@ M.is_menu_focused = function()
 	return vim.api.nvim_get_current_win() == list_win
 end
 
-local UI_WINDOW_MARK = "poppy_ui_window"
-
----@param win integer
----@return nil
-M.mark_poppy_window = function(win)
-	vim.api.nvim_win_set_var(win, UI_WINDOW_MARK, true)
-end
-
----@param win integer|nil
----@return boolean
-M.is_poppy_window = function(win)
-	if not win or not vim.api.nvim_win_is_valid(win) then
-		return false
-	end
-	local _, val = pcall(vim.api.nvim_win_get_var, win, UI_WINDOW_MARK)
-	return val == true
-end
-
 ---@return integer|nil
 M.get_hints_buf = function()
 	return state.windows.hints_buf

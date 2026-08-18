@@ -115,9 +115,6 @@ Architectural notes:
 
 ## Ugly
 
-- `focus()` helper is duplicated verbatim in `actions.lua:9–15` and
-  `menu.lua:7–13`. Identical five-line body in both. Should live in
-  `shared.lua`.
 - `panels.mark_poppy_window` exists in `panels.lua:243` but is never
   called; instead every panel wrapper file (`wrapper.lua:27`,
   `content.lua:36`, `list_panel.lua:97`, `hints_panel.lua:101`/`:142`,
@@ -153,8 +150,7 @@ Architectural notes:
   string ever changes, this silently mis-highlights. Should use
   `vim.str_utfindex` / `vim.fn.strdisplaywidth` to find the char
   position.
-- `actions.lua:110` has `local panel_width = state.windows.opts and
-  state.windows.opts.menu_width or 25` while a few lines above
+- `actions.lua:110` has `local panel_width = state.windows.opts and state.windows.opts.menu_width or 25` while a few lines above
   `local menu_width = function() return ... end` does the same with a
   default fallback. The hardcoded `25` is also the default already
   defined in `state.lua:46`; triple-defined magic number.
@@ -211,3 +207,4 @@ Architectural notes:
   scheduled close. Recover's fallback path correctly focuses whatever
   the new content window is — the line is dead and misleading. Remove
   it.
+

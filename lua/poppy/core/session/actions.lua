@@ -6,14 +6,6 @@ local content = require("poppy.core.ui.content")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 
-local focus = function(win)
-	if win and vim.api.nvim_win_is_valid(win) then
-		vim.api.nvim_set_current_win(win)
-		return true
-	end
-	return false
-end
-
 local cursor_to_poppy_index = function()
 	local ok, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
 	if not ok then
@@ -180,7 +172,7 @@ M.switch_by_name = function(poppy_name)
 
 	M.refresh_panels(state.poppies)
 	if
-		focus(state.windows.content_win)
+		shared.try_focus_win(state.windows.content_win)
 		and vim.bo[vim.api.nvim_win_get_buf(state.windows.content_win)].buftype == "terminal"
 	then
 		vim.cmd("startinsert")
@@ -272,7 +264,7 @@ M.kill_active = function()
 	state.windows.current_poppy_name = nil
 	M.recover()
 
-	focus(state.windows.content_win)
+	shared.try_focus_win(state.windows.content_win)
 end
 
 local _kill = function(resolved)

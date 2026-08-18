@@ -5,17 +5,9 @@ local panels = require("poppy.core.ui.panels")
 local shared = require("poppy.core.shared")
 local actions = require("poppy.core.session.actions")
 
-local focus = function(win)
-	if win and vim.api.nvim_win_is_valid(win) then
-		vim.api.nvim_set_current_win(win)
-		return true
-	end
-	return false
-end
-
-local focus_list_with_cursor = function()
+M.focus_list_with_cursor = function()
 	local list_win = panels.get_list_win()
-	if not focus(list_win) then
+	if not shared.try_focus_win(list_win) then
 		return
 	end
 	if not state.windows.current_poppy_name then
@@ -28,11 +20,6 @@ local focus_list_with_cursor = function()
 			break
 		end
 	end
-end
-M.focus_list_with_cursor = focus_list_with_cursor
-
-local refresh = function()
-	actions.refresh_panels(state.poppies)
 end
 
 -- One path for both autohide on/off: the autohide flag only decides
@@ -51,11 +38,11 @@ M.toggle_menu = function()
 	end
 	panels.set_focused(want_focus)
 
-	refresh()
+	actions.refresh_panels(state.poppies)
 	if want_focus then
-		focus_list_with_cursor()
+		M.focus_list_with_cursor()
 	else
-		focus(state.windows.content_win)
+		shared.try_focus_win(state.windows.content_win)
 	end
 end
 
@@ -71,8 +58,8 @@ M.exit_menu = function()
 		panels.set_focused(false)
 	end
 
-	refresh()
-	if focus(state.windows.content_win) then
+	actions.refresh_panels(state.poppies)
+	if shared.try_focus_win(state.windows.content_win) then
 		local cbuf = vim.api.nvim_win_get_buf(state.windows.content_win)
 		if vim.bo[cbuf].buftype == "terminal" then
 			vim.cmd("startinsert")

@@ -3,6 +3,7 @@ require("poppy._types")
 local M = {}
 local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
+local shared = require("poppy.core.shared")
 
 ---@param buf integer
 ---@param poppy_opts? PoppyConfig
@@ -24,7 +25,7 @@ local open_with = function(buf, poppy_opts, width_override)
 	}
 	local win = vim.api.nvim_open_win(buf, false, config)
 	style.apply_border_style(win)
-	vim.api.nvim_win_set_var(win, "poppy_ui_window", true)
+	shared.apply_win_marker(win)
 	return win
 end
 

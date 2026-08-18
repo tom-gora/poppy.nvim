@@ -133,7 +133,7 @@ M.setup_autocmds = function(opts, callbacks)
 						return
 					end
 					-- Internal hop: destination is a poppy window, stay open.
-					if require("poppy.core.ui.panels").is_poppy_window(cur) then
+					if shared.is_poppy_window(cur) then
 						return
 					end
 					-- Cmdline is exempt: user may be typing :Poppy or any command.
@@ -156,7 +156,7 @@ M.setup_exclusive_float = function()
 		callback = function()
 			vim.schedule(function()
 				for _, w in ipairs(vim.api.nvim_list_wins()) do
-					if not vim.api.nvim_win_is_valid(w) or require("poppy.core.ui.panels").is_poppy_window(w) then
+					if not vim.api.nvim_win_is_valid(w) or shared.is_poppy_window(w) then
 						goto continue
 					end
 					if vim.api.nvim_win_get_config(w).relative ~= "" then
