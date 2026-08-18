@@ -45,6 +45,7 @@ end
 
 M.windows = M.default_state()
 
+---@type table<string, PoppySessionEntry>
 M.poppies = {}
 
 return M

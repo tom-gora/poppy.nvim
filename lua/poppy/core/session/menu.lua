@@ -1,3 +1,4 @@
+---@diagnostic disable: param-type-mismatch
 local M = {}
 
 local state = require("poppy.core.session.state")
@@ -13,12 +14,9 @@ M.focus_list_with_cursor = function()
 	if not state.windows.current_poppy_name then
 		return
 	end
-	for i = 1, #state.poppies do
-		local entry = state.poppies[i]
-		if type(entry) == "table" and entry.name == state.windows.current_poppy_name then
-			pcall(vim.api.nvim_win_set_cursor, list_win, { i, 0 })
-			break
-		end
+	local current_entry = state.poppies[state.windows.current_poppy_name]
+	if current_entry then
+		pcall(vim.api.nvim_win_set_cursor, list_win, { current_entry.fixed_index, 0 })
 	end
 end
 
@@ -33,12 +31,12 @@ M.toggle_menu = function()
 
 	local want_focus = not panels.is_menu_focused()
 
-	if state.windows.opts.menu_autohide then
+	if state.windows.opts and state.windows.opts.menu_autohide then
 		panels.set_visible(want_focus, state.windows.content_win)
 	end
 	panels.set_focused(want_focus)
 
-	actions.refresh_panels(state.poppies)
+	actions.refresh_panels()
 	if want_focus then
 		M.focus_list_with_cursor()
 	else
@@ -51,14 +49,14 @@ M.exit_menu = function()
 		return
 	end
 
-	if state.windows.opts.menu_autohide then
+	if state.windows.opts and state.windows.opts.menu_autohide then
 		panels.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	else
 		panels.set_focused(false)
 	end
 
-	actions.refresh_panels(state.poppies)
+	actions.refresh_panels()
 	if shared.try_focus_win(state.windows.content_win) then
 		local cbuf = vim.api.nvim_win_get_buf(state.windows.content_win)
 		if vim.bo[cbuf].buftype == "terminal" then

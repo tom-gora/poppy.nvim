@@ -25,7 +25,8 @@ end
 
 ---@param name string
 M.hide_poppy = function(name)
-	local runtime = state.poppies[name]
+	local entry = state.poppies[name]
+	local runtime = entry and entry.runtime_state
 	if not runtime then
 		return
 	end
@@ -109,7 +110,7 @@ end
 local WIN_MARKER = "poppy_window"
 
 ---@param win integer
----@return nil
+---@return void
 M.apply_win_marker = function(win)
 	vim.api.nvim_win_set_var(win, WIN_MARKER, true)
 end

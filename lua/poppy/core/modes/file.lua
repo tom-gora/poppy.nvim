@@ -1,3 +1,4 @@
+---@diagnostic disable: param-type-mismatch
 require("poppy._types")
 
 local M = {}
@@ -6,7 +7,8 @@ local state = require("poppy.core.session.state")
 ---@param name string
 ---@return integer|nil
 local usable = function(name)
-	local runtime = state.poppies[name]
+	local entry = state.poppies[name]
+	local runtime = entry and entry.runtime_state
 	if not (runtime and runtime.hidden and runtime.bufnr) then
 		return nil
 	end
@@ -19,7 +21,7 @@ end
 ---@param poppy_name string
 ---@param opts PoppyMergedConfig
 ---@param parent_win integer
----@return nil
+---@return void
 M.run = function(poppy_name, opts, parent_win)
 	local poppy_opts = opts.poppies_resolved[poppy_name]
 	if not poppy_opts or not parent_win then
@@ -31,10 +33,7 @@ M.run = function(poppy_name, opts, parent_win)
 		vim.api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
 	else
 		bufnr = vim.api.nvim_create_buf(false, false)
-		local file_val = poppy_opts.file
-		if type(file_val) == "function" then
-			file_val = file_val()
-		end
+		local file_val = type(poppy_opts.file) == "function" and poppy_opts.file() or poppy_opts.file
 		local file_path = vim.fn.expand(file_val)
 		if vim.fn.filereadable(file_path) ~= 1 then
 			vim.fn.writefile({}, file_path)
@@ -50,7 +49,7 @@ M.run = function(poppy_name, opts, parent_win)
 
 	vim.api.nvim_win_set_buf(parent_win, bufnr)
 
-	state.poppies[poppy_name] = {
+	state.poppies[poppy_name].runtime_state = {
 		active = true,
 		hidden = false,
 		bufnr = bufnr,

@@ -137,7 +137,7 @@ end
 ---@param keys PoppyKeys
 ---@param kind "landing"|"menu"
 ---@param wrapper_width integer
----@return nil
+---@return void
 M.write_static = function(buf, keys, kind, wrapper_width)
 	if not keys then
 		return

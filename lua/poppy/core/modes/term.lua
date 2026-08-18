@@ -1,3 +1,4 @@
+---@diagnostic disable: param-type-mismatch
 require("poppy._types")
 
 local M = {}
@@ -15,8 +16,9 @@ local term_get_or_create_buffer = function(poppy_name, opts, p_state)
 	if not poppy_opts then
 		return nil, false
 	end
-	if p_state and p_state.hidden and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
-		return p_state.bufnr, true
+	local rt = p_state and p_state.runtime_state
+	if rt and rt.hidden and rt.bufnr and vim.api.nvim_buf_is_valid(rt.bufnr) then
+		return rt.bufnr, true
 	end
 	local bufnr = vim.api.nvim_create_buf(false, false)
 	pcall(vim.api.nvim_buf_set_name, bufnr, " Poppy: " .. poppy_name .. " ")
@@ -37,7 +39,7 @@ local term_resolve_command = function(poppy_opts)
 end
 
 ---@param command string|string[]|function|nil
----@param opts vim.api.keyset.jobstart
+---@param opts table
 ---@return integer|nil
 local term_spawn = function(command, opts)
 	if type(command) == "function" then
@@ -58,7 +60,7 @@ end
 ---@param poppy_name string
 ---@param opts PoppyMergedConfig
 ---@param parent_win integer
----@return nil
+---@return void
 M.run = function(poppy_name, opts, parent_win)
 	local poppy_opts = opts.poppies_resolved[poppy_name]
 	if not poppy_opts or not parent_win then
@@ -73,10 +75,10 @@ M.run = function(poppy_name, opts, parent_win)
 
 	if not reused then
 		vim.api.nvim_buf_call(bufnr, function()
-			---@type vim.api.keyset.set_option_value
+			---@type vim.api.keyset.option
 			local modified_opts = { buf = bufnr }
 			vim.api.nvim_set_option_value("modified", false, modified_opts)
-			---@type vim.api.keyset.jobstart
+			---@type table
 			local spawn_opts = {
 				on_exit = function()
 					if vim.api.nvim_buf_is_valid(bufnr) then
@@ -85,7 +87,7 @@ M.run = function(poppy_name, opts, parent_win)
 					if shared.session_is_open() and shared.session_get_current_poppy_name() == poppy_name then
 						actions.kill_active()
 					else
-						state.poppies[poppy_name] = nil
+						state.poppies[poppy_name].runtime_state = nil
 					end
 				end,
 			}
@@ -109,7 +111,7 @@ M.run = function(poppy_name, opts, parent_win)
 
 	vim.api.nvim_win_set_buf(parent_win, bufnr)
 
-	state.poppies[poppy_name] = {
+	state.poppies[poppy_name].runtime_state = {
 		active = true,
 		hidden = false,
 		bufnr = bufnr,

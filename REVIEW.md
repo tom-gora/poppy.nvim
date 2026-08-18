@@ -41,8 +41,8 @@ lua/poppy/
       layout.lua     dimensions, z-index, landing-view width helper
       style.lua      highlight groups + ColorScheme refresh + winhl assignments
     modes/
-      term.lua       exec + shell lifecycle (jobstart, on_exit cleanup)
-      file.lua       file lifecycle (create buf, load, var tag)
+      term.lua      exec + shell lifecycle (jobstart, on_exit cleanup)
+      file.lua      file lifecycle (create buf, load, var tag)
 ```
 
 Architectural notes:
@@ -88,22 +88,6 @@ Architectural notes:
 
 ## Bad
 
-- `state.poppies` is dual-purpose: it's both an array of `{name, config}`
-  entries (set during setup, used to drive display order) AND a map of
-  `name → {active, hidden, bufnr, win, title}` runtime entries (set by
-  modes/term.lua and modes/file.lua). They coexist by accident of Lua
-  table semantics (string keys don't disturb the array length). Every
-  iteration site has to know which one it's reading, and three places
-  iterate via `pairs(state.poppies)` and have to guard with
-  `if p_state and p_state.bufnr` to avoid confusing the two. Splitting
-  into `state.poppies_config` (array) and `state.poppies_runtime` (map)
-  would make every call site read clearly.
-- `actions.refresh_panels` parameter is named `sorted_poppies` but is
-  always called with `state.poppies`. The two are not the same thing
-  downstream (one feeds `list_panel.update`'s `sorted_poppies`, the
-  other feeds its `poppies` runtime map), so the parameter is actually
-  load-bearing — but the name lies. Either pass the sorted array or
-  rename for honesty.
 - `manager.open` lines 114–118: a "lazy first-time population" block
   re-populates `state.poppies` from sorted config. Without `setup()`,
   `state.windows.opts` is nil and this would crash on the access; with
@@ -115,27 +99,10 @@ Architectural notes:
 
 ## Ugly
 
-- `panels.mark_poppy_window` exists in `panels.lua:243` but is never
-  called; instead every panel wrapper file (`wrapper.lua:27`,
-  `content.lua:36`, `list_panel.lua:97`, `hints_panel.lua:101`/`:142`,
-  `header_panel.lua:46`) inlines
-  `vim.api.nvim_win_set_var(win, "poppy_ui_window", true)`. Six copies
-  of the same one-liner, with a wrapper function defined but unused.
-- `panels.create` and `panels.create_landing` are declared to return
-  `PoppyPanelHandles` but every caller discards the return value
-  (`actions.lua:113`, `actions.lua:121`). The returned tables are dead.
-- `panels.rebuild` is invoked with magic numbers `3` and `4` for hint
-  line height (`panels.lua:195`, `:203`, `:224`). No symbolic constant
-  exists; the meaning is "3 when menu focused, 4 when unfocused" and
-  you have to count rows in the hints panel to verify.
 - `header_panel.lua:45` calls `style.apply_list_panel_style(win)` for
   the header window — the function exists to style the list panel. The
   header just happens to want the same winhl. Either rename the helper
   to something panel-agnostic or split it.
-- `hints_panel.update` still has a `mode` parameter (`:149`) but the
-  only caller passes `"active_menu"` after the recent simplification of
-  `actions.refresh_panels`. The `active_focused` entry in `HINT_SPECS`
-  (`hints_panel.lua:44`) is unreachable dead data.
 - `actions.kill_active` line 282: `focus(state.windows.content_win)`
   runs synchronously right after `M.recover()`, which defers via
   `vim.schedule`. By the time recover's callback runs, content_win
@@ -150,24 +117,6 @@ Architectural notes:
   string ever changes, this silently mis-highlights. Should use
   `vim.str_utfindex` / `vim.fn.strdisplaywidth` to find the char
   position.
-- `actions.lua:110` has `local panel_width = state.windows.opts and state.windows.opts.menu_width or 25` while a few lines above
-  `local menu_width = function() return ... end` does the same with a
-  default fallback. The hardcoded `25` is also the default already
-  defined in `state.lua:46`; triple-defined magic number.
-- `manager.open` calls `actions.refresh_panels(state.poppies)` at line
-  140 after `actions.switch_by_name` already did at line 188 inside
-  itself. Double render on every `has_content` open. The landing path
-  needs the outer call (since `enter_landing` doesn't refresh), so the
-  fix is to move refresh into `enter_landing` and drop the outer call.
-- `state.poppies` cleanup iterates `pairs(state.poppies)` in
-  `manager.lua:clear_poppies` — same iteration/dual-purpose friction
-  noted above, masked by the `p_state.bufnr` guard. Would dissolve
-  naturally if the table were split.
-- `panels.create` and `panels.create_landing` share a parallel
-  structure (three `ensure_panel` calls each) with subtly different
-  parameters. The `panels.rebuild` path duplicates the same
-  close-three-and-recreate logic a third time. One entry point keyed
-  on a layout argument would consolidate them.
 - Commented-out debug blocks left in production files:
   `list_panel.lua:9–13` and `:91–94`, `hints_panel.lua:10–13`,
   `:91–93`, `:136–139`. They reference
@@ -181,14 +130,6 @@ Architectural notes:
   is either to keep `actions` as the only state-transition module
   and shrink `menu` to a keymap-only module, or move the few shared
   functions into `shared.lua` so neither has to require the other.
-- The lazy require inside `refresh()` at `menu.lua:35–37` is the only
-  reason `menu.lua` doesn't require `actions` at module top — but
-  `menu.lua:88` does `local actions = require(...)` at module scope
-  anyway, making the inner lazy require useless.
-- `setup.lua` exposes internal functions (`setup_command`,
-  `setup_autocmds`, `setup_exclusive_float`) on `M` but only `setup`
-  is public. Marking them module-local would prevent accidental
-  external call.
 - `state.windows.opts.poppies_resolved` is one of two parallel poppy
   tables in `opts` (the other being `poppies`, the user's raw input).
   Only used in `switch_by_name`. The `poppies_resolved` naming is
@@ -202,9 +143,8 @@ Architectural notes:
   At the moment of the focus call, `state.windows.content_win` still
   points at the content window of the just-killed poppy (its buffer
   was deleted in the line above), and the scheduled recover will
-  replace or close it shortly after. The focus call either lands on
-  a bufferless window (Neovim ignores it silently) or races with the
+  replace or close it shortly after. The focus call either lands on a
+  bufferless window (Neovim ignores it silently) or races with the
   scheduled close. Recover's fallback path correctly focuses whatever
   the new content window is — the line is dead and misleading. Remove
   it.
-

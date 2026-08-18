@@ -15,7 +15,7 @@ local valid_buf = function(b)
 end
 
 ---@param win integer|nil
----@return nil
+---@return void
 local close_panel = function(win)
 	if win and vim.api.nvim_win_is_valid(win) then
 		vim.api.nvim_win_close(win, true)
@@ -35,7 +35,7 @@ end
 ---@param width integer
 ---@param height integer
 ---@param row? integer
----@return nil
+---@return void
 local resize_content = function(win, width, height, row)
 	if not win or not vim.api.nvim_win_is_valid(win) then
 		return
@@ -162,7 +162,7 @@ local mount_landing_panels = function(wrapper_win)
 end
 
 ---@param wrapper_win integer
----@return nil
+---@return void
 M.mount = function(wrapper_win)
 	M.unmount()
 	if state.windows.is_landing then
@@ -172,7 +172,7 @@ M.mount = function(wrapper_win)
 	end
 end
 
----@return nil
+---@return void
 M.unmount = function()
 	close_all_panels()
 end
@@ -182,7 +182,7 @@ end
 -- visible=false, closes panels and grows content back to wrapper width.
 ---@param visible boolean
 ---@param content_win integer
----@return nil
+---@return void
 M.set_visible = function(visible, content_win)
 	if state.windows.is_landing or not state.windows.wrapper_win then
 		return
@@ -216,7 +216,7 @@ end
 -- The only runtime dial within sidebar: flip the list panel's focusable.
 -- No rebuild — just sets the focusable option on the existing window.
 ---@param focused boolean
----@return nil
+---@return void
 M.set_focused = function(focused)
 	local list_win = state.windows.list_win
 	if not list_win or not vim.api.nvim_win_is_valid(list_win) then

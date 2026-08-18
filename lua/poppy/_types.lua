@@ -65,6 +65,11 @@
 ---@field name string
 ---@field config PoppyResolvedConfig
 
+---@class PoppySessionEntry
+---@field fixed_index integer Stable position in the sorted display list. Set once at setup, never changes during a session.
+---@field config PoppyResolvedConfig
+---@field runtime_state PoppyRuntimeState? nil ⇔ never opened or just closed; non-nil ⇔ currently open with the inner runtime table.
+
 ---@class PoppyHintOpts
 ---@field kind? "landing"|"menu"
 ---@field row? integer

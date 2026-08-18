@@ -17,7 +17,7 @@ local setup_global_key = function()
 end
 
 -- Register the :Poppy user command (toggle | close | menu | open [<name>]).
-M.setup_command = function(opts, callbacks)
+local setup_command = function(opts, callbacks)
 	local sub_handlers = {
 		toggle = function()
 			callbacks.toggle()
@@ -32,7 +32,7 @@ M.setup_command = function(opts, callbacks)
 			callbacks.open(name ~= "" and name or nil)
 		end,
 	}
-	---@type vim.api.keyset.create_user_command
+	---@type vim.api.keyset.user_command
 	local cmd_opts = {
 		nargs = "*",
 		complete = function(arg_lead, cmd_line)
@@ -61,8 +61,8 @@ M.setup_command = function(opts, callbacks)
 			return {}
 		end,
 	}
-	vim.api.nvim_create_user_command("Poppy", function(cmd_opts)
-		local sub = cmd_opts.fargs[1]
+	vim.api.nvim_create_user_command("Poppy", function(cmd_args)
+		local sub = cmd_args.fargs[1]
 		local handler = sub_handlers[sub or "toggle"]
 		if not handler then
 			vim.notify(
@@ -74,12 +74,12 @@ M.setup_command = function(opts, callbacks)
 			)
 			return
 		end
-		handler(table.concat(cmd_opts.fargs, " ", 2))
+		handler(table.concat(cmd_args.fargs, " ", 2))
 	end, cmd_opts)
 end
 
 -- Register the autocmd set.
-M.setup_autocmds = function(opts, callbacks)
+local setup_autocmds = function(opts, callbacks)
 	vim.api.nvim_create_augroup("poppy_group", { clear = true })
 
 	---@type vim.api.keyset.create_autocmd
@@ -94,7 +94,7 @@ M.setup_autocmds = function(opts, callbacks)
 				return
 			end
 
-			state.poppies[poppy_name] = nil
+			state.poppies[poppy_name].runtime_state = nil
 			if shared.session_is_open() and state.windows.current_poppy_name == poppy_name then
 				actions.recover()
 			end
@@ -148,87 +148,39 @@ M.setup_autocmds = function(opts, callbacks)
 	end
 end
 
-M.setup_exclusive_float = function()
-	---@type vim.api.keyset.create_autocmd
-	local win_enter_autocmd = {
-		group = "poppy_group",
-		once = true,
-		callback = function()
-			vim.schedule(function()
-				for _, w in ipairs(vim.api.nvim_list_wins()) do
-					if not vim.api.nvim_win_is_valid(w) or shared.is_poppy_window(w) then
-						goto continue
-					end
-					if vim.api.nvim_win_get_config(w).relative ~= "" then
-						vim.api.nvim_win_close(w, true)
-					end
-					::continue::
-				end
-			end)
-		end,
-	}
-	vim.api.nvim_create_autocmd("WinEnter", win_enter_autocmd)
-end
-
 local init_or_reset_state = function()
 	state.windows = state.default_state()
 	state.poppies = {}
 end
 
--- Projection: build the public-facing shape for a poppy entry at index i.
-local build_poppy_public_data = function(i, entry)
-	local name = entry.name
-	local runtime = state.poppies[name]
-	local opened = runtime ~= nil
-	return {
-		name = name,
-		index = i,
-		title = entry.config and entry.config.title or name,
-		mode = entry.config and entry.config.mode,
-		cat = shared.cat(entry.config or {}),
-		is_current = state.windows.current_poppy_name == name,
-		active = opened and runtime.active or false,
-		hidden = opened and runtime.hidden or false,
-		has_been_opened = opened,
-		bufnr = opened and runtime.bufnr or nil,
-		win = opened and runtime.win or nil,
-	}
-end
+-- state.poppies[name] IS the public shape (see _types.lua:
+-- PoppySessionEntry: fixed_index, config, runtime_state). Getters
+-- return entries directly; callers derive title/cat/is_current
+-- themselves.
 
 M.get_poppy_by_name = function(name)
-	for i = 1, #state.poppies do
-		local entry = state.poppies[i]
-		if entry and entry.name == name then
-			return build_poppy_public_data(i, entry)
-		end
-	end
-	return nil
+	return state.poppies[name]
 end
 
 M.get_poppy_by_index = function(index)
-	local entry = state.poppies[index]
-	if not entry or not entry.name then
-		return nil
-	end
-	return build_poppy_public_data(index, entry)
+	local sorted = shared.get_sorted_poppies(state.windows.opts)
+	local sorted_entry = sorted[index]
+	return sorted_entry and state.poppies[sorted_entry.name] or nil
 end
 
 M.get_current_poppy = function()
-	local current_name = state.windows.current_poppy_name
-	if not current_name then
-		return nil
-	end
-	return M.get_poppy_by_name(current_name)
+	local name = state.windows.current_poppy_name
+	return name and state.poppies[name] or nil
 end
 
 M.get_poppies = function()
 	local result = {}
-	for i = 1, #state.poppies do
-		local entry = state.poppies[i]
-		if entry and entry.name then
-			result[i] = build_poppy_public_data(i, entry)
-		end
+	for _, entry in pairs(state.poppies) do
+		result[#result + 1] = entry
 	end
+	table.sort(result, function(a, b)
+		return a.fixed_index < b.fixed_index
+	end)
 	return result
 end
 
@@ -271,12 +223,16 @@ M.setup = function(user_opts)
 		)
 	end
 	local sorted = shared.get_sorted_poppies(state.windows.opts)
-	for i, v in ipairs(sorted) do
-		state.poppies[i] = v
+	for sorted_idx, sorted_entry in ipairs(sorted) do
+		state.poppies[sorted_entry.name] = {
+			fixed_index = sorted_idx,
+			config = sorted_entry.config,
+			runtime_state = nil,
+		}
 	end
 	setup_global_key()
-	M.setup_autocmds(state.windows.opts, { toggle = M.toggle })
-	M.setup_command(state.windows.opts, {
+	setup_autocmds(state.windows.opts, { toggle = M.toggle })
+	setup_command(state.windows.opts, {
 		toggle = M.toggle,
 		open = M.open,
 		close = M.close,

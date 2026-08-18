@@ -149,10 +149,10 @@ end
 
 ---@param buf integer
 ---@param sorted_poppies PoppyEntry[]
----@param poppies table<string, PoppyRuntimeState>
+---@param poppies table<string, PoppySessionEntry>
 ---@param icons? PoppyIcons
 ---@param menu_width integer
----@return nil
+---@return void
 M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 
@@ -163,7 +163,8 @@ M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 		local cat = shared.cat(item.config)
 		local icon = (icons and icons[cat]) or " "
 		local raw_title = item.config.title or item.name
-		local runtime = poppies[item.name]
+		local session_entry = poppies[item.name]
+		local runtime = session_entry and session_entry.runtime_state
 		local is_hidden = runtime and runtime.hidden or false
 		local is_active = runtime and runtime.active or false
 		local title_max = menu_width - 1 - vim.fn.strdisplaywidth(icon) - 1 - idx_width - 1

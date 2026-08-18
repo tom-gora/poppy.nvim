@@ -1,3 +1,4 @@
+---@diagnostic disable: param-type-mismatch
 local M = {}
 
 local state = require("poppy.core.session.state")
@@ -12,27 +13,31 @@ local cursor_to_poppy_index = function()
 		return nil
 	end
 	local idx = cursor[1]
-	local item = state.poppies[idx]
-	if type(item) == "table" and item.name then
-		return idx
+	local sorted = shared.get_sorted_poppies(state.windows.opts)
+	if not sorted[idx] then
+		return nil
 	end
-	return nil
+	return idx
 end
 
--- Resolve a name-or-index into {name, runtime}. runtime is nil if the
--- poppy has never been opened. Returns nil for invalid index or nil name.
+-- Resolve a name-or-index into {name, runtime_state}. runtime_state is
+-- nil if the poppy has never been opened. Returns nil for invalid
+-- index or nil name.
 local resolve = function(name_or_index)
+	local entry
 	if type(name_or_index) == "number" then
-		local item = state.poppies[name_or_index]
-		if not item or not item.name then
+		local sorted = shared.get_sorted_poppies(state.windows.opts)
+		entry = sorted[name_or_index]
+		if not entry then
 			return nil
 		end
-		return { name = item.name, runtime = state.poppies[item.name] }
+		name_or_index = entry.name
 	end
 	if not name_or_index then
 		return nil
 	end
-	return { name = name_or_index, runtime = state.poppies[name_or_index] }
+	local state_entry = state.poppies[name_or_index]
+	return { name = name_or_index, runtime = state_entry and state_entry.runtime_state }
 end
 
 local list_panel_update = function(sorted_poppies, menu_w)
@@ -71,7 +76,9 @@ watch_content_window = function(win_id, menu_w)
 			local c_win, c_buf = content.create(state.windows.wrapper_win, w)
 			state.windows.content_win = c_win
 			state.windows.content_buf = c_buf
-			watch_content_window(c_win, w)
+			if type(watch_content_window) == "function" then
+				watch_content_window(c_win, w)
+			end
 			if state.windows.current_poppy_name then
 				M.kill_active()
 			else
@@ -120,17 +127,18 @@ end
 
 -- Refresh sidebar list after every pop-changing action. Hints are static
 -- (written once at mount time), so this only re-renders the list rows.
-M.refresh_panels = function(sorted_poppies)
+M.refresh_panels = function()
 	if state.windows.hidden then
 		return
 	end
+	local sorted = shared.get_sorted_poppies(state.windows.opts)
 	if state.windows.is_landing and state.windows.wrapper_win then
 		local w = vim.api.nvim_win_get_width(state.windows.wrapper_win)
-		list_panel_update(sorted_poppies, w)
+		list_panel_update(sorted, w)
 		return
 	end
 	local panel_width = panels.menu_width()
-	list_panel_update(sorted_poppies, panel_width)
+	list_panel_update(sorted, panel_width)
 end
 
 M.switch_by_name = function(poppy_name)
@@ -170,7 +178,7 @@ M.switch_by_name = function(poppy_name)
 		panels.set_focused(false)
 	end
 
-	M.refresh_panels(state.poppies)
+	M.refresh_panels()
 	if
 		shared.try_focus_win(state.windows.content_win)
 		and vim.bo[vim.api.nvim_win_get_buf(state.windows.content_win)].buftype == "terminal"
@@ -202,14 +210,14 @@ M.recover = function()
 
 		local fallback_name = nil
 		if state.windows.last_poppy_name then
-			local runtime = state.poppies[state.windows.last_poppy_name]
-			if runtime and runtime.hidden then
+			local entry = state.poppies[state.windows.last_poppy_name]
+			if entry and entry.runtime_state and entry.runtime_state.hidden then
 				fallback_name = state.windows.last_poppy_name
 			end
 		end
 		if not fallback_name then
-			for name, runtime in pairs(state.poppies) do
-				if runtime.hidden then
+			for name, entry in pairs(state.poppies) do
+				if entry.runtime_state and entry.runtime_state.hidden then
 					fallback_name = name
 					break
 				end
@@ -240,7 +248,7 @@ M.recover = function()
 
 			M.enter_landing()
 
-			M.refresh_panels(state.poppies)
+M.refresh_panels()
 		end
 	end)
 end
@@ -250,8 +258,9 @@ M.kill_active = function()
 		return
 	end
 	local target = state.windows.current_poppy_name
-	local p_state = state.poppies[target]
-	local target_bufnr = p_state and p_state.bufnr
+	local entry = state.poppies[target]
+	local target_rt = entry and entry.runtime_state
+	local target_bufnr = target_rt and target_rt.bufnr
 
 	-- Drop the target buffer up-front so any callback recover() schedules
 	-- (via vim.schedule) lands on a clean state without referencing a
@@ -260,7 +269,7 @@ M.kill_active = function()
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
 	end
 
-	state.poppies[target] = nil
+	state.poppies[target].runtime_state = nil
 	state.windows.current_poppy_name = nil
 	M.recover()
 
@@ -279,14 +288,14 @@ local _kill = function(resolved)
 	end
 
 	local target_bufnr = resolved.runtime.bufnr
-	state.poppies[resolved.name] = nil
+	state.poppies[resolved.name].runtime_state = nil
 
 	if target_bufnr and vim.api.nvim_buf_is_valid(target_bufnr) then
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
 	end
 
 	if shared.session_is_open() and not state.windows.is_landing then
-		M.refresh_panels(state.poppies)
+		M.refresh_panels()
 	end
 end
 

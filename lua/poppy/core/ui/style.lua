@@ -7,7 +7,7 @@ local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.4
 -- Blend factor for default (never-opened) list items: 0 = full category
 -- color, 1 = full Normal fg. Tuned so the cat color peeks through while
 -- the row reads as "almost normal text". Single knob; tweak as desired.
-local NORMAL_LIST_ITEM_TINT_FACTOR = 0.6
+local NORMAL_LIST_ITEM_TINT_FACTOR = 0.7
 
 ---@param color integer
 ---@param factor number
@@ -45,27 +45,22 @@ end
 -- pcall so an unrecognized highlight group in a misconfigured theme
 -- doesn't abort the plugin. Re-defined on every M.setup so sign text
 -- colors track the just-set highlight groups.
----@return nil
+---@return void
 local define_poppy_signs = function()
 	local signs = {
-		{ name = "PoppyDotFileA", text = "•", hl = "PoppyFile" },
-		{ name = "PoppyDotFileH", text = "•", hl = "PoppyFileHidden" },
-		{ name = "PoppyDotExecA", text = "•", hl = "PoppyExec" },
-		{ name = "PoppyDotExecH", text = "•", hl = "PoppyExecHidden" },
-		{ name = "PoppyDotShellA", text = "•", hl = "PoppyShell" },
-		{ name = "PoppyDotShellH", text = "•", hl = "PoppyShellHidden" },
-		{ name = "PoppyDotCurrentFile", text = "•", hl = "PoppyCurrentRowFile" },
-		{ name = "PoppyDotCurrentExec", text = "•", hl = "PoppyCurrentRowExec" },
-		{ name = "PoppyDotCurrentShell", text = "•", hl = "PoppyCurrentRowShell" },
-		{ name = "PoppyDotNone", text = " ", hl = "NormalPoppyUIPanel" },
+		{ name = "PoppyDotFileA", text = "•", texthl = "PoppyFile" },
+		{ name = "PoppyDotFileH", text = "•", texthl = "PoppyFileHidden" },
+		{ name = "PoppyDotExecA", text = "•", texthl = "PoppyExec" },
+		{ name = "PoppyDotExecH", text = "•", texthl = "PoppyExecHidden" },
+		{ name = "PoppyDotShellA", text = "•", texthl = "PoppyShell" },
+		{ name = "PoppyDotShellH", text = "•", texthl = "PoppyShellHidden" },
+		{ name = "PoppyDotCurrentFile", text = "•", texthl = "PoppyCurrentRowFile" },
+		{ name = "PoppyDotCurrentExec", text = "•", texthl = "PoppyCurrentRowExec" },
+		{ name = "PoppyDotCurrentShell", text = "•", texthl = "PoppyCurrentRowShell" },
+		{ name = "PoppyDotNone", text = " ", texthl = "NormalPoppyUIPanel" },
 	}
-	---@param s { name: string, text: string, hl: string }
-	---@return vim.api.keyset.sign_define
-	local sign_def_for = function(s)
-		return { text = s.text, texthl = s.hl }
-	end
 	for _, s in ipairs(signs) do
-		pcall(vim.fn.sign_define, s.name, sign_def_for(s))
+		pcall(vim.fn.sign_define, s.name, s)
 	end
 end
 
@@ -74,6 +69,7 @@ end
 -- Each icon is padded to 2 cells so the gutter stays the same width
 -- regardless of glyph width.
 ---@param icons? PoppyIcons
+---@return void
 M.define_icon_signs = function(icons)
 	---@param icon string
 	---@return string
@@ -102,7 +98,7 @@ end
 -- no-op anyway. All panel/window winhl assignments use this.
 ---@param win integer
 ---@param mappings string
----@return nil
+---@return void
 local set_winhl_deferred = function(win, mappings)
 	vim.schedule(function()
 		if not vim.api.nvim_win_is_valid(win) then
@@ -112,7 +108,7 @@ local set_winhl_deferred = function(win, mappings)
 	end)
 end
 
----@return nil
+---@return void
 M.setup = function()
 	local nf = vim.api.nvim_get_hl(0, { name = "NormalFloat" })
 	if nf.bg then
@@ -225,13 +221,13 @@ M.setup = function()
 end
 
 ---@param win integer
----@return nil
+---@return void
 M.apply_hints_panel_style = function(win)
 	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel")
 end
 
 ---@param win integer
----@return nil
+---@return void
 M.apply_list_panel_style = function(win)
 	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
 end
@@ -239,13 +235,13 @@ end
 ---@param win integer
 ---@param ext_number boolean
 ---@param ext_relativenumber boolean
----@return nil
+---@return void
 M.apply_content_style = function(win, ext_number, ext_relativenumber)
 	vim.schedule(function()
 		if not vim.api.nvim_win_is_valid(win) then
 			return
 		end
-		---@type vim.api.keyset.set_option_value
+		---@type vim.api.keyset.option
 		local winhl_opts = { scope = "local", win = win }
 		vim.api.nvim_set_option_value(
 			"winhl",
@@ -257,7 +253,7 @@ M.apply_content_style = function(win, ext_number, ext_relativenumber)
 		if vim.api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
 			return
 		end
-		---@type vim.api.keyset.set_option_value
+		---@type vim.api.keyset.option
 		local win_opts = { win = win }
 		vim.api.nvim_set_option_value("cursorline", true, win_opts)
 		vim.api.nvim_set_option_value("signcolumn", "yes", win_opts)
@@ -267,7 +263,7 @@ M.apply_content_style = function(win, ext_number, ext_relativenumber)
 end
 
 ---@param win integer
----@return nil
+---@return void
 M.apply_border_style = function(win)
 	set_winhl_deferred(win, "FloatBorder:PoppyBorder")
 end

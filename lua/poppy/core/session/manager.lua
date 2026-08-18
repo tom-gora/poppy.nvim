@@ -14,9 +14,10 @@ local actions = require("poppy.core.session.actions")
 -- Soft close (default): drops UI but keeps poppies alive for next open.
 -- Hard close (drop_poppies=true): also kills every live poppy buffer.
 local clear_poppies = function()
-	for _, p_state in pairs(state.poppies) do
-		if p_state and p_state.bufnr and vim.api.nvim_buf_is_valid(p_state.bufnr) then
-			vim.api.nvim_buf_delete(p_state.bufnr, { force = true })
+	for _, entry in pairs(state.poppies) do
+		local rt = entry.runtime_state
+		if rt and rt.bufnr and vim.api.nvim_buf_is_valid(rt.bufnr) then
+			vim.api.nvim_buf_delete(rt.bufnr, { force = true })
 		end
 	end
 	for k in pairs(state.poppies) do
@@ -74,6 +75,29 @@ local cleanup = function(drop_poppies)
 	state.windows.is_landing = false
 end
 
+local setup_exclusive_float = function()
+	---@type vim.api.keyset.create_autocmd
+	local win_enter_autocmd = {
+		group = "poppy_group",
+		once = true,
+		callback = function()
+			vim.schedule(function()
+				for _, w in ipairs(vim.api.nvim_list_wins()) do
+					if not vim.api.nvim_win_is_valid(w) or shared.is_poppy_window(w) then
+						goto continue
+					end
+					---@diagnostic disable: unnecessary-if
+					if vim.api.nvim_win_get_config(w).relative ~= "" then
+						vim.api.nvim_win_close(w, true)
+					end
+					::continue::
+				end
+			end)
+		end,
+	}
+	vim.api.nvim_create_autocmd("WinEnter", win_enter_autocmd)
+end
+
 M.close = function()
 	cleanup(true)
 end
@@ -110,17 +134,22 @@ M.open = function(poppy_name)
 
 	-- Lazy first-time population of the registry from config if the user
 	-- reopens without going through the public init entry.
-	if #state.poppies == 0 and state.windows.opts.poppies and next(state.windows.opts.poppies) then
-		for i, v in ipairs(shared.get_sorted_poppies(state.windows.opts)) do
-			state.poppies[i] = v
+	if next(state.poppies) == nil and state.windows.opts.poppies and next(state.windows.opts.poppies) then
+		local sorted = shared.get_sorted_poppies(state.windows.opts)
+		for sorted_idx, sorted_entry in ipairs(sorted) do
+			state.poppies[sorted_entry.name] = {
+				fixed_index = sorted_idx,
+				config = sorted_entry.config,
+				runtime_state = nil,
+			}
 		end
 	end
 	if state.windows.opts.exclusive_float then
-		require("poppy.core.session.setup").setup_exclusive_float()
+		setup_exclusive_float()
 	end
 
 	local last_poppy = state.windows.current_poppy_name
-	local has_content = poppy_name or (last_poppy and state.poppies[last_poppy])
+	local has_content = poppy_name or (last_poppy and state.poppies[last_poppy] and state.poppies[last_poppy].runtime_state)
 	local should_land = not has_content
 	local landing_width = should_land and layout.compute_landing_view_width(state.windows.opts, state.poppies) or nil
 
@@ -136,7 +165,7 @@ M.open = function(poppy_name)
 		actions.enter_landing()
 	end
 
-	actions.refresh_panels(state.poppies)
+	actions.refresh_panels()
 	return state.windows.wrapper_win
 end
 
