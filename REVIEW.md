@@ -47,9 +47,6 @@ lua/poppy/
 
 Architectural notes:
 
-- A single mutable state module (`state.lua`) is imported by everyone; no
-  encapsulation of mutation. Defensive nil-checks throughout. Reasonable
-  for an MVP, fits the plugin's small scope.
 - Mode plugins (`modes/term.lua`, `modes/file.lua`) both implement
   `M.run(name, opts, parent_win)` and own their buffer/job lifecycle.
   The session layer never touches terminal job or file load directly.
@@ -148,3 +145,4 @@ Architectural notes:
   scheduled close. Recover's fallback path correctly focuses whatever
   the new content window is — the line is dead and misleading. Remove
   it.
+

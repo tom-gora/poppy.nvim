@@ -36,7 +36,7 @@ local resolve = function(name_or_index)
 	if not name_or_index then
 		return nil
 	end
-	local state_entry = state.poppies[name_or_index]
+	local state_entry = state.poppy(name_or_index)
 	return { name = name_or_index, runtime = state_entry and state_entry.runtime_state }
 end
 
@@ -164,7 +164,7 @@ M.switch_by_name = function(poppy_name)
 	if state.windows.current_poppy_name and state.windows.current_poppy_name ~= poppy_name then
 		state.windows.last_poppy_name = state.windows.current_poppy_name
 	end
-	state.windows.current_poppy_name = poppy_name
+	state.set_current_poppy_name(poppy_name)
 
 	local mode = poppy_opts.mode
 	require("poppy.core.modes." .. mode).run(poppy_name, state.windows.opts, state.windows.content_win)
@@ -202,7 +202,7 @@ M.switch_by_cursor = function()
 end
 
 M.recover = function()
-	state.windows.current_poppy_name = nil
+	state.set_current_poppy_name(nil)
 	vim.schedule(function()
 		if not shared.session_is_open() or state.windows.is_landing or state.windows.current_poppy_name then
 			return
@@ -210,13 +210,13 @@ M.recover = function()
 
 		local fallback_name = nil
 		if state.windows.last_poppy_name then
-			local entry = state.poppies[state.windows.last_poppy_name]
+			local entry = state.poppy(state.windows.last_poppy_name)
 			if entry and entry.runtime_state and entry.runtime_state.hidden then
 				fallback_name = state.windows.last_poppy_name
 			end
 		end
 		if not fallback_name then
-			for name, entry in pairs(state.poppies) do
+			for name, entry in pairs(state.poppies_runtime()) do
 				if entry.runtime_state and entry.runtime_state.hidden then
 					fallback_name = name
 					break
@@ -258,7 +258,7 @@ M.kill_active = function()
 		return
 	end
 	local target = state.windows.current_poppy_name
-	local entry = state.poppies[target]
+	local entry = state.poppy(target)
 	local target_rt = entry and entry.runtime_state
 	local target_bufnr = target_rt and target_rt.bufnr
 
@@ -270,7 +270,7 @@ M.kill_active = function()
 	end
 
 	state.poppies[target].runtime_state = nil
-	state.windows.current_poppy_name = nil
+	state.set_current_poppy_name(nil)
 	M.recover()
 
 	shared.try_focus_win(state.windows.content_win)

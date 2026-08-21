@@ -67,7 +67,7 @@ M.run = function(poppy_name, opts, parent_win)
 		return
 	end
 
-	local p_state = state.poppies[poppy_name]
+	local p_state = state.poppy(poppy_name)
 	local bufnr, reused = term_get_or_create_buffer(poppy_name, opts, p_state)
 	if not bufnr then
 		return

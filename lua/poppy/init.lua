@@ -7,8 +7,10 @@ M.close = setup.close
 M.setup = setup.setup
 M.switch_by_name = setup.switch_by_name
 M.switch_by_index = setup.switch_by_index
+M.switch_by_cursor = setup.switch_by_cursor
 M.kill_by_name = setup.kill_by_name
 M.kill_by_index = setup.kill_by_index
+M.kill_by_cursor = setup.kill_by_cursor
 M.kill_active = setup.kill_active
 
 M.get_poppies = setup.get_poppies

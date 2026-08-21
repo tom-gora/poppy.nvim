@@ -138,6 +138,7 @@ M.open = function(poppy_name)
 		local sorted = shared.get_sorted_poppies(state.windows.opts)
 		for sorted_idx, sorted_entry in ipairs(sorted) do
 			state.poppies[sorted_entry.name] = {
+				name = sorted_entry.name,
 				fixed_index = sorted_idx,
 				config = sorted_entry.config,
 				runtime_state = nil,
@@ -149,13 +150,13 @@ M.open = function(poppy_name)
 	end
 
 	local last_poppy = state.windows.current_poppy_name
-	local has_content = poppy_name or (last_poppy and state.poppies[last_poppy] and state.poppies[last_poppy].runtime_state)
+	local has_content = poppy_name or (last_poppy and state.poppy(last_poppy) and state.poppy(last_poppy).runtime_state)
 	local should_land = not has_content
 	local landing_width = should_land and layout.compute_landing_view_width(state.windows.opts, state.poppies) or nil
 
 	local win = open_wrapper(landing_width)
 	state.windows.wrapper_win = win
-	state.windows.current_poppy_name = nil
+	state.set_current_poppy_name(nil)
 	state.windows.is_landing = should_land
 
 	if has_content then

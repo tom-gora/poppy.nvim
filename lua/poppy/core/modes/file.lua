@@ -7,7 +7,7 @@ local state = require("poppy.core.session.state")
 ---@param name string
 ---@return integer|nil
 local usable = function(name)
-	local entry = state.poppies[name]
+	local entry = state.poppy(name)
 	local runtime = entry and entry.runtime_state
 	if not (runtime and runtime.hidden and runtime.bufnr) then
 		return nil

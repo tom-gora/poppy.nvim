@@ -3,10 +3,6 @@ local M = {}
 -- state.lua has no deps, so the require is safe at module load time.
 local state = require("poppy.core.session.state")
 
--- Display order: exec first, then file, then shell. Cats not in the
--- order fall to the end (sorted by name below).
-local CAT_ORDER = { exec = 0, file = 1, shell = 2 }
-
 M.try_focus_win = function(win)
 	if win and vim.api.nvim_win_is_valid(win) then
 		vim.api.nvim_set_current_win(win)
@@ -25,7 +21,7 @@ end
 
 ---@param name string
 M.hide_poppy = function(name)
-	local entry = state.poppies[name]
+	local entry = state.poppy(name)
 	local runtime = entry and entry.runtime_state
 	if not runtime then
 		return
@@ -76,6 +72,10 @@ end
 
 ---@type string[]
 M.NORM_TERM_MODES = { "n", "t" }
+
+-- Display order: exec first, then file, then shell. Cats not in the
+-- order fall to the end (sorted by name below).
+local CAT_ORDER = { exec = 0, file = 1, shell = 2 }
 
 M.get_sorted_poppies = function(opts)
 	local sorted = {}

@@ -48,4 +48,41 @@ M.windows = M.default_state()
 ---@type table<string, PoppySessionEntry>
 M.poppies = {}
 
+-- Encapsulation helpers: a thin layer over the raw `state.poppies` /
+-- `state.windows` tables. Not full OOP — these are read-only accessors
+-- plus one high-stakes mutator. The rest of the state stays wide open.
+
+---@param name string
+---@return PoppySessionEntry?
+M.poppy = function(name)
+	return M.poppies[name]
+end
+
+-- Set the active poppy name. Pass nil to clear. Validates that a non-nil
+-- name exists in `state.poppies` so callers can't drift from the
+-- configured set. All existing call sites passed valid names or nil,
+-- so this just turns silent drift into a raised error.
+---@param name string|nil
+M.set_current_poppy_name = function(name)
+	if name ~= nil and not M.poppies[name] then
+		error("poppy: unknown poppy name: " .. tostring(name))
+	end
+	M.windows.current_poppy_name = name
+end
+
+-- Return the subset of poppies that are currently open (have a
+-- non-nil runtime_state). Returns a map `name -> entry` mirroring
+-- `state.poppies`. Used by `actions.recover`'s fallback loop; lives
+-- here so it's testable and discoverable as state-level concern.
+---@return table<string, PoppySessionEntry>
+M.poppies_runtime = function()
+	local result = {}
+	for name, entry in pairs(M.poppies) do
+		if entry.runtime_state then
+			result[name] = entry
+		end
+	end
+	return result
+end
+
 return M

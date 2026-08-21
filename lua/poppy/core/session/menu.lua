@@ -14,7 +14,7 @@ M.focus_list_with_cursor = function()
 	if not state.windows.current_poppy_name then
 		return
 	end
-	local current_entry = state.poppies[state.windows.current_poppy_name]
+	local current_entry = state.poppy(state.windows.current_poppy_name)
 	if current_entry then
 		pcall(vim.api.nvim_win_set_cursor, list_win, { current_entry.fixed_index, 0 })
 	end

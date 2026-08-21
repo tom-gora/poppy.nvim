@@ -90,7 +90,7 @@ local setup_autocmds = function(opts, callbacks)
 				return
 			end
 			local ok, poppy_name = pcall(vim.api.nvim_buf_get_var, e.buf, "poppy_popup")
-			if not ok or not poppy_name or not state.poppies[poppy_name] then
+			if not ok or not poppy_name or not state.poppy(poppy_name) then
 				return
 			end
 
@@ -159,28 +159,26 @@ end
 -- themselves.
 
 M.get_poppy_by_name = function(name)
-	return state.poppies[name]
+	return state.poppy(name)
 end
 
 M.get_poppy_by_index = function(index)
 	local sorted = shared.get_sorted_poppies(state.windows.opts)
 	local sorted_entry = sorted[index]
-	return sorted_entry and state.poppies[sorted_entry.name] or nil
+	return sorted_entry and state.poppy(sorted_entry.name) or nil
 end
 
 M.get_current_poppy = function()
 	local name = state.windows.current_poppy_name
-	return name and state.poppies[name] or nil
+	return name and state.poppy(name) or nil
 end
 
 M.get_poppies = function()
 	local result = {}
-	for _, entry in pairs(state.poppies) do
-		result[#result + 1] = entry
+	local sorted = shared.get_sorted_poppies(state.windows.opts)
+	for _, sorted_entry in ipairs(sorted) do
+		result[#result + 1] = state.poppy(sorted_entry.name)
 	end
-	table.sort(result, function(a, b)
-		return a.fixed_index < b.fixed_index
-	end)
 	return result
 end
 
@@ -225,6 +223,7 @@ M.setup = function(user_opts)
 	local sorted = shared.get_sorted_poppies(state.windows.opts)
 	for sorted_idx, sorted_entry in ipairs(sorted) do
 		state.poppies[sorted_entry.name] = {
+			name = sorted_entry.name,
 			fixed_index = sorted_idx,
 			config = sorted_entry.config,
 			runtime_state = nil,
