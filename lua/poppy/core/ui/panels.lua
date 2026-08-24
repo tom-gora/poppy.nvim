@@ -83,7 +83,7 @@ local header_height = function()
 end
 
 local menu_width = function()
-	return state.windows.opts and state.windows.opts.menu_width or 25
+	return shared.opts_field("menu_width") or 25
 end
 
 local mount_sidebar_panels = function(wrapper_win)

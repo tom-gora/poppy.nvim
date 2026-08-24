@@ -8,6 +8,32 @@ local style = require("poppy.core.ui.style")
 local config = require("poppy.config")
 local shared = require("poppy.core.shared")
 
+-- Display order: exec first, then file, then shell. Cats not in the
+-- order fall to the end (sorted by name below).
+local CAT_ORDER = { exec = 0, file = 1, shell = 2 }
+
+-- Inlined from shared.get_sorted_poppies because setup is the only
+-- caller. Returns entries as `{name, config}` in display order.
+---@param opts? PoppyMergedConfig
+---@return {name: string, config: PoppyResolvedConfig}[]
+local sort_config = function(opts)
+	local sorted = {}
+	if opts and opts.poppies_resolved then
+		for name, p_resolved in pairs(opts.poppies_resolved) do
+			table.insert(sorted, { name = name, config = p_resolved })
+		end
+		table.sort(sorted, function(a, b)
+			local ord_a = CAT_ORDER[shared.cat(a.config)] or 99
+			local ord_b = CAT_ORDER[shared.cat(b.config)] or 99
+			if ord_a ~= ord_b then
+				return ord_a < ord_b
+			end
+			return a.name < b.name
+		end)
+	end
+	return sorted
+end
+
 local setup_global_key = function()
 	---@type vim.api.keyset.keymap
 	local toggle_opts = { desc = "Poppy: Toggle UI" }
@@ -94,7 +120,8 @@ local setup_autocmds = function(opts, callbacks)
 				return
 			end
 
-			state.poppies[poppy_name].runtime_state = nil
+			local entry = state.poppy(poppy_name)
+			entry.runtime_state = nil
 			if shared.session_is_open() and state.windows.current_poppy_name == poppy_name then
 				actions.recover()
 			end
@@ -153,19 +180,12 @@ local init_or_reset_state = function()
 	state.poppies = {}
 end
 
--- state.poppies[name] IS the public shape (see _types.lua:
--- PoppySessionEntry: fixed_index, config, runtime_state). Getters
--- return entries directly; callers derive title/cat/is_current
--- themselves.
-
 M.get_poppy_by_name = function(name)
 	return state.poppy(name)
 end
 
 M.get_poppy_by_index = function(index)
-	local sorted = shared.get_sorted_poppies(state.windows.opts)
-	local sorted_entry = sorted[index]
-	return sorted_entry and state.poppy(sorted_entry.name) or nil
+	return state.poppies[index]
 end
 
 M.get_current_poppy = function()
@@ -174,12 +194,7 @@ M.get_current_poppy = function()
 end
 
 M.get_poppies = function()
-	local result = {}
-	local sorted = shared.get_sorted_poppies(state.windows.opts)
-	for _, sorted_entry in ipairs(sorted) do
-		result[#result + 1] = state.poppy(sorted_entry.name)
-	end
-	return result
+	return state.poppies
 end
 
 -- Public session API surface (re-exported from each module's M).
@@ -220,11 +235,9 @@ M.setup = function(user_opts)
 			vim.log.levels.WARN
 		)
 	end
-	local sorted = shared.get_sorted_poppies(state.windows.opts)
-	for sorted_idx, sorted_entry in ipairs(sorted) do
-		state.poppies[sorted_entry.name] = {
+	for _, sorted_entry in ipairs(sort_config(state.windows.opts)) do
+		state.poppies[#state.poppies + 1] = {
 			name = sorted_entry.name,
-			fixed_index = sorted_idx,
 			config = sorted_entry.config,
 			runtime_state = nil,
 		}

@@ -81,3 +81,64 @@ Resolved items moved out of `REVIEW.md`.
   `setup_autocmds`, `setup_exclusive_float`) on `M` but only `setup`
   is public. Marking them module-local would prevent accidental
   external call.
+
+- `state.poppies` is now a sorted array of `{name, config,
+  runtime_state}` entries, populated once at setup from
+  `opts.poppies_resolved`. The array index IS the display order
+  (category → alphabetical). `state.poppy(name)` and
+  `state.poppy_index(name)` do linear scans (~5–30 entries typical).
+  Name lookup is O(n), irrelevant for the scale. `shared.get_sorted_poppies`
+  was inlined into the two setup-time callers (`setup.lua` canonical loop
+  and `manager.lua` lazy-pop fallback) and deleted from `shared.lua`.
+
+- `list_panel.update(buf, poppies, icons, menu_width)` — single sorted
+  array arg. Iterates directly with `for display_idx, entry in ipairs(poppies) do`,
+  no `poppies[item.name]` lookup, no separate runtime-map arg.
+
+- `actions.kill_active` (`actions.lua:272`): `focus(state.windows.content_win)`
+  ran synchronously after `M.recover()` defers via `vim.schedule`.
+  Recover's deferred callback correctly focuses whatever the new content
+  window is — the synchronous focus was dead work and got overwritten.
+  Removed the line. Recover's fallback path is now the sole focus path
+  after a kill.
+
+- `actions.switch_by_name` (`actions.lua:140`) hid the current poppy
+  then re-opened it even when `poppy_name == state.windows.current_poppy_name`.
+  Added early-return guard at top of function: `if poppy_name == state.windows.current_poppy_name then return end`.
+  Re-selecting the current poppy is now a no-op.
+
+- `header_panel.lua` (bottom): hardcoded UTF-8 byte offsets of "◉"
+  inside "P◉PPY.NVIM" to compute the colored-dot extmark range. Replaced
+  with `vim.fn.byteidx(title_line, vim.fn.strdisplaywidth(title_col .. "P"))` —
+  derives byte offsets from display column position, so any future
+  title-text change still resolves correctly.
+
+- `style.apply_list_panel_style(win)` was being called from both
+  `list_panel.lua` and `header_panel.lua` — the function existed to style
+  the list panel specifically but the header happened to want the same
+  winhl. Renamed to `style.apply_panel_style(win)`. Two callers updated,
+  behavior unchanged.
+
+- `manager.open` had a lazy-population block that re-populated
+  `state.poppies` from sorted config if the array happened to be empty.
+  Dead code: `M.open` already has `ensure_setup()` guard at top, so
+  `state.windows.opts` is guaranteed populated when the block could run.
+  Block removed along with the local `sort_config` and `CAT_ORDER`
+  helpers it was the only caller of.
+
+- `state.windows.opts.X` chains scattered across `actions.lua`,
+  `manager.lua`, `menu.lua`. Added `shared.opts_field(name)` accessor
+  that returns the named field or nil. Six call sites updated:
+  - `actions.lua`: `opts_field("icons")`, `opts_field("poppies_resolved")`,
+    `opts_field("menu_autohide")`
+  - `manager.lua`: `opts_field("exclusive_float")`
+  - `menu.lua`: `opts_field("menu_autohide")` (×2)
+  - `panels.lua`: `opts_field("menu_width") or 25`
+  Other sites that pass the whole `state.windows.opts` table as a function
+  argument (layout.compute_wrapper_dimensions, wrapper.create/recreate,
+  modes.X.run) left as-is — the function signatures accept the full
+  config table directly.
+
+- Commented-out debug blocks deleted from `list_panel.lua` and
+  `hints_panel.lua`. The `_debug_helpers.lua` file (the only thing
+  they referenced) was unused elsewhere and is gone too.

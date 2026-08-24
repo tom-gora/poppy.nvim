@@ -3,6 +3,7 @@ require("poppy._types")
 
 local M = {}
 local state = require("poppy.core.session.state")
+local shared = require("poppy.core.shared")
 
 ---@param name string
 ---@return integer|nil
@@ -49,7 +50,7 @@ M.run = function(poppy_name, opts, parent_win)
 
 	vim.api.nvim_win_set_buf(parent_win, bufnr)
 
-	state.poppies[poppy_name].runtime_state = {
+	state.poppy(poppy_name).runtime_state = {
 		active = true,
 		hidden = false,
 		bufnr = bufnr,

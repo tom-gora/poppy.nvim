@@ -22,27 +22,34 @@ lua/poppy/
   init.lua           thin public API re-export
   config.lua         defaults + merge + per-key type validation (WARNs on bad input)
   _types.lua         LuaCATS class definitions
-  _debug_helpers.lua commented-out manual layout-debug helpers
   core/
-    shared.lua       cross-module helpers (hide/show_menu_hint/cat/keys/with_modifiable/sorted_poppies)
+    shared.lua       cross-module helpers (ensure_setup, opts_field, keys,
+                      cat, with_modifiable, try_focus_win, apply_win_marker,
+                      is_poppy_window, hide_poppy, show_menu_hint, ...)
     session/
-      state.lua      mutable runtime state (window/buffer IDs, current/last poppy, opts)
-      setup.lua      setup entry, autocmd + user-command registration, public session API
+      state.lua      runtime state (sorted poppy registry, current/last
+                      poppy, window/buffer IDs, opts). Single mutable
+                      instance via default_state().
+      setup.lua      setup entry, autocmd + user-command registration,
+                      public session API
       manager.lua    wrapper + content create/destroy, open/close/toggle
-      actions.lua    transitions: switch, kill, recover, hide; owns WinClosed watcher
-      menu.lua       list/content keymaps, menu focus toggle, exit_menu
+      actions.lua    state transitions: switch, kill, recover, hide.
+                      Owns the WinClosed watcher for content windows.
+                      Per-function setup guard via shared.ensure_setup().
+      menu.lua       list/content buffer keymaps, focus/unfocus,
+                      exit_menu. Per-function setup guard.
     ui/
       wrapper.lua    outer floating window
-      content.lua    inner content window (active poppy buffer)
+      content.lua    inner content window (the active poppy's buffer)
       panels.lua     sidebar container; create/destroy/show/hide/focus
-      list_panel.lua numbered poppy list with signs + extmark highlights
-      hints_panel.lua keybinding hints + bottom-right menu indicator
+      list_panel.lua numbered poppy list with sign + extmark highlights
+      hints_panel.lua keybinding hints panel + bottom-right menu hint
       header_panel.lua "P◉PPY.NVIM" header
       layout.lua     dimensions, z-index, landing-view width helper
-      style.lua      highlight groups + ColorScheme refresh + winhl assignments
+      style.lua      highlight groups + ColorScheme refresh
     modes/
       term.lua      exec + shell lifecycle (jobstart, on_exit cleanup)
-      file.lua      file lifecycle (create buf, load, var tag)
+      file.lua      file-buffer mode (handles file poppies)
 ```
 
 Architectural notes:
@@ -62,6 +69,14 @@ Architectural notes:
   every offending key/field, with the default used as fallback. Recent
   diff added unknown-key detection, boolean/number coercion checks,
   and per-poppy non-table detection.
+- `state.poppies` is a sorted array of `{fixed_index, config,
+  runtime_state?}` populated once at setup. Array index = display order
+  (category → name). `runtime_state` toggles per entry as poppies
+  open/close; the array itself never reshuffles.
+- Each state-touching module guards via `shared.ensure_setup()` (called
+  per function, not per module-load) so direct `require()` of an
+  internal module before `setup()` runs yields a working warning rather
+  than a half-state crash.
 
 ## Good
 
@@ -85,44 +100,13 @@ Architectural notes:
 
 ## Bad
 
-- `manager.open` lines 114–118: a "lazy first-time population" block
-  re-populates `state.poppies` from sorted config. Without `setup()`,
-  `state.windows.opts` is nil and this would crash on the access; with
-  `setup()`, this block is dead because setup already populated it.
-- `state.windows.opts.X` chains appear all over the code for everything
-  except `keys`. There's a `shared.keys()` helper but no
-  `shared.opts_or_empty()`-style accessor, so the rest of the chain is
-  inconsistent.
+_(none)_
 
 ## Ugly
 
-- `header_panel.lua:45` calls `style.apply_list_panel_style(win)` for
-  the header window — the function exists to style the list panel. The
-  header just happens to want the same winhl. Either rename the helper
-  to something panel-agnostic or split it.
-- `actions.kill_active` line 282: `focus(state.windows.content_win)`
-  runs synchronously right after `M.recover()`, which defers via
-  `vim.schedule`. By the time recover's callback runs, content_win
-  may have been rebuilt; the immediate focus call lands on a stale or
-  invalid window and is overridden anyway. The line is misleading
-  (looks intentional, has no effect).
-- `actions.switch_by_name` hides the current poppy then re-opens it
-  even when `poppy_name == state.windows.current_poppy_name`. Cheap
-  but pure waste; an early-return guard would remove it.
-- `header_panel.lua:64–65` hardcodes UTF-8 byte offsets of "◉" inside
-  "P◉PPY.NVIM" to compute the colored-dot extmark range. If the title
-  string ever changes, this silently mis-highlights. Should use
-  `vim.str_utfindex` / `vim.fn.strdisplaywidth` to find the char
-  position.
-- Commented-out debug blocks left in production files:
-  `list_panel.lua:9–13` and `:91–94`, `hints_panel.lua:10–13`,
-  `:91–93`, `:136–139`. They reference
-  `poppy._debug_helpers.layout__hightlight_window_visually` (note the
-  typo) which would color panels red if uncommented. Either ship the
-  debug mode behind a config flag or delete them.
 - Module split between `actions.lua` and `menu.lua` forces three
   `require("poppy.core.session.actions")` sites to be lazy (one inside
-  `setup_list_keys`, one inside `refresh`, one in `menu.lua:88` at
+  `setup_list_keys`, one inside `refresh`, one in `menu.lua` at
   module scope anyway). The mutual dependency is real but the cure
   is either to keep `actions` as the only state-transition module
   and shrink `menu` to a keymap-only module, or move the few shared
@@ -135,14 +119,5 @@ Architectural notes:
 
 ## Real bugs
 
-- **`actions.kill_active` line 282**: `focus(state.windows.content_win)`
-  fires synchronously after `M.recover()` defers via `vim.schedule`.
-  At the moment of the focus call, `state.windows.content_win` still
-  points at the content window of the just-killed poppy (its buffer
-  was deleted in the line above), and the scheduled recover will
-  replace or close it shortly after. The focus call either lands on a
-  bufferless window (Neovim ignores it silently) or races with the
-  scheduled close. Recover's fallback path correctly focuses whatever
-  the new content window is — the line is dead and misleading. Remove
-  it.
+_(none)_
 

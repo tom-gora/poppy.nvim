@@ -14,15 +14,13 @@ local actions = require("poppy.core.session.actions")
 -- Soft close (default): drops UI but keeps poppies alive for next open.
 -- Hard close (drop_poppies=true): also kills every live poppy buffer.
 local clear_poppies = function()
-	for _, entry in pairs(state.poppies) do
+	for _, entry in ipairs(state.poppies) do
 		local rt = entry.runtime_state
 		if rt and rt.bufnr and vim.api.nvim_buf_is_valid(rt.bufnr) then
 			vim.api.nvim_buf_delete(rt.bufnr, { force = true })
 		end
 	end
-	for k in pairs(state.poppies) do
-		state.poppies[k] = nil
-	end
+	state.poppies = {}
 end
 
 local cleanup = function(drop_poppies)
@@ -99,10 +97,12 @@ local setup_exclusive_float = function()
 end
 
 M.close = function()
+	if not shared.ensure_setup() then return end
 	cleanup(true)
 end
 
 M.toggle = function()
+	if not shared.ensure_setup() then return end
 	if shared.session_is_open() then
 		cleanup()
 	else
@@ -120,11 +120,7 @@ local open_wrapper = function(width_override)
 end
 
 M.open = function(poppy_name)
-	if not state.windows.opts then
-		vim.notify("Poppy: setup() must be called before opening", vim.log.levels.WARN)
-		return nil
-	end
-
+	if not shared.ensure_setup() then return nil end
 	if shared.session_is_open() then
 		if poppy_name then
 			actions.switch_by_name(poppy_name)
@@ -132,20 +128,7 @@ M.open = function(poppy_name)
 		return state.windows.wrapper_win
 	end
 
-	-- Lazy first-time population of the registry from config if the user
-	-- reopens without going through the public init entry.
-	if next(state.poppies) == nil and state.windows.opts.poppies and next(state.windows.opts.poppies) then
-		local sorted = shared.get_sorted_poppies(state.windows.opts)
-		for sorted_idx, sorted_entry in ipairs(sorted) do
-			state.poppies[sorted_entry.name] = {
-				name = sorted_entry.name,
-				fixed_index = sorted_idx,
-				config = sorted_entry.config,
-				runtime_state = nil,
-			}
-		end
-	end
-	if state.windows.opts.exclusive_float then
+	if shared.opts_field("exclusive_float") then
 		setup_exclusive_float()
 	end
 

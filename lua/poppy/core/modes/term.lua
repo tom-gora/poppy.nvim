@@ -84,11 +84,11 @@ M.run = function(poppy_name, opts, parent_win)
 					if vim.api.nvim_buf_is_valid(bufnr) then
 						vim.api.nvim_buf_delete(bufnr, { force = true })
 					end
-					if shared.session_is_open() and shared.session_get_current_poppy_name() == poppy_name then
-						actions.kill_active()
-					else
-						state.poppies[poppy_name].runtime_state = nil
-					end
+if shared.session_is_open() and shared.session_get_current_poppy_name() == poppy_name then
+					actions.kill_active()
+				else
+					state.poppy(poppy_name).runtime_state = nil
+				end
 				end,
 			}
 			local job_id = term_spawn(term_resolve_command(poppy_opts), spawn_opts)
@@ -111,7 +111,7 @@ M.run = function(poppy_name, opts, parent_win)
 
 	vim.api.nvim_win_set_buf(parent_win, bufnr)
 
-	state.poppies[poppy_name].runtime_state = {
+	state.poppy(poppy_name).runtime_state = {
 		active = true,
 		hidden = false,
 		bufnr = bufnr,

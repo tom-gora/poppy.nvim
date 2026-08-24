@@ -4,7 +4,6 @@ local M = {}
 local state = require("poppy.core.session.state")
 local panels = require("poppy.core.ui.panels")
 local shared = require("poppy.core.shared")
-local actions = require("poppy.core.session.actions")
 
 M.focus_list_with_cursor = function()
 	local list_win = panels.get_list_win()
@@ -16,7 +15,10 @@ M.focus_list_with_cursor = function()
 	end
 	local current_entry = state.poppy(state.windows.current_poppy_name)
 	if current_entry then
-		pcall(vim.api.nvim_win_set_cursor, list_win, { current_entry.fixed_index, 0 })
+		local idx = state.poppy_index(state.windows.current_poppy_name)
+		if idx then
+			pcall(vim.api.nvim_win_set_cursor, list_win, { idx, 0 })
+		end
 	end
 end
 
@@ -25,18 +27,21 @@ end
 -- unconditionally because the list panel exists in both modes (just
 -- not visible when autohide hides it).
 M.toggle_menu = function()
+	if not shared.ensure_setup() then return end
 	if state.windows.is_landing or not shared.session_is_open() then
 		return
 	end
 
 	local want_focus = not panels.is_menu_focused()
 
-	if state.windows.opts and state.windows.opts.menu_autohide then
+	if shared.opts_field("menu_autohide") then
 		panels.set_visible(want_focus, state.windows.content_win)
 	end
 	panels.set_focused(want_focus)
 
-	actions.refresh_panels()
+	-- Lazy require to break the actions.lua <-> menu.lua cycle. actions.lua
+	-- doesn't depend on menu at module scope; this is the only call site.
+	require("poppy.core.session.actions").refresh_panels()
 	if want_focus then
 		M.focus_list_with_cursor()
 	else
@@ -45,18 +50,19 @@ M.toggle_menu = function()
 end
 
 M.exit_menu = function()
+	if not shared.ensure_setup() then return end
 	if not panels.is_menu_focused() or state.windows.is_landing then
 		return
 	end
 
-	if state.windows.opts and state.windows.opts.menu_autohide then
+	if shared.opts_field("menu_autohide") then
 		panels.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	else
 		panels.set_focused(false)
 	end
 
-	actions.refresh_panels()
+	require("poppy.core.session.actions").refresh_panels()
 	if shared.try_focus_win(state.windows.content_win) then
 		local cbuf = vim.api.nvim_win_get_buf(state.windows.content_win)
 		if vim.bo[cbuf].buftype == "terminal" then
@@ -72,13 +78,13 @@ end
 M.setup_list_keys = function(buf)
 	local keys = shared.keys()
 
-	---@param desc string
-	---@return vim.api.keyset.keymap
-	local opts_for = function(desc)
+	local function opts_for(desc)
 		return { buffer = buf, desc = desc }
 	end
 
 	vim.keymap.set(shared.NORM_TERM_MODES, keys.select, function()
+		-- Lazy require to break the actions.lua <-> menu.lua cycle.
+		local actions = require("poppy.core.session.actions")
 		if vim.v.count > 0 then
 			actions.switch_by_index(vim.v.count)
 		else
@@ -87,6 +93,7 @@ M.setup_list_keys = function(buf)
 	end, opts_for("Poppy: Select"))
 
 	vim.keymap.set(shared.NORM_TERM_MODES, keys.kill, function()
+		local actions = require("poppy.core.session.actions")
 		if vim.v.count > 0 then
 			actions.kill_by_index(vim.v.count)
 		else
@@ -102,9 +109,7 @@ end
 M.setup_content_keys = function(buf)
 	local keys = shared.keys()
 
-	---@param desc string
-	---@return vim.api.keyset.keymap
-	local opts_for = function(desc)
+	local function opts_for(desc)
 		return { buffer = buf, desc = desc }
 	end
 

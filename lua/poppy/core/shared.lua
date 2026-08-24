@@ -64,6 +64,16 @@ M.keys = function()
 	return state.windows.opts and state.windows.opts.keys
 end
 
+-- Generic accessor for any state.windows.opts field. Returns nil if
+-- setup() hasn't run. Use when you need a single field without a
+-- dedicated accessor (e.g. one-off reads in modes or UI helpers).
+---@param field string
+---@return any
+M.opts_field = function(field)
+	if not state.windows.opts then return nil end
+	return state.windows.opts[field]
+end
+
 M.with_modifiable = function(buf, fn)
 	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
 	fn()
@@ -73,26 +83,15 @@ end
 ---@type string[]
 M.NORM_TERM_MODES = { "n", "t" }
 
--- Display order: exec first, then file, then shell. Cats not in the
--- order fall to the end (sorted by name below).
-local CAT_ORDER = { exec = 0, file = 1, shell = 2 }
-
-M.get_sorted_poppies = function(opts)
-	local sorted = {}
-	if opts and opts.poppies_resolved then
-		for name, p_resolved in pairs(opts.poppies_resolved) do
-			table.insert(sorted, { name = name, config = p_resolved })
-		end
-		table.sort(sorted, function(a, b)
-			local ord_a = CAT_ORDER[M.cat(a.config)] or 99
-			local ord_b = CAT_ORDER[M.cat(b.config)] or 99
-			if ord_a ~= ord_b then
-				return ord_a < ord_b
-			end
-			return a.name < b.name
-		end)
+-- Setup gate. Returns true if state.windows.opts is set (i.e. setup()
+-- has run); emits a WARN and returns false otherwise. No latch —
+-- caller pays for every miss.
+M.ensure_setup = function()
+	if state and state.windows and state.windows.opts then
+		return true
 	end
-	return sorted
+	vim.notify("Poppy: setup() must be called before opening", vim.log.levels.WARN)
+	return false
 end
 
 -- User-facing category from raw poppy config. Validation in

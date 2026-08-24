@@ -147,7 +147,6 @@ lua/poppy/
   init.lua              Thin public API (re-exports from core.session.setup)
   config.lua            Defaults, merge, shape validation, WARN on bad input
   _types.lua            LuaCATS class definitions (PoppyConfig, PoppyKeys, ...)
-  _debug_helpers.lua    Manual debug helper for layout/color triage
 
   core/
     shared.lua            Cross-module helpers (session_is_open, hide_poppy,

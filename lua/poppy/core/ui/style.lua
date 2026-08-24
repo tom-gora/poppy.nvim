@@ -228,7 +228,7 @@ end
 
 ---@param win integer
 ---@return void
-M.apply_list_panel_style = function(win)
+M.apply_panel_style = function(win)
 	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
 end
 

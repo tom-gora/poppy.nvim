@@ -5,12 +5,6 @@ local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 local namespace = vim.api.nvim_create_namespace("poppy_list_panel")
---
--- ##################################################################
--- DEBUG: layout
--- local debug = require("poppy._debug_helpers")
--- debug.layout__setup_highlights()
--- ##################################################################
 
 local sign_group = "poppy_list"
 
@@ -102,7 +96,7 @@ M.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_
 
 	local win = vim.api.nvim_open_win(buf, false, config)
 	vim.wo[win].signcolumn = "yes:3"
-	style.apply_list_panel_style(win)
+	style.apply_panel_style(win)
 	shared.apply_win_marker(win)
 	return win
 end
@@ -148,23 +142,21 @@ local trim_title = function(title, max_width)
 end
 
 ---@param buf integer
----@param sorted_poppies PoppyEntry[]
----@param poppies table<string, PoppySessionEntry>
+---@param poppies PoppySessionEntry[]
 ---@param icons? PoppyIcons
 ---@param menu_width integer
 ---@return void
-M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
+M.update = function(buf, poppies, icons, menu_width)
 	vim.api.nvim_buf_clear_namespace(buf, namespace, 0, -1)
 
-	local idx_width = max_index_width(#sorted_poppies)
+	local idx_width = max_index_width(#poppies)
 	local entries = {}
 
-	for display_idx, item in ipairs(sorted_poppies) do
-		local cat = shared.cat(item.config)
+	for display_idx, entry in ipairs(poppies) do
+		local cat = shared.cat(entry.config)
 		local icon = (icons and icons[cat]) or " "
-		local raw_title = item.config.title or item.name
-		local session_entry = poppies[item.name]
-		local runtime = session_entry and session_entry.runtime_state
+		local raw_title = entry.config.title or entry.name
+		local runtime = entry.runtime_state
 		local is_hidden = runtime and runtime.hidden or false
 		local is_active = runtime and runtime.active or false
 		local title_max = menu_width - 1 - vim.fn.strdisplaywidth(icon) - 1 - idx_width - 1
@@ -177,7 +169,7 @@ M.update = function(buf, sorted_poppies, poppies, icons, menu_width)
 			hl = cat_hl[cat]
 		end
 		entries[display_idx] = {
-			name = item.name,
+			name = entry.name,
 			cat = cat,
 			icon = icon,
 			title = trim_title(raw_title, title_max),

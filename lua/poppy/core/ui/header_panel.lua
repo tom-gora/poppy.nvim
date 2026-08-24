@@ -42,7 +42,7 @@ M.recreate = function(wrapper_win, buf, width_override, col_override)
 	}
 
 	local win = vim.api.nvim_open_win(buf, false, config)
-	style.apply_list_panel_style(win)
+	style.apply_panel_style(win)
 	shared.apply_win_marker(win)
 
 	local title = "P◉PPY.NVIM"
@@ -55,17 +55,23 @@ M.recreate = function(wrapper_win, buf, width_override, col_override)
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "", title_line, sep })
 	end)
 
+	-- The full title_line is highlighted as one block.
 	---@type vim.api.keyset.extmark
 	local title_extmark = { end_col = #title_line, hl_group = "NormalPoppyUIPanel" }
 	vim.api.nvim_buf_set_extmark(buf, namespace, 1, 0, title_extmark)
-	-- ◉ is the 2nd char of the title (byte offset 2, 1-indexed); leading
-	-- spaces are ASCII so byte == cell here. dot_start lands on the
-	-- 3-byte UTF-8 sequence for ◉.
-	local dot_start = title_col + 1
-	local dot_end = dot_start + 3
+	-- The ◉ is at display column 2 within the title (after "P"). Resolve
+	-- it to a byte offset that respects any future title-string change,
+	-- since ◉ is a 3-byte UTF-8 sequence and any other glyph would shift
+	-- the offsets.
+	local dot_display_col = vim.fn.strdisplaywidth(title_col .. "P")
+	local dot_byte_col = vim.fn.byteidx(title_line, dot_display_col)
+	local dot_byte_end = vim.fn.byteidx(title_line, dot_display_col + 1)
 	---@type vim.api.keyset.extmark
-	local dot_extmark = { end_col = dot_end, hl_group = "PoppyRed" }
-	vim.api.nvim_buf_set_extmark(buf, namespace, 1, dot_start, dot_extmark)
+	local dot_extmark = {
+		end_col = dot_byte_end,
+		hl_group = "PoppyRed",
+	}
+	vim.api.nvim_buf_set_extmark(buf, namespace, 1, dot_byte_col, dot_extmark)
 	return win
 end
 

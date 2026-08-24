@@ -13,8 +13,7 @@ local cursor_to_poppy_index = function()
 		return nil
 	end
 	local idx = cursor[1]
-	local sorted = shared.get_sorted_poppies(state.windows.opts)
-	if not sorted[idx] then
+	if not state.poppies[idx] then
 		return nil
 	end
 	return idx
@@ -26,8 +25,7 @@ end
 local resolve = function(name_or_index)
 	local entry
 	if type(name_or_index) == "number" then
-		local sorted = shared.get_sorted_poppies(state.windows.opts)
-		entry = sorted[name_or_index]
+		entry = state.poppies[name_or_index]
 		if not entry then
 			return nil
 		end
@@ -45,8 +43,7 @@ local list_panel_update = function(sorted_poppies, menu_w)
 	list_panel.update(
 		panels.get_list_buf(),
 		sorted_poppies,
-		state.poppies,
-		state.windows.opts and state.windows.opts.icons,
+		shared.opts_field("icons"),
 		menu_w
 	)
 end
@@ -131,22 +128,21 @@ M.refresh_panels = function()
 	if state.windows.hidden then
 		return
 	end
-	local sorted = shared.get_sorted_poppies(state.windows.opts)
 	if state.windows.is_landing and state.windows.wrapper_win then
 		local w = vim.api.nvim_win_get_width(state.windows.wrapper_win)
-		list_panel_update(sorted, w)
+		list_panel_update(state.poppies, w)
 		return
 	end
 	local panel_width = panels.menu_width()
-	list_panel_update(sorted, panel_width)
+	list_panel_update(state.poppies, panel_width)
 end
 
 M.switch_by_name = function(poppy_name)
-	if
-		not shared.session_is_open()
-		or not state.windows.opts
-		or not state.windows.opts.poppies_resolved
-		or not state.windows.opts.poppies_resolved[poppy_name]
+	if not shared.ensure_setup() then return end
+	if poppy_name == state.windows.current_poppy_name then return end
+	if not shared.session_is_open()
+		or not shared.opts_field("poppies_resolved")
+		or not shared.opts_field("poppies_resolved")[poppy_name]
 	then
 		vim.notify(string.format("Poppy: unknown poppy '%s'", tostring(poppy_name)), vim.log.levels.WARN)
 		return
@@ -160,7 +156,7 @@ M.switch_by_name = function(poppy_name)
 		M.transition_to_content()
 	end
 
-	local poppy_opts = state.windows.opts.poppies_resolved[poppy_name]
+	local poppy_opts = shared.opts_field("poppies_resolved")[poppy_name]
 	if state.windows.current_poppy_name and state.windows.current_poppy_name ~= poppy_name then
 		state.windows.last_poppy_name = state.windows.current_poppy_name
 	end
@@ -171,7 +167,7 @@ M.switch_by_name = function(poppy_name)
 
 	require("poppy.core.session.menu").setup_content_keys(vim.api.nvim_win_get_buf(state.windows.content_win))
 
-	if state.windows.opts.menu_autohide then
+	if not shared.opts_field("menu_autohide") then
 		panels.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	else
@@ -188,6 +184,7 @@ M.switch_by_name = function(poppy_name)
 end
 
 M.switch_by_index = function(index)
+	if not shared.ensure_setup() then return end
 	local resolved = resolve(index)
 	if resolved then
 		M.switch_by_name(resolved.name)
@@ -195,6 +192,7 @@ M.switch_by_index = function(index)
 end
 
 M.switch_by_cursor = function()
+	if not shared.ensure_setup() then return end
 	local idx = cursor_to_poppy_index()
 	if idx then
 		M.switch_by_index(idx)
@@ -254,6 +252,7 @@ M.refresh_panels()
 end
 
 M.kill_active = function()
+	if not shared.ensure_setup() then return end
 	if not state.windows.current_poppy_name then
 		return
 	end
@@ -269,11 +268,9 @@ M.kill_active = function()
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
 	end
 
-	state.poppies[target].runtime_state = nil
+	state.poppy(target).runtime_state = nil
 	state.set_current_poppy_name(nil)
 	M.recover()
-
-	shared.try_focus_win(state.windows.content_win)
 end
 
 local _kill = function(resolved)
@@ -288,7 +285,7 @@ local _kill = function(resolved)
 	end
 
 	local target_bufnr = resolved.runtime.bufnr
-	state.poppies[resolved.name].runtime_state = nil
+	state.poppy(resolved.name).runtime_state = nil
 
 	if target_bufnr and vim.api.nvim_buf_is_valid(target_bufnr) then
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
@@ -300,14 +297,17 @@ local _kill = function(resolved)
 end
 
 M.kill_by_name = function(name)
+	if not shared.ensure_setup() then return end
 	return _kill(resolve(name))
 end
 
 M.kill_by_index = function(index)
+	if not shared.ensure_setup() then return end
 	return _kill(resolve(index))
 end
 
 M.kill_by_cursor = function()
+	if not shared.ensure_setup() then return end
 	local idx = cursor_to_poppy_index()
 	if idx then
 		M.kill_by_index(idx)
