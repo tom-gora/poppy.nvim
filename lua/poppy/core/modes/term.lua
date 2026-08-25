@@ -7,15 +7,11 @@ local state = require("poppy.core.session.state")
 local shared = require("poppy.core.shared")
 
 ---@param poppy_name string
----@param opts PoppyMergedConfig
+---@param poppy_opts PoppyResolvedConfig
 ---@param p_state PoppyRuntimeState|nil
 ---@return integer|nil bufnr
 ---@return boolean reused True iff bufnr is the same buffer p_state points to and is still alive.
-local term_get_or_create_buffer = function(poppy_name, opts, p_state)
-	local poppy_opts = opts.poppies_resolved and opts.poppies_resolved[poppy_name]
-	if not poppy_opts then
-		return nil, false
-	end
+local term_get_or_create_buffer = function(poppy_name, poppy_opts, p_state)
 	local rt = p_state and p_state.runtime_state
 	if rt and rt.hidden and rt.bufnr and vim.api.nvim_buf_is_valid(rt.bufnr) then
 		return rt.bufnr, true
@@ -58,17 +54,16 @@ local term_spawn = function(command, opts)
 end
 
 ---@param poppy_name string
----@param opts PoppyMergedConfig
+---@param poppy_opts PoppyResolvedConfig
 ---@param parent_win integer
 ---@return void
-M.run = function(poppy_name, opts, parent_win)
-	local poppy_opts = opts.poppies_resolved[poppy_name]
+M.run = function(poppy_name, poppy_opts, parent_win)
 	if not poppy_opts or not parent_win then
 		return
 	end
 
 	local p_state = state.poppy(poppy_name)
-	local bufnr, reused = term_get_or_create_buffer(poppy_name, opts, p_state)
+	local bufnr, reused = term_get_or_create_buffer(poppy_name, poppy_opts, p_state)
 	if not bufnr then
 		return
 	end
@@ -84,11 +79,14 @@ M.run = function(poppy_name, opts, parent_win)
 					if vim.api.nvim_buf_is_valid(bufnr) then
 						vim.api.nvim_buf_delete(bufnr, { force = true })
 					end
-if shared.session_is_open() and shared.session_get_current_poppy_name() == poppy_name then
-					actions.kill_active()
-				else
-					state.poppy(poppy_name).runtime_state = nil
-				end
+					if shared.session_is_open() and shared.session_get_current_poppy_name() == poppy_name then
+						actions.kill_active()
+					else
+						local entry = state.poppy(poppy_name)
+						if entry then
+							entry.runtime_state = nil
+						end
+					end
 				end,
 			}
 			local job_id = term_spawn(term_resolve_command(poppy_opts), spawn_opts)

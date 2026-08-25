@@ -20,14 +20,10 @@ local usable = function(name)
 end
 
 ---@param poppy_name string
----@param opts PoppyMergedConfig
+---@param poppy_opts PoppyResolvedConfig
 ---@param parent_win integer
 ---@return void
-M.run = function(poppy_name, opts, parent_win)
-	local poppy_opts = opts.poppies_resolved[poppy_name]
-	if not poppy_opts or not parent_win then
-		return
-	end
+M.run = function(poppy_name, poppy_opts, parent_win)
 
 	local bufnr = usable(poppy_name)
 	if bufnr then

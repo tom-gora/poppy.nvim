@@ -139,6 +139,17 @@ Resolved items moved out of `REVIEW.md`.
   modes.X.run) left as-is — the function signatures accept the full
   config table directly.
 
+- `state.windows.opts.poppies_resolved` was the second source of truth
+  for resolved poppy config — `state.poppies[name].config` and
+  `opts.poppies_resolved[name]` held the same data. Dedup'd by changing
+  `M.switch_by_name` (in `actions.lua`) to read `state.poppy(name).config`
+  via the existing `state.poppy()` accessor, and changing the call
+  into `modes.X.run` to pass `poppy_opts` directly instead of the whole
+  `state.windows.opts` table. Updated `modes/term.lua` and `modes/file.lua`
+  signatures to take `poppy_opts: PoppyResolvedConfig` instead of
+  `opts: PoppyMergedConfig`. `opts.poppies_resolved` still exists in the
+  merged config as a setup-time transient but no runtime code reads it.
+
 - Commented-out debug blocks deleted from `list_panel.lua` and
   `hints_panel.lua`. The `_debug_helpers.lua` file (the only thing
   they referenced) was unused elsewhere and is gone too.

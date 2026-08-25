@@ -140,10 +140,10 @@ end
 M.switch_by_name = function(poppy_name)
 	if not shared.ensure_setup() then return end
 	if poppy_name == state.windows.current_poppy_name then return end
-	if not shared.session_is_open()
-		or not shared.opts_field("poppies_resolved")
-		or not shared.opts_field("poppies_resolved")[poppy_name]
-	then
+	if not shared.session_is_open() then return end
+
+	local entry = state.poppy(poppy_name)
+	if not entry then
 		vim.notify(string.format("Poppy: unknown poppy '%s'", tostring(poppy_name)), vim.log.levels.WARN)
 		return
 	end
@@ -156,14 +156,14 @@ M.switch_by_name = function(poppy_name)
 		M.transition_to_content()
 	end
 
-	local poppy_opts = shared.opts_field("poppies_resolved")[poppy_name]
+	local poppy_opts = entry.config
 	if state.windows.current_poppy_name and state.windows.current_poppy_name ~= poppy_name then
 		state.windows.last_poppy_name = state.windows.current_poppy_name
 	end
 	state.set_current_poppy_name(poppy_name)
 
 	local mode = poppy_opts.mode
-	require("poppy.core.modes." .. mode).run(poppy_name, state.windows.opts, state.windows.content_win)
+	require("poppy.core.modes." .. mode).run(poppy_name, poppy_opts, state.windows.content_win)
 
 	require("poppy.core.session.menu").setup_content_keys(vim.api.nvim_win_get_buf(state.windows.content_win))
 

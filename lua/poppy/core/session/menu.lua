@@ -27,7 +27,10 @@ end
 -- unconditionally because the list panel exists in both modes (just
 -- not visible when autohide hides it).
 M.toggle_menu = function()
-	if not shared.ensure_setup() then return end
+	vim.print(vim.inspect(state))
+	if not shared.ensure_setup() then
+		return
+	end
 	if state.windows.is_landing or not shared.session_is_open() then
 		return
 	end
@@ -50,7 +53,9 @@ M.toggle_menu = function()
 end
 
 M.exit_menu = function()
-	if not shared.ensure_setup() then return end
+	if not shared.ensure_setup() then
+		return
+	end
 	if not panels.is_menu_focused() or state.windows.is_landing then
 		return
 	end

@@ -111,11 +111,6 @@ _(none)_
   is either to keep `actions` as the only state-transition module
   and shrink `menu` to a keymap-only module, or move the few shared
   functions into `shared.lua` so neither has to require the other.
-- `state.windows.opts.poppies_resolved` is one of two parallel poppy
-  tables in `opts` (the other being `poppies`, the user's raw input).
-  Only used in `switch_by_name`. The `poppies_resolved` naming is
-  redundant — it's resolved at config-time, not at use-time — but
-  it's load-bearing so leave it.
 
 ## Real bugs
 
