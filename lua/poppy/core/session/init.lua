@@ -2,13 +2,10 @@
 local M = {}
 
 local state = require("poppy.core.session.state")
-local panels = require("poppy.core.ui.panels")
-local wrapper = require("poppy.core.ui.wrapper")
-local content = require("poppy.core.ui.content")
+local view = require("poppy.core.ui.view")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 local config = require("poppy.config")
-local style = require("poppy.core.ui.style")
 local keymaps = require("poppy.core.session.keymaps")
 local menu = require("poppy.core.session.menu")
 
@@ -190,10 +187,10 @@ end
 
 M.setup = function(user_opts)
 	init_or_reset_state()
-	style.setup()
+	view.setup_style()
 	vim.api.nvim_create_augroup("poppy_ui", { clear = true })
 	state.windows.opts = config.merge(user_opts)
-	style.define_icon_signs(state.windows.opts.icons)
+	view.define_icon_signs(state.windows.opts.icons)
 	if next(state.windows.opts.poppies_resolved or {}) == nil then
 		vim.notify(
 			"Poppy: no poppies declared in setup({poppies = {...}}); the manager will open empty.",
@@ -276,7 +273,7 @@ local cleanup = function(drop_poppies)
 	local hint_buf = state.windows.menu_hint_buf
 	shared.close_menu_hint()
 
-	panels.unmount()
+	view.unmount()
 
 	-- Wipe WinClosed watchers before closing windows to avoid re-fire.
 	vim.api.nvim_create_augroup("poppy_ui", { clear = true })
@@ -291,9 +288,9 @@ local cleanup = function(drop_poppies)
 	local buffers = { state.windows.content_buf }
 	if not has_running_popies then
 		table.insert(buffers, state.windows.wrapper_buf)
-		table.insert(buffers, panels.get_hints_buf())
-		table.insert(buffers, panels.get_list_buf())
-		local hbuf = panels.get_header_buf()
+		table.insert(buffers, view.get_hints_buf())
+		table.insert(buffers, view.get_list_buf())
+		local hbuf = view.get_header_buf()
 		if hbuf then
 			table.insert(buffers, hbuf)
 		end
@@ -352,7 +349,7 @@ M.toggle = function()
 end
 
 local open_wrapper = function(width_override)
-	local win, wbuf = wrapper.ensure(state.windows.wrapper_buf, state.windows.opts, width_override)
+	local win, wbuf = view.wrapper.ensure(state.windows.wrapper_buf, state.windows.opts, width_override)
 	state.windows.wrapper_buf = wbuf
 	return win
 end
@@ -387,7 +384,7 @@ M.open = function(poppy_name)
 		M.enter_landing()
 	end
 
-	panels.refresh_poppies()
+	view.refresh_poppies()
 	return state.windows.wrapper_win
 end
 
@@ -457,13 +454,13 @@ M.switch_by_name = function(poppy_name)
 	keymaps.setup_content_keys(vim.api.nvim_win_get_buf(state.windows.content_win))
 
 	if shared.opts_field("menu_autohide") then
-		panels.set_visible(false, state.windows.content_win)
+		view.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	else
-		panels.set_focused(false)
+		view.set_focused(false)
 	end
 
-	panels.refresh_poppies()
+	view.refresh_poppies()
 	if
 		shared.try_focus_win(state.windows.content_win)
 		and vim.bo[vim.api.nvim_win_get_buf(state.windows.content_win)].buftype == "terminal"
@@ -533,7 +530,7 @@ local _kill = function(resolved)
 	end
 
 	if shared.session_is_open() and not state.windows.is_landing then
-		panels.refresh_poppies()
+		view.refresh_poppies()
 	end
 end
 
@@ -579,7 +576,7 @@ watch_content_window = function(win_id, menu_w)
 			if not shared.session_is_open() then
 				return
 			end
-			local c_win, c_buf = content.create(state.windows.wrapper_win, w)
+			local c_win, c_buf = view.content.create(state.windows.wrapper_win, w)
 			state.windows.content_win = c_win
 			state.windows.content_buf = c_buf
 			if type(watch_content_window) == "function" then
@@ -597,7 +594,7 @@ end
 
 M.transition_to_content = function()
 	if state.windows.is_landing then
-		panels.unmount()
+		view.unmount()
 		local wc = vim.api.nvim_win_get_config(state.windows.wrapper_win)
 		local full_width = layout.compute_wrapper_dimensions(state.windows.opts, vim.o.columns, vim.o.lines)
 		vim.api.nvim_win_set_config(state.windows.wrapper_win, {
@@ -609,9 +606,9 @@ M.transition_to_content = function()
 		})
 		state.windows.is_landing = false
 	end
-	local panel_width = panels.menu_width()
-	local c_win, c_buf = content.create(state.windows.wrapper_win, panel_width)
-	panels.mount(state.windows.wrapper_win)
+	local panel_width = view.menu_width()
+	local c_win, c_buf = view.content.create(state.windows.wrapper_win, panel_width)
+	view.mount(state.windows.wrapper_win)
 	watch_content_window(c_win, panel_width)
 	state.windows.content_win = c_win
 	state.windows.content_buf = c_buf
@@ -619,12 +616,12 @@ end
 
 M.enter_landing = function()
 	state.windows.is_landing = true
-	panels.mount(state.windows.wrapper_win)
+	view.mount(state.windows.wrapper_win)
 	state.windows.content_win = nil
 	state.windows.content_buf = nil
-	local list_buf = panels.get_list_buf()
+	local list_buf = view.get_list_buf()
 	vim.bo[list_buf].filetype = "poppy_menu"
-	local list_win = panels.get_list_win()
+	local list_win = view.get_list_win()
 	if list_win and vim.api.nvim_win_is_valid(list_win) then
 		vim.api.nvim_set_current_win(list_win)
 	end
@@ -657,7 +654,7 @@ M.recover = function()
 		if fallback_name then
 			M.switch_by_name(fallback_name)
 		else
-			panels.unmount()
+			view.unmount()
 			shared.close_menu_hint()
 
 			vim.api.nvim_create_augroup("poppy_ui", { clear = true })
@@ -677,7 +674,7 @@ M.recover = function()
 			})
 
 			M.enter_landing()
-			panels.refresh_poppies()
+			view.refresh_poppies()
 		end
 	end)
 end

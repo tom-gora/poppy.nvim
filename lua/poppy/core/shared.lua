@@ -32,16 +32,16 @@ M.hide_poppy = function(name)
 end
 
 -- Pair: open or refresh the bottom-right menu-hint window. Lazy-requires
--- hints_panel to avoid a load-time cycle (hints_panel imports shared).
+-- render to avoid a load-time cycle (render imports shared).
 -- Closes any previous hint first to prevent orphaned windows accumulating
 -- across switch operations.
 M.show_menu_hint = function()
 	M.close_menu_hint()
 	local content_win = state.windows.content_win
 	if content_win and vim.api.nvim_win_is_valid(content_win) then
-		local hints_panel = require("poppy.core.ui.hints_panel")
+		local render = require("poppy.core.ui.render")
 		state.windows.menu_hint_win, state.windows.menu_hint_buf =
-			hints_panel.create_bottom_right(content_win, M.keys())
+			render.hints.create_bottom_right(content_win, M.keys())
 	end
 end
 

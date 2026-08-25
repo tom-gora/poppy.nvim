@@ -2,7 +2,7 @@
 local M = {}
 
 local state = require("poppy.core.session.state")
-local panels = require("poppy.core.ui.panels")
+local view = require("poppy.core.ui.view")
 local shared = require("poppy.core.shared")
 
 -- Lazy-requires the session facade inside keymap callbacks only. Callbacks
@@ -11,7 +11,7 @@ local shared = require("poppy.core.shared")
 -- the import surface minimal.
 
 M.focus_list_with_cursor = function()
-	local list_win = panels.get_list_win()
+	local list_win = view.get_list_win()
 	if not shared.try_focus_win(list_win) then
 		return
 	end
