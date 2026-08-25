@@ -263,4 +263,21 @@ end
 -- value without re-implementing the `state.windows.opts and ... or 25` chain.
 M.menu_width = menu_width
 
+-- Re-render the sidebar list rows after any pop-changing action. Hints
+-- are static (written once at mount time) so this only repaints the list.
+-- Panels owns the list buffer and the registry projection onto it, so
+-- the render belongs here rather than in the session orchestrator.
+M.refresh_poppies = function()
+	if state.windows.hidden then
+		return
+	end
+	local width
+	if state.windows.is_landing and state.windows.wrapper_win then
+		width = vim.api.nvim_win_get_width(state.windows.wrapper_win)
+	else
+		width = menu_width()
+	end
+	list_panel.update(state.windows.list_buf, state.poppies, shared.opts_field("icons"), width)
+end
+
 return M

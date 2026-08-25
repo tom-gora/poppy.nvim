@@ -2,7 +2,7 @@
 require("poppy._types")
 
 local M = {}
-local actions = require("poppy.core.session.actions")
+local session = require("poppy.core.session")
 local state = require("poppy.core.session.state")
 local shared = require("poppy.core.shared")
 
@@ -80,7 +80,7 @@ M.run = function(poppy_name, poppy_opts, parent_win)
 						vim.api.nvim_buf_delete(bufnr, { force = true })
 					end
 					if shared.session_is_open() and shared.session_get_current_poppy_name() == poppy_name then
-						actions.kill_active()
+						session.kill_active()
 					else
 						local entry = state.poppy(poppy_name)
 						if entry then

@@ -41,4 +41,20 @@ end
 
 M.recreate = open_with
 
+-- Reuse the existing buffer if valid, else create. Lets callers express
+-- "give me a window for this buffer, creating one if needed" without
+-- knowing the recreate-vs-create rule.
+---@param buf integer|nil
+---@param poppy_opts? PoppyConfig
+---@param width_override? integer
+---@return integer? win
+---@return integer? buf
+M.ensure = function(buf, poppy_opts, width_override)
+	if buf and vim.api.nvim_buf_is_valid(buf) then
+		return M.recreate(buf, poppy_opts, width_override), buf
+	end
+	local win, wbuf = M.create(poppy_opts, width_override)
+	return win, wbuf
+end
+
 return M
