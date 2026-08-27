@@ -35,9 +35,26 @@ M.run = function(poppy_name, poppy_opts, parent_win)
 		if vim.fn.filereadable(file_path) ~= 1 then
 			vim.fn.writefile({}, file_path)
 		end
-		vim.api.nvim_buf_call(bufnr, function()
-			vim.cmd("edit " .. vim.fn.fnameescape(file_path))
-		end)
+		-- Load the file directly into `bufnr` via readfile + set_lines
+		-- instead of `:edit` inside nvim_buf_call. `:edit` is a window-
+		-- level command; when the buffer isn't in any window yet, its
+		-- behaviour depends on the current window's buffer, which can
+		-- cause the file to load into a *different* buffer than `bufnr`
+		-- and leave `bufnr` empty. Loading via the buffer API is window-
+		-- independent and guarantees the contents land in `bufnr`.
+		-- We then trigger BufRead manually so filetype detection / ftplugin
+		-- autocmds fire the same way they would for a normal :edit.
+		local lines = vim.fn.readfile(file_path, "b")
+		vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+		pcall(vim.api.nvim_buf_set_name, bufnr, file_path)
+		pcall(vim.api.nvim_exec_autocmds, "BufRead", {
+			buffer = bufnr,
+			modeline = false,
+		})
+		-- BufRead / ftplugin may set 'modified'; we just loaded from disk,
+		-- so the buffer matches its file. Reset the flag so subsequent
+		-- `:bd` works without "!".
+		vim.api.nvim_set_option_value("modified", false, { buf = bufnr })
 		vim.bo[bufnr].buflisted = false
 		vim.bo[bufnr].bufhidden = "hide"
 		vim.bo[bufnr].swapfile = false

@@ -262,53 +262,66 @@ local clear_poppies = function()
 end
 
 local cleanup = function(drop_poppies)
-	if drop_poppies then
-		clear_poppies()
-	end
-
-	if state.windows.current_poppy_name then
-		shared.hide_poppy(state.windows.current_poppy_name)
-	end
-
-	local hint_buf = state.windows.menu_hint_buf
-	shared.close_menu_hint()
-
-	view.unmount()
-
-	-- Wipe WinClosed watchers before closing windows to avoid re-fire.
-	vim.api.nvim_create_augroup("poppy_ui", { clear = true })
-
-	for _, win in ipairs({ state.windows.wrapper_win, state.windows.content_win }) do
-		if win and vim.api.nvim_win_is_valid(win) then
-			vim.api.nvim_win_close(win, true)
+	local ok, err = pcall(function()
+		if drop_poppies then
+			clear_poppies()
 		end
-	end
 
-	local has_running_popies = next(state.poppies) ~= nil
-	local buffers = { state.windows.content_buf }
-	if not has_running_popies then
-		table.insert(buffers, state.windows.wrapper_buf)
-		table.insert(buffers, view.get_hints_buf())
-		table.insert(buffers, view.get_list_buf())
-		local hbuf = view.get_header_buf()
-		if hbuf then
-			table.insert(buffers, hbuf)
+		if state.windows.current_poppy_name then
+			shared.hide_poppy(state.windows.current_poppy_name)
 		end
-	end
-	if hint_buf and vim.api.nvim_buf_is_valid(hint_buf) then
-		table.insert(buffers, hint_buf)
-	end
 
-	for _, buf in ipairs(buffers) do
-		if buf and vim.api.nvim_buf_is_valid(buf) then
-			vim.api.nvim_buf_delete(buf, { force = true })
+		local hint_buf = state.windows.menu_hint_buf
+		shared.close_menu_hint()
+
+		view.unmount()
+
+		-- Suppress WinClosed watcher while we close the wrapper/content windows;
+		-- otherwise our own teardown would re-fire the watcher and try to
+		-- recreate state we're about to throw away.
+		state.windows.recovering = true
+
+		-- Wipe WinClosed watchers before closing windows to avoid re-fire.
+		vim.api.nvim_create_augroup("poppy_ui", { clear = true })
+
+		for _, win in ipairs({ state.windows.wrapper_win, state.windows.content_win }) do
+			if win and vim.api.nvim_win_is_valid(win) then
+				vim.api.nvim_win_close(win, true)
+			end
 		end
-	end
 
-	state.windows.wrapper_win = nil
-	state.windows.content_win = nil
-	state.windows.content_buf = nil
-	state.windows.is_landing = false
+		state.windows.recovering = false
+
+		local has_running_popies = next(state.poppies) ~= nil
+		local buffers = { state.windows.content_buf }
+		if not has_running_popies then
+			table.insert(buffers, state.windows.wrapper_buf)
+			table.insert(buffers, view.get_hints_buf())
+			table.insert(buffers, view.get_list_buf())
+			local hbuf = view.get_header_buf()
+			if hbuf then
+				table.insert(buffers, hbuf)
+			end
+		end
+		if hint_buf and vim.api.nvim_buf_is_valid(hint_buf) then
+			table.insert(buffers, hint_buf)
+		end
+
+		for _, buf in ipairs(buffers) do
+			if buf and vim.api.nvim_buf_is_valid(buf) then
+				vim.api.nvim_buf_delete(buf, { force = true })
+			end
+		end
+
+		state.windows.wrapper_win = nil
+		state.windows.content_win = nil
+		state.windows.content_buf = nil
+		state.windows.is_landing = false
+	end)
+	if not ok then
+		vim.notify("Poppy: cleanup failed: " .. tostring(err), vim.log.levels.ERROR)
+		state.windows.recovering = false
+	end
 end
 
 local setup_exclusive_float = function()
@@ -573,6 +586,11 @@ watch_content_window = function(win_id, menu_w)
 		once = true,
 		group = "poppy_ui",
 		callback = function()
+			-- A recover/cleanup is already tearing down state; let it finish
+			-- without us spawning a fresh empty content window mid-flight.
+			if state.windows.recovering then
+				return
+			end
 			if not shared.session_is_open() then
 				return
 			end
@@ -631,50 +649,60 @@ end
 M.recover = function()
 	state.set_current_poppy_name(nil)
 	vim.schedule(function()
-		if not shared.session_is_open() or state.windows.is_landing or state.windows.current_poppy_name then
-			return
-		end
-
-		local fallback_name = nil
-		if state.windows.last_poppy_name then
-			local entry = state.poppy(state.windows.last_poppy_name)
-			if entry and entry.runtime_state and entry.runtime_state.hidden then
-				fallback_name = state.windows.last_poppy_name
+		-- Gate the WinClosed watcher while recovery is mid-flight; otherwise
+		-- closing content_win below would re-fire the watcher and spawn a
+		-- fresh empty content window + a second recover, racing the cleanup.
+		state.windows.recovering = true
+		local ok, err = pcall(function()
+			if not shared.session_is_open() or state.windows.is_landing or state.windows.current_poppy_name then
+				return
 			end
-		end
-		if not fallback_name then
-			for name, entry in pairs(state.poppies_runtime()) do
-				if entry.runtime_state and entry.runtime_state.hidden then
-					fallback_name = name
-					break
+
+			local fallback_name = nil
+			if state.windows.last_poppy_name then
+				local entry = state.poppy(state.windows.last_poppy_name)
+				if entry and entry.runtime_state and entry.runtime_state.hidden then
+					fallback_name = state.windows.last_poppy_name
 				end
 			end
-		end
-
-		if fallback_name then
-			M.switch_by_name(fallback_name)
-		else
-			view.unmount()
-			shared.close_menu_hint()
-
-			vim.api.nvim_create_augroup("poppy_ui", { clear = true })
-
-			if state.windows.content_win and vim.api.nvim_win_is_valid(state.windows.content_win) then
-				vim.api.nvim_win_close(state.windows.content_win, true)
+			if not fallback_name then
+				for name, entry in pairs(state.poppies_runtime()) do
+					if entry.runtime_state and entry.runtime_state.hidden then
+						fallback_name = name
+						break
+					end
+				end
 			end
 
-			local landing_width = layout.compute_landing_view_width(state.windows.opts, state.poppies)
-			local wc = vim.api.nvim_win_get_config(state.windows.wrapper_win)
-			vim.api.nvim_win_set_config(state.windows.wrapper_win, {
-				relative = wc.relative,
-				width = landing_width,
-				height = wc.height,
-				col = math.floor((vim.o.columns - landing_width) / 2),
-				row = wc.row,
-			})
+			if fallback_name then
+				M.switch_by_name(fallback_name)
+			else
+				view.unmount()
+				shared.close_menu_hint()
 
-			M.enter_landing()
-			view.refresh_poppies()
+				vim.api.nvim_create_augroup("poppy_ui", { clear = true })
+
+				if state.windows.content_win and vim.api.nvim_win_is_valid(state.windows.content_win) then
+					vim.api.nvim_win_close(state.windows.content_win, true)
+				end
+
+				local landing_width = layout.compute_landing_view_width(state.windows.opts, state.poppies)
+				local wc = vim.api.nvim_win_get_config(state.windows.wrapper_win)
+				vim.api.nvim_win_set_config(state.windows.wrapper_win, {
+					relative = wc.relative,
+					width = landing_width,
+					height = wc.height,
+					col = math.floor((vim.o.columns - landing_width) / 2),
+					row = wc.row,
+				})
+
+				M.enter_landing()
+				view.refresh_poppies()
+			end
+		end)
+		state.windows.recovering = false
+		if not ok then
+			vim.notify("Poppy: recover failed: " .. tostring(err), vim.log.levels.ERROR)
 		end
 	end)
 end

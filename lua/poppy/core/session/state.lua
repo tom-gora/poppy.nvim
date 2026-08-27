@@ -18,6 +18,7 @@ local M = {}
 ---@field is_landing boolean Whether the user is currently on the initial landing state
 ---@field hidden boolean Whether the sidebar panels are currently hidden (autohide mode)
 ---@field opts table|nil Configuration options passed down to the state instance
+---@field recovering boolean True while a recovery routine is mid-flight; WinClosed watcher bails when set so it doesn't recreate content mid-cleanup
 
 ---Generates the default configuration and window tracking state.
 ---@return PoppyState # The initialised state object.
@@ -40,6 +41,7 @@ M.default_state = function()
 		is_landing = false,
 		hidden = false,
 		opts = nil,
+		recovering = false,
 	}
 end
 
