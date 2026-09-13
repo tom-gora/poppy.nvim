@@ -1,4 +1,3 @@
----@diagnostic disable: param-type-mismatch
 require("poppy._types")
 
 local M = {}
@@ -8,9 +7,9 @@ local shared = require("poppy.core.shared")
 
 ---@param poppy_name string
 ---@param poppy_opts PoppyResolvedConfig
----@param p_state PoppyRuntimeState|nil
+---@param p_state PoppySessionEntry?
 ---@return integer|nil bufnr
----@return boolean reused True iff bufnr is the same buffer p_state points to and is still alive.
+---@return boolean reused
 local term_get_or_create_buffer = function(poppy_name, poppy_opts, p_state)
 	local rt = p_state and p_state.runtime_state
 	if rt and rt.hidden and rt.bufnr and vim.api.nvim_buf_is_valid(rt.bufnr) then

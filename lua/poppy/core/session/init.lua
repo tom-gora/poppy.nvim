@@ -1,4 +1,3 @@
----@diagnostic disable: param-type-mismatch
 local M = {}
 
 local state = require("poppy.core.session.state")
@@ -9,16 +8,8 @@ local config = require("poppy.config")
 local keymaps = require("poppy.core.session.keymaps")
 local menu = require("poppy.core.session.menu")
 
--- =====================================================================
--- Setup
--- =====================================================================
-
--- Display order: exec first, then file, then shell. Cats not in the
--- order fall to the end (sorted by name below).
 local CAT_ORDER = { exec = 0, file = 1, shell = 2 }
 
--- Inlined from shared.get_sorted_poppies because setup is the only
--- caller. Returns entries as `{name, config}` in display order.
 ---@param opts? PoppyMergedConfig
 ---@return {name: string, config: PoppyResolvedConfig}[]
 local sort_config = function(opts)
@@ -40,31 +31,35 @@ local sort_config = function(opts)
 end
 
 local setup_global_key = function()
-	---@type vim.api.keyset.keymap
-	local toggle_opts = { desc = "Poppy: Toggle UI" }
 	vim.keymap.set(shared.NORM_TERM_MODES, shared.keys().poppy_action, function()
 		M.toggle()
-	end, toggle_opts)
+	end, { desc = "Poppy: Toggle UI" })
 end
 
--- Register the :Poppy user command (toggle | close | menu | open [<name>]).
+---@param opts PoppyMergedConfig
+---@param callbacks table
 local setup_command = function(opts, callbacks)
 	local sub_handlers = {
-		toggle = function()
-			callbacks.toggle()
-		end,
-		close = function()
-			callbacks.close()
-		end,
-		menu = function()
-			callbacks.toggle_menu()
-		end,
-		open = function(name)
-			callbacks.open(name ~= "" and name or nil)
-		end,
+		toggle = function() callbacks.toggle() end,
+		close = function() callbacks.close() end,
+		menu = function() callbacks.toggle_menu() end,
+		open = function(name) callbacks.open(name ~= "" and name or nil) end,
 	}
-	---@type vim.api.keyset.user_command
-	local cmd_opts = {
+	vim.api.nvim_create_user_command("Poppy", function(cmd_args)
+		local sub = cmd_args.fargs[1]
+		local handler = sub_handlers[sub or "toggle"]
+		if not handler then
+			vim.notify(
+				string.format(
+					"Poppy: unknown subcommand '%s' (valid: toggle, close, menu, open [<name>])",
+					tostring(sub)
+				),
+				vim.log.levels.WARN
+			)
+			return
+		end
+		handler(table.concat(cmd_args.fargs, " ", 2))
+	end, {
 		nargs = "*",
 		complete = function(arg_lead, cmd_line)
 			local body = cmd_line:gsub("^%s*:?[Pp]oppy%s+", "")
@@ -91,30 +86,15 @@ local setup_command = function(opts, callbacks)
 			end
 			return {}
 		end,
-	}
-	vim.api.nvim_create_user_command("Poppy", function(cmd_args)
-		local sub = cmd_args.fargs[1]
-		local handler = sub_handlers[sub or "toggle"]
-		if not handler then
-			vim.notify(
-				string.format(
-					"Poppy: unknown subcommand '%s' (valid: toggle, close, menu, open [<name>])",
-					tostring(sub)
-				),
-				vim.log.levels.WARN
-			)
-			return
-		end
-		handler(table.concat(cmd_args.fargs, " ", 2))
-	end, cmd_opts)
+	})
 end
 
--- Register the autocmd set.
+---@param opts PoppyMergedConfig
+---@param callbacks table
 local setup_autocmds = function(opts, callbacks)
 	vim.api.nvim_create_augroup("poppy_group", { clear = true })
 
-	---@type vim.api.keyset.create_autocmd
-	local buf_unload_autocmd = {
+	vim.api.nvim_create_autocmd("BufUnload", {
 		group = "poppy_group",
 		callback = function(e)
 			if not shared.session_is_open() then
@@ -131,25 +111,21 @@ local setup_autocmds = function(opts, callbacks)
 				M.recover()
 			end
 		end,
-	}
-	vim.api.nvim_create_autocmd("BufUnload", buf_unload_autocmd)
+	})
 
 	if opts and opts.menu_autohide then
-		---@type vim.api.keyset.create_autocmd
-		local cursor_hold_autocmd = {
+		vim.api.nvim_create_autocmd("CursorHold", {
 			group = "poppy_group",
 			callback = function()
 				if vim.bo.filetype == "poppy_menu" then
 					menu.exit_menu()
 				end
 			end,
-		}
-		vim.api.nvim_create_autocmd("CursorHold", cursor_hold_autocmd)
+		})
 	end
 
 	if opts and opts.autoclose then
-		---@type vim.api.keyset.create_autocmd
-		local autoclose_autocmd = {
+		vim.api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, {
 			group = "poppy_group",
 			callback = function()
 				if not shared.session_is_open() then
@@ -164,19 +140,17 @@ local setup_autocmds = function(opts, callbacks)
 					if not vim.api.nvim_win_is_valid(cur) then
 						return
 					end
-					-- Internal hop: destination is a poppy window, stay open.
 					if shared.is_poppy_window(cur) then
 						return
 					end
-					-- Cmdline is exempt: user may be typing :Poppy or any command.
+					-- Cmdline exempt: user may be typing :Poppy or any command.
 					if vim.fn.win_gettype(cur) == "command" then
 						return
 					end
 					callbacks.toggle()
 				end)
 			end,
-		}
-		vim.api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, autoclose_autocmd)
+		})
 	end
 end
 
@@ -223,10 +197,6 @@ M.setup = function(user_opts)
 	})
 end
 
--- =====================================================================
--- Public accessors
--- =====================================================================
-
 M.get_poppy_by_name = function(name)
 	return state.poppy(name)
 end
@@ -247,10 +217,6 @@ end
 M.get_current_poppy_name = shared.session_get_current_poppy_name
 M.is_open = shared.session_is_open
 
--- =====================================================================
--- Lifecycle
--- =====================================================================
-
 local clear_poppies = function()
 	for _, entry in ipairs(state.poppies) do
 		local rt = entry.runtime_state
@@ -261,6 +227,7 @@ local clear_poppies = function()
 	state.poppies = {}
 end
 
+-- recovering guards the WinClosed watcher from re-firing during teardown.
 local cleanup = function(drop_poppies)
 	local ok, err = pcall(function()
 		if drop_poppies then
@@ -276,12 +243,7 @@ local cleanup = function(drop_poppies)
 
 		view.unmount()
 
-		-- Suppress WinClosed watcher while we close the wrapper/content windows;
-		-- otherwise our own teardown would re-fire the watcher and try to
-		-- recreate state we're about to throw away.
 		state.windows.recovering = true
-
-		-- Wipe WinClosed watchers before closing windows to avoid re-fire.
 		vim.api.nvim_create_augroup("poppy_ui", { clear = true })
 
 		for _, win in ipairs({ state.windows.wrapper_win, state.windows.content_win }) do
@@ -325,8 +287,7 @@ local cleanup = function(drop_poppies)
 end
 
 local setup_exclusive_float = function()
-	---@type vim.api.keyset.create_autocmd
-	local win_enter_autocmd = {
+	vim.api.nvim_create_autocmd("WinEnter", {
 		group = "poppy_group",
 		once = true,
 		callback = function()
@@ -335,7 +296,6 @@ local setup_exclusive_float = function()
 					if not vim.api.nvim_win_is_valid(w) or shared.is_poppy_window(w) then
 						goto continue
 					end
-					---@diagnostic disable: unnecessary-if
 					if vim.api.nvim_win_get_config(w).relative ~= "" then
 						vim.api.nvim_win_close(w, true)
 					end
@@ -343,8 +303,7 @@ local setup_exclusive_float = function()
 				end
 			end)
 		end,
-	}
-	vim.api.nvim_create_autocmd("WinEnter", win_enter_autocmd)
+	})
 end
 
 M.close = function()
@@ -367,6 +326,8 @@ local open_wrapper = function(width_override)
 	return win
 end
 
+---@param poppy_name? string
+---@return integer?
 M.open = function(poppy_name)
 	if not shared.ensure_setup() then return nil end
 	if shared.session_is_open() then
@@ -381,7 +342,8 @@ M.open = function(poppy_name)
 	end
 
 	local last_poppy = state.windows.current_poppy_name
-	local has_content = poppy_name or (last_poppy and state.poppy(last_poppy) and state.poppy(last_poppy).runtime_state)
+	local last_entry = last_poppy and state.poppy(last_poppy)
+	local has_content = poppy_name or (last_entry and last_entry.runtime_state)
 	local should_land = not has_content
 	local landing_width = should_land and layout.compute_landing_view_width(state.windows.opts, state.poppies) or nil
 
@@ -393,17 +355,13 @@ M.open = function(poppy_name)
 	if has_content then
 		M.transition_to_content()
 		M.switch_by_name(poppy_name or last_poppy)
+		view.refresh_poppies()
 	else
 		M.enter_landing()
 	end
 
-	view.refresh_poppies()
 	return state.windows.wrapper_win
 end
-
--- =====================================================================
--- Switching
--- =====================================================================
 
 local cursor_to_poppy_index = function()
 	local ok, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
@@ -417,9 +375,7 @@ local cursor_to_poppy_index = function()
 	return idx
 end
 
--- Resolve a name-or-index into {name, runtime_state}. runtime_state is
--- nil if the poppy has never been opened. Returns nil for invalid
--- index or nil name.
+---@param name_or_index string|integer|nil
 local resolve = function(name_or_index)
 	local entry
 	if type(name_or_index) == "number" then
@@ -461,8 +417,7 @@ M.switch_by_name = function(poppy_name)
 	end
 	state.set_current_poppy_name(poppy_name)
 
-	local mode = poppy_opts.mode
-	require("poppy.core.modes." .. mode).run(poppy_name, poppy_opts, state.windows.content_win)
+	require("poppy.core.modes." .. poppy_opts.mode).run(poppy_name, poppy_opts, state.windows.content_win)
 
 	keymaps.setup_content_keys(vim.api.nvim_win_get_buf(state.windows.content_win))
 
@@ -498,10 +453,7 @@ M.switch_by_cursor = function()
 	end
 end
 
--- =====================================================================
--- Killing
--- =====================================================================
-
+-- Drop the target buffer up-front so any callback recover() schedules lands on clean state.
 M.kill_active = function()
 	if not shared.ensure_setup() then return end
 	if not state.windows.current_poppy_name then
@@ -512,9 +464,6 @@ M.kill_active = function()
 	local target_rt = entry and entry.runtime_state
 	local target_bufnr = target_rt and target_rt.bufnr
 
-	-- Drop the target buffer up-front so any callback recover() schedules
-	-- (via vim.schedule) lands on a clean state without referencing a
-	-- half-dead window's buffer.
 	if target_bufnr and vim.api.nvim_buf_is_valid(target_bufnr) then
 		vim.api.nvim_buf_delete(target_bufnr, { force = true })
 	end
@@ -565,29 +514,18 @@ M.kill_by_cursor = function()
 	end
 end
 
--- =====================================================================
--- View transitions
--- =====================================================================
-
--- Augroup for per-window WinClosed watchers; cleared on cleanup/recover.
--- Owned by setup_autocmds above (moved out of module-load to avoid
--- clobbering any third-party autocmds registered under the same name).
---
--- pre-initialised for working scoping due to recursive call inside
-local watch_content_window = nil
+-- Forward-declared so the WinClosed callback can recursively re-arm itself on the replacement content window.
+local watch_content_window
 watch_content_window = function(win_id, menu_w)
 	if not win_id then
 		return
 	end
 	local w = menu_w or 25
-	---@type vim.api.keyset.create_autocmd
-	local win_closed_autocmd = {
+	vim.api.nvim_create_autocmd("WinClosed", {
 		pattern = tostring(win_id),
 		once = true,
 		group = "poppy_ui",
 		callback = function()
-			-- A recover/cleanup is already tearing down state; let it finish
-			-- without us spawning a fresh empty content window mid-flight.
 			if state.windows.recovering then
 				return
 			end
@@ -597,17 +535,14 @@ watch_content_window = function(win_id, menu_w)
 			local c_win, c_buf = view.content.create(state.windows.wrapper_win, w)
 			state.windows.content_win = c_win
 			state.windows.content_buf = c_buf
-			if type(watch_content_window) == "function" then
-				watch_content_window(c_win, w)
-			end
+			watch_content_window(c_win, w)
 			if state.windows.current_poppy_name then
 				M.kill_active()
 			else
 				M.recover()
 			end
 		end,
-	}
-	vim.api.nvim_create_autocmd("WinClosed", win_closed_autocmd)
+	})
 end
 
 M.transition_to_content = function()
@@ -644,14 +579,13 @@ M.enter_landing = function()
 		vim.api.nvim_set_current_win(list_win)
 	end
 	keymaps.setup_list_keys(list_buf)
+	view.refresh_poppies()
 end
 
 M.recover = function()
 	state.set_current_poppy_name(nil)
 	vim.schedule(function()
-		-- Gate the WinClosed watcher while recovery is mid-flight; otherwise
-		-- closing content_win below would re-fire the watcher and spawn a
-		-- fresh empty content window + a second recover, racing the cleanup.
+		-- recovering gates the WinClosed watcher; closing content_win below would otherwise re-fire it.
 		state.windows.recovering = true
 		local ok, err = pcall(function()
 			if not shared.session_is_open() or state.windows.is_landing or state.windows.current_poppy_name then
@@ -666,9 +600,9 @@ M.recover = function()
 				end
 			end
 			if not fallback_name then
-				for name, entry in pairs(state.poppies_runtime()) do
+				for _, entry in ipairs(state.poppies_runtime()) do
 					if entry.runtime_state and entry.runtime_state.hidden then
-						fallback_name = name
+						fallback_name = entry.name
 						break
 					end
 				end
@@ -697,7 +631,6 @@ M.recover = function()
 				})
 
 				M.enter_landing()
-				view.refresh_poppies()
 			end
 		end)
 		state.windows.recovering = false

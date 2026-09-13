@@ -1,27 +1,28 @@
-local M = {}
----
----@class PoppyState
----@field wrapper_win integer|nil Window ID for the main outer wrapper
----@field wrapper_buf integer|nil Buffer ID for the main outer wrapper
----@field content_win integer|nil Window ID for the central content area
----@field content_buf integer|nil Buffer ID for the central content area
----@field menu_hint_win integer|nil Window ID for the menu navigation hints
----@field menu_hint_buf integer|nil Buffer ID for the menu navigation hints
----@field hints_win integer|nil Window ID for the general keybinding hints
----@field hints_buf integer|nil Buffer ID for the general keybinding hints
----@field list_win integer|nil Window ID for the selection list component
----@field list_buf integer|nil Buffer ID for the selection list component
----@field header_win integer|nil Window ID for the top header section
----@field header_buf integer|nil Buffer ID for the top header section
----@field current_poppy_name string|nil Name of the currently active poppy
----@field last_poppy_name string|nil Name of the previously active poppy
----@field is_landing boolean Whether the user is currently on the initial landing state
----@field hidden boolean Whether the sidebar panels are currently hidden (autohide mode)
----@field opts table|nil Configuration options passed down to the state instance
----@field recovering boolean True while a recovery routine is mid-flight; WinClosed watcher bails when set so it doesn't recreate content mid-cleanup
+require("poppy._types")
 
----Generates the default configuration and window tracking state.
----@return PoppyState # The initialised state object.
+local M = {}
+
+---@class PoppyState
+---@field wrapper_win integer|nil
+---@field wrapper_buf integer|nil
+---@field content_win integer|nil
+---@field content_buf integer|nil
+---@field menu_hint_win integer|nil
+---@field menu_hint_buf integer|nil
+---@field hints_win integer|nil
+---@field hints_buf integer|nil
+---@field list_win integer|nil
+---@field list_buf integer|nil
+---@field header_win integer|nil
+---@field header_buf integer|nil
+---@field current_poppy_name string|nil
+---@field last_poppy_name string|nil
+---@field is_landing boolean
+---@field hidden boolean
+---@field opts PoppyMergedConfig?
+---@field recovering boolean True while a recovery routine is mid-flight; WinClosed watcher bails when set so it doesn't recreate content mid-cleanup.
+
+---@return PoppyState
 M.default_state = function()
 	return {
 		wrapper_win = nil,
@@ -47,15 +48,11 @@ end
 
 M.windows = M.default_state()
 
--- Poppy registry, sorted once at setup (category then name) and never
--- mutated in shape afterwards. Array index == display order. Entries
--- get a runtime_state table or nil as poppies open/close; the array
--- itself stays stable for the session lifetime.
+-- Array index == display order. Set once at setup; only `runtime_state` flips as poppies open/close.
 ---@type PoppySessionEntry[]
 M.poppies = {}
 
--- Lookup by name: linear scan. ~5-30 entries typical; the encapsulation
--- is for callers, not perf.
+-- Linear scan; ~5-30 entries typical.
 ---@param name string
 ---@return PoppySessionEntry?
 M.poppy = function(name)
@@ -67,7 +64,6 @@ M.poppy = function(name)
 	return nil
 end
 
--- Index lookup by name. Returns the array position (= display row) or nil.
 ---@param name string
 ---@return integer?
 M.poppy_index = function(name)
@@ -79,8 +75,6 @@ M.poppy_index = function(name)
 	return nil
 end
 
--- Set the active poppy name. Pass nil to clear. Validates against the
--- configured set so callers can't drift.
 ---@param name string|nil
 M.set_current_poppy_name = function(name)
 	if name ~= nil and not M.poppy(name) then
@@ -89,8 +83,6 @@ M.set_current_poppy_name = function(name)
 	M.windows.current_poppy_name = name
 end
 
--- Subset of poppies that are currently open (runtime_state ~= nil).
--- Returns a flat list in the same sort order as M.poppies.
 ---@return PoppySessionEntry[]
 M.poppies_runtime = function()
 	local result = {}

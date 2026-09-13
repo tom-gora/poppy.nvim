@@ -58,12 +58,8 @@
 ---@field active boolean
 ---@field hidden boolean
 ---@field bufnr integer
----@field win integer
+---@field win integer|nil
 ---@field title string
-
----@class PoppyEntry
----@field name string
----@field config PoppyResolvedConfig
 
 ---@class PoppySessionEntry
 ---@field name string
@@ -76,18 +72,3 @@
 ---@field col? integer
 ---@field width? integer
 ---@field height? integer
-
----@class PoppyPanelHandles
----@field hints_win integer|nil
----@field hints_buf integer|nil
----@field list_win integer|nil
----@field list_buf integer|nil
-
----@class PoppyListEntry
----@field name string
----@field cat "exec"|"file"|"shell"
----@field icon string
----@field title string
----@field is_active boolean
----@field is_hidden boolean
----@field hl? string

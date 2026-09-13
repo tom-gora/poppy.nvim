@@ -3,21 +3,11 @@ require("poppy._types")
 local M = {}
 
 local layout = require("poppy.core.ui.layout")
-local shared = require("poppy.core.shared")
 
 local DEFAULT_KEYS = { "poppy_action", "select", "kill", "exit_menu" }
 local DEFAULT_ICONS = { "exec", "shell", "file" }
 
--- Pick non-empty strings from `user` for each name in `keys`, falling
--- back to `defaults`. Used to validate config string fields typed by the
--- user (keybindings, icons). Empty strings, nil, and wrong types are
--- all replaced with the default. When `max_display_width` is set, the
--- value's display width must also fit (icons get 2 to allow a single
--- 2-cell nerdfont glyph; longer nerd-font glyphs would break layout).
--- When `reject_pct` is true, values containing `%` are rejected (icons
--- are concatenated into a `string.format` call downstream, so `%`
--- would be mis-interpreted as a conversion spec). On rejection a WARN
--- is emitted so the user knows their override was ignored.
+-- max_display_width=2 fits one 2-cell nerdfont glyph; reject_pct blocks '%' which would break string.format downstream.
 local sanitize_string_fields = function(defaults, user, keys, max_display_width, reject_pct)
 	local out = {}
 	for _, k in ipairs(keys) do
@@ -75,7 +65,7 @@ local default_opts = {
 	win_location = "center",
 }
 
--- Returns nil on validation error (and notifies). Never mutates the input.
+---@return string|nil
 local title_fallback = function(mode, value)
 	if type(value) == "function" then
 		value = value()
@@ -87,6 +77,7 @@ local title_fallback = function(mode, value)
 	return vim.fs.basename(first_arg)
 end
 
+---@return PoppyResolvedConfig?
 local resolve_poppy = function(name, poppy)
 	if not poppy then
 		return nil
@@ -108,32 +99,25 @@ local resolve_poppy = function(name, poppy)
 	end
 
 	local title = poppy.title
-	if not title then
+		if title == nil then
 		title = title_fallback(mode, poppy.exec or poppy.file or poppy.shell or os.getenv("SHELL") or "shell")
 	end
 
-	-- `cat` is derived at use sites via shared.cat(poppy).
 	return {
 		exec = poppy.exec,
 		file = poppy.file,
 		shell = poppy.shell,
 		mode = mode,
-		title = title,
+		title = title or "",
 	}
 end
 
--- User input is never mutated: keys/icons are copied into fresh tables,
--- poppies is referenced, and a parallel `poppies_resolved` map carries
--- engine-internal mode/title.
 ---@param user_opts? PoppyConfig
 ---@return PoppyMergedConfig
 M.merge = function(user_opts)
 	local user = user_opts or {}
 
-	-- `vim.tbl_deep_extend` requires a table as its second positional
-	-- argument and raises a hard error otherwise. Catch non-table
-	-- `user_opts` before reaching it so we surface a WARN and fall back
-	-- to defaults rather than crashing inside the merge.
+	-- vim.tbl_deep_extend errors on non-table; catch up front.
 	if type(user) ~= "table" then
 		vim.notify(
 			string.format(
@@ -145,7 +129,7 @@ M.merge = function(user_opts)
 		user = {}
 	end
 
-	-- Leading `{}` keeps default_opts and user untouched.
+	-- Leading {} keeps default_opts and user untouched.
 	local merged = vim.tbl_deep_extend("force", {}, default_opts, user)
 
 	local known_top = {
@@ -181,10 +165,6 @@ M.merge = function(user_opts)
 		end
 	end
 
-	-- Booleans: silent coercion. User typo like `autoclose = "true"` (truthy
-	-- string) would otherwise pass `if autoclose then` and behave
-	-- correctly today but break silently if the runtime check ever uses
-	-- `type() == "boolean"`.
 	local bool_keys = { "menu_autohide", "title_header", "autoclose", "exclusive_float" }
 	for _, k in ipairs(bool_keys) do
 		if merged[k] ~= nil and type(merged[k]) ~= "boolean" then
@@ -201,9 +181,6 @@ M.merge = function(user_opts)
 		end
 	end
 
-	-- Numbers: silent coercion with WARN. Dimension handling is in
-	-- layout.normalize_dimension; here we only catch obvious type
-	-- mistakes (string/nil/bool passed for menu_width/win_height/win_width).
 	local num_keys = { "menu_width" }
 	for _, k in ipairs(num_keys) do
 		if merged[k] ~= nil and type(merged[k]) ~= "number" and type(merged[k]) ~= "function" then
@@ -220,10 +197,6 @@ M.merge = function(user_opts)
 		end
 	end
 
-	-- poppies: must be a table mapping name -> config table. If the user
-	-- passed a string/list/function, every poppy would silently drop with
-	-- the "must have exactly one of exec/file/shell" error during
-	-- resolution — confusing. Catch it up front.
 	if merged.poppies ~= nil and type(merged.poppies) ~= "table" then
 		vim.notify(
 			string.format(

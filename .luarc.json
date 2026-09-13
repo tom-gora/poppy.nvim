@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/sumneko/vscode-lua/master/lua-language-server/schemas/lua.json",
+  "runtime": {
+    "special": {
+      "vim": "/home/tomeczku/Programming/nvim_types/_meta"
+    },
+    "path": [
+      "lua/?.lua",
+      "lua/?/init.lua"
+    ]
+  },
+  "diagnostics": {
+    "globals": [
+      "vim"
+    ]
+  },
+  "workspace": {
+    "checkThirdParty": false,
+    "library": [
+      "/home/tomeczku/Programming/nvim_types/_meta"
+    ]
+  }
+}

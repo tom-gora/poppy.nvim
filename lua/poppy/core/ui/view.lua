@@ -8,15 +8,11 @@ local style = require("poppy.core.ui.style")
 local render = require("poppy.core.ui.render")
 local shared = require("poppy.core.shared")
 
--- =====================================================================
--- Shell windows: wrapper + content
--- =====================================================================
-
 M.wrapper = {}
 M.content = {}
 
 ---@param buf integer
----@param poppy_opts? PoppyConfig
+---@param poppy_opts? PoppyMergedConfig
 ---@param width_override? integer
 ---@return integer? win
 local wrapper_open_with = function(buf, poppy_opts, width_override)
@@ -39,7 +35,7 @@ local wrapper_open_with = function(buf, poppy_opts, width_override)
 	return win
 end
 
----@param poppy_opts? PoppyConfig
+---@param poppy_opts? PoppyMergedConfig
 ---@param width_override? integer
 ---@return integer? win
 ---@return integer? buf
@@ -51,11 +47,8 @@ end
 
 M.wrapper.recreate = wrapper_open_with
 
--- Reuse the existing buffer if valid, else create. Lets callers express
--- "give me a window for this buffer, creating one if needed" without
--- knowing the recreate-vs-create rule.
 ---@param buf integer|nil
----@param poppy_opts? PoppyConfig
+---@param poppy_opts? PoppyMergedConfig
 ---@param width_override? integer
 ---@return integer? win
 ---@return integer? buf
@@ -80,11 +73,8 @@ M.content.create = function(wrapper_win, list_panel_width)
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
-		-- account for solid border providing some padding for readability
-		-- the bodrer does not exceed the wrapper's size
 		width = math.min(wrapper_conf.width - list_panel_width - 2),
 		height = wrapper_conf.height - 2,
-		--
 		anchor = "NW",
 		col = 0,
 		row = 0,
@@ -101,10 +91,6 @@ M.content.create = function(wrapper_win, list_panel_width)
 	shared.apply_win_marker(win)
 	return win, buf
 end
-
--- =====================================================================
--- Panel helpers
--- =====================================================================
 
 ---@param b integer|nil
 ---@return boolean
@@ -149,9 +135,6 @@ local resize_content = function(win, width, height, row)
 	})
 end
 
--- Reuse the existing buffer if valid, else create. `create` returns
--- (win, buf); `recreate` takes the buf and returns the win. `skip`
--- nils out the state entries (matches the original header_height==0 path).
 ---@param buf_key string
 ---@param win_key string
 ---@param create fun():integer?,integer?
@@ -184,48 +167,34 @@ local menu_width = function()
 	return shared.opts_field("menu_width") or 25
 end
 
--- =====================================================================
--- Mount: sidebar vs landing collapsed behind a mode table
--- =====================================================================
-
 local SIDEBAR = {
-	width_source = "menu",         -- list width comes from menu_width()
+	width_source = "menu",
 	list_focusable = false,
 	hints_kind = "menu",
-	hints_lines_source = "menu",  -- use M.HINT_LINES.menu (no +2 offset)
+	hints_lines_source = "menu",
 	hints_opts = function(wc, mw)
-		-- Sidebar hints sit at the right edge of the wrapper, just above
-		-- the bottom border, sized to the sidebar's menu width.
 		return { width = mw, col = wc.width, row = wc.height - 1, height = render.HINT_LINES.menu, kind = "menu" }
 	end,
 	header = function(wc, mw)
-		-- Two-segment header: menu portion on the left, fill on the right.
 		return mw, wc.width - mw
 	end,
 	write_static_width_source = "menu",
 }
 
 local LANDING = {
-	width_source = "wrapper",      -- list width spans the wrapper
+	width_source = "wrapper",
 	list_focusable = true,
 	hints_kind = "landing",
-	hints_lines_source = "landing_plus_2", -- HINT_LINES.landing + 2
+	hints_lines_source = "landing_plus_2",
 	hints_opts = function()
 		return { kind = "landing" }
 	end,
 	header = function()
-		-- Single full-width header, default size from header_panel.
 		return nil, nil
 	end,
 	write_static_width_source = "wrapper",
 }
 
--- Mount the sidebar trio (list + hints + header) for either landing or
--- sidebar mode. The two flavors share the same shape and differ only
--- in per-mode config (width source, focus, hints options). The actual
--- width math lives in layout.compute_wrapper_dimensions /
--- compute_landing_view_width; this function just reads what the wrapper
--- already has and dispatches to the renderers.
 local mount_panels = function(wrapper_win)
 	local wc = vim.api.nvim_win_get_config(wrapper_win)
 	local hh = header_height()
@@ -233,9 +202,7 @@ local mount_panels = function(wrapper_win)
 	local is_landing = state.windows.is_landing
 	local cfg = is_landing and LANDING or SIDEBAR
 
-	-- List width: sidebar uses fixed menu width, landing spans wrapper.
 	local list_w = (cfg.width_source == "menu") and mw or wc.width
-	-- Hints-line count: landing gets +2 padding for separator alignment.
 	local hints_hl = (cfg.hints_lines_source == "menu")
 		and render.HINT_LINES.menu
 		or render.HINT_LINES.landing + 2
@@ -270,10 +237,6 @@ local mount_panels = function(wrapper_win)
 	state.windows.hidden = false
 end
 
--- =====================================================================
--- Public API
--- =====================================================================
-
 ---@param wrapper_win integer
 ---@return void
 M.mount = function(wrapper_win)
@@ -286,9 +249,6 @@ M.unmount = function()
 	close_all_panels()
 end
 
--- Sidebar visibility (autohide mode). No-op in landing. When visible=true,
--- mounts the sidebar panels and shrinks content to leave room; when
--- visible=false, closes panels and grows content back to wrapper width.
 ---@param visible boolean
 ---@param content_win integer
 ---@return void
@@ -322,8 +282,6 @@ M.set_visible = function(visible, content_win)
 	end
 end
 
--- The only runtime dial within sidebar: flip the list panel's focusable.
--- No rebuild — just sets the focusable option on the existing window.
 ---@param focused boolean
 ---@return void
 M.set_focused = function(focused)
@@ -338,7 +296,6 @@ M.set_focused = function(focused)
 	end
 end
 
--- Derived from Neovim's current window. No sync point needed.
 ---@return boolean
 M.is_menu_focused = function()
 	local list_win = state.windows.list_win
@@ -368,15 +325,8 @@ M.get_header_buf = function()
 	return state.windows.header_buf
 end
 
--- Exposed so callers (e.g. session/init.lua) can read the same
--- default-handled value without re-implementing the `opts and ... or 25`
--- chain.
 M.menu_width = menu_width
 
--- Re-render the sidebar list rows after any pop-changing action. Hints
--- are static (written once at mount time) so this only repaints the list.
--- view owns the list buffer and the registry projection onto it, so the
--- render belongs here rather than in the session orchestrator.
 M.refresh_poppies = function()
 	if state.windows.hidden then
 		return
@@ -390,7 +340,6 @@ M.refresh_poppies = function()
 	render.list.update(state.windows.list_buf, state.poppies, shared.opts_field("icons"), width)
 end
 
--- Setup helpers (called by session/init.lua).
 M.setup_style = style.setup
 M.define_icon_signs = style.define_icon_signs
 

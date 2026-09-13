@@ -1,14 +1,8 @@
----@diagnostic disable: param-type-mismatch
 local M = {}
 
 local state = require("poppy.core.session.state")
 local view = require("poppy.core.ui.view")
 local shared = require("poppy.core.shared")
-
--- Lazy-requires the session facade inside keymap callbacks only. Callbacks
--- fire long after module load, so the facade is already fully loaded by
--- the time these closures run; this avoids a static cycle while keeping
--- the import surface minimal.
 
 M.focus_list_with_cursor = function()
 	local list_win = view.get_list_win()
@@ -18,8 +12,7 @@ M.focus_list_with_cursor = function()
 	if not state.windows.current_poppy_name then
 		return
 	end
-	local current_entry = state.poppy(state.windows.current_poppy_name)
-	if current_entry then
+	if state.poppy(state.windows.current_poppy_name) then
 		local idx = state.poppy_index(state.windows.current_poppy_name)
 		if idx then
 			pcall(vim.api.nvim_win_set_cursor, list_win, { idx, 0 })
@@ -27,10 +20,7 @@ M.focus_list_with_cursor = function()
 	end
 end
 
--- Buffer-local keymaps for the list and content panes. Bound to the
--- buffer because there are multiple windows in the plugin UI and we
--- only want these to fire when the relevant pane is focused.
-
+---@param buf integer
 M.setup_list_keys = function(buf)
 	local keys = shared.keys()
 
@@ -62,6 +52,7 @@ M.setup_list_keys = function(buf)
 	end, opts_for("Poppy: Exit menu"))
 end
 
+---@param buf integer
 M.setup_content_keys = function(buf)
 	local keys = shared.keys()
 

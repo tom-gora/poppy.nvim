@@ -40,16 +40,16 @@ hints, and a corner "Menu" hint — all toggled by one keybinding
 - **`shared.ensure_setup()`** guards every public function so direct
   calls before `setup()` warn instead of nil-derefing.
 - **Recent changes (the working-tree diff)** added a `recovering` flag
-  + `pcall` in `cleanup()` and `M.recover()` — both fix real race
-  shapes (WinClosed watcher re-firing during teardown). The thinking
-  is right; the diff just exposes that `recover` / `cleanup` are now
-  even more entangled than before (see problems below).
+  - `pcall` in `cleanup()` and `M.recover()` — both fix real race
+    shapes (WinClosed watcher re-firing during teardown). The thinking
+    is right; the diff just exposes that `recover` / `cleanup` are now
+    even more entangled than before (see problems below).
 
 ## Cons
 
 - **`session/init.lua` is ~710 lines doing 6 distinct jobs**:
   setup wiring, public getters, open/close/toggle lifecycle,
-  switch_/kill_ actions, view-state transitions (landing ↔ content),
+  switch\_/kill\_ actions, view-state transitions (landing ↔ content),
   and the recursive `watch_content_window` for `WinClosed`. Each is
   readable in isolation, but the file is at the size where adding a
   new lifecycle event means scrolling. Splitting actions out
@@ -57,16 +57,13 @@ hints, and a corner "Menu" hint — all toggled by one keybinding
   (`transition_to_content`/`enter_landing`/`recover` →
   `view_transitions.lua`) would help. Not urgent; flagging for when
   shape stabilizes.
-- **`state.poppies` is dual-purpose**: an array of `{name, config,
-  runtime_state?}` where `runtime_state` is nil until the poppy is
+- **`state.poppies` is dual-purpose**: an array of `{name, config, runtime_state?}` where `runtime_state` is nil until the poppy is
   opened. Every reader has to remember which shape they're holding.
   The `poppies_runtime()` helper filters on `runtime_state ~= nil`
-  but call sites still write `entry.runtime_state and
-  entry.runtime_state.hidden` redundantly. A clean split into
+  but call sites still write `entry.runtime_state and entry.runtime_state.hidden` redundantly. A clean split into
   `state.poppies` (config) + `state.poppies_runtime` (map of name →
   runtime_state) would make every call site read honestly.
-- **`menu_width` lies in the type system.** Type allows `number |
-  function` (`_types.lua:29`) but `view.menu_width()` does
+- **`menu_width` lies in the type system.** Type allows `number | function` (`_types.lua:29`) but `view.menu_width()` does
   `opts_field("menu_width") or 25` without resolving functions. If a
   user passes a function (legal per the type) it's silently ignored.
   Either narrow the type or resolve the function. Same asymmetry
@@ -157,13 +154,6 @@ hints, and a corner "Menu" hint — all toggled by one keybinding
 
 ### Type / API surface
 
-- **`_types.lua` has dead / wrong types.** `PoppyEntry` is annotated
-  as `layout.compute_landing_view_width`'s param but the function
-  actually receives `state.poppies` (which is
-  `PoppySessionEntry[]`). `PoppyListEntry` is defined but never
-  referenced (the renderer's local table is inline-annotated in
-  `render.lua:266-274`). `PoppyPanelHandles` is defined but no caller
-  uses it (left over from a pre-refactor `panels.create` return).
 - **`PoppyConfig.menu_width` is `number` only** (after narrowing
   intent), but the type still says `number` only — that's fine.
   Inconsistent with `win_height`/`win_width` (which genuinely accept
@@ -172,8 +162,7 @@ hints, and a corner "Menu" hint — all toggled by one keybinding
 ### Maintainability
 
 - **`config.merge` carries 8 `vim.notify(string.format(...))` calls**
-  in a 290-line file, each 5 lines. A 3-line `notify_warn(template,
-  ...)` helper would compress without losing detail.
+  in a 290-line file, each 5 lines. A 3-line `notify_warn(template, ...)` helper would compress without losing detail.
 - **`style.setup` is ~100 lines of hardcoded highlight math**, with
   the `CATEGORY = {File, Exec, Shell}` loop appearing 3-4 times. A
   shared subroutine per derivation (normal-tint, hidden-darken,
@@ -182,10 +171,8 @@ hints, and a corner "Menu" hint — all toggled by one keybinding
   parallel `create`/`recreate`/`update` shapes. The namespace prefixes
   (`header_ns`, `list_ns`, `hints_ns`) keep it grep-able today; if
   panels grow, splitting per-panel files would help.
-- **`modes/term.lua` `spawn_opts` is built inside `nvim_buf_call(bufnr,
-  ...)` even though `on_exit` only touches the buffer by id.** The
-  `nvim_buf_call` is doing no work for `spawn_opts`; the `modified =
-  false` toggle inside is the only thing that needs buf context and
+- **`modes/term.lua` `spawn_opts` is built inside `nvim_buf_call(bufnr, ...)` even though `on_exit` only touches the buffer by id.** The
+  `nvim_buf_call` is doing no work for `spawn_opts`; the `modified = false` toggle inside is the only thing that needs buf context and
   could be a single `set_option_value` call.
 - **`shared.cat` reaches into `poppy.exec`/`poppy.file`/`poppy.shell`
   to derive the user-facing category, but `resolve_poppy` already
@@ -214,13 +201,13 @@ fixes are correct and address real bugs:
   land in `bufnr`.
 
 The cost: `cleanup` and `recover` now both wrap their body in `pcall`
-+ `recovering` toggle + `recovering = false` reset on error. This is
-the third "guard the recovery path" mechanism in the file (alongside
-the augroup-clear and the existing checks). It's accumulating. A
-small `state.with_recovery(fn)` helper that handles
-`recovering = true; local ok, err = pcall(fn); recovering = false;
-notify on err` would consolidate all three call sites. Worth doing
-before a fourth mechanism gets added.
+
+- `recovering` toggle + `recovering = false` reset on error. This is
+  the third "guard the recovery path" mechanism in the file (alongside
+  the augroup-clear and the existing checks). It's accumulating. A
+  small `state.with_recovery(fn)` helper that handles
+  `recovering = true; local ok, err = pcall(fn); recovering = false; notify on err` would consolidate all three call sites. Worth doing
+  before a fourth mechanism gets added.
 
 ## Overall shape
 
@@ -237,11 +224,12 @@ refactors (good — keeps the public surface small).
 Top-3 actionable items, in order of cost-effectiveness:
 
 1. Fix the autohide-kill-then-show staleness (~5 lines, real bug).
-2. Resolve `menu_width` function-vs-number mismatch (~3 lines, sharp
+1. Resolve `menu_width` function-vs-number mismatch (~3 lines, sharp
    edge).
-3. Move the double `view.refresh_poppies()` out of `M.open` into
+1. Move the double `view.refresh_poppies()` out of `M.open` into
    `M.enter_landing` (~3 lines, removes a foot-gun for future
    contributors).
 
 Then, when shape stabilizes: split `session/init.lua` actions out
 and pick one of the `state.poppies` shapes.
+

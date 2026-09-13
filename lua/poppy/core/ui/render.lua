@@ -6,22 +6,11 @@ local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 
--- =====================================================================
--- Shared helpers
--- =====================================================================
-
--- Create a scratch buffer with modifiable=false. All three renderers
--- need this idiom; lifted from duplicated create() functions.
----@return integer
 local function create_buf()
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
 	return buf
 end
-
--- =====================================================================
--- Header panel
--- =====================================================================
 
 local header_ns = vim.api.nvim_create_namespace("poppy_header_panel")
 local header = {}
@@ -74,18 +63,15 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "", title_line, sep })
 	end)
 
-	-- The full title_line is highlighted as one block.
-	---@type vim.api.keyset.extmark
+	---@type vim.api.keyset.set_extmark
 	local title_extmark = { end_col = #title_line, hl_group = "NormalPoppyUIPanel" }
 	vim.api.nvim_buf_set_extmark(buf, header_ns, 1, 0, title_extmark)
-	-- The ◉ is at display column 2 within the title (after "P"). Resolve
-	-- it to a byte offset that respects any future title-string change,
-	-- since ◉ is a 3-byte UTF-8 sequence and any other glyph would shift
-	-- the offsets.
+
+	-- Resolve display col to byte offset so any glyph swap (◉ is 3-byte UTF-8) just works.
 	local dot_display_col = vim.fn.strdisplaywidth(title_col .. "P")
 	local dot_byte_col = vim.fn.byteidx(title_line, dot_display_col)
 	local dot_byte_end = vim.fn.byteidx(title_line, dot_display_col + 1)
-	---@type vim.api.keyset.extmark
+	---@type vim.api.keyset.set_extmark
 	local dot_extmark = {
 		end_col = dot_byte_end,
 		hl_group = "PoppyRed",
@@ -96,17 +82,10 @@ end
 
 M.header = header
 
--- =====================================================================
--- List panel
--- =====================================================================
-
 local list_ns = vim.api.nvim_create_namespace("poppy_list_panel")
 local sign_group = "poppy_list"
 local list = {}
 
--- Cell 1 = dot, cells 2-3 = icon. Two signs per line at different priorities.
--- Higher priority renders leftmost, so dot (priority 10) wins cell 1 and
--- icon (priority 5) renders to the right of it.
 local DOT_PRIORITY = 10
 local ICON_PRIORITY = 5
 
@@ -279,12 +258,11 @@ list.update = function(buf, poppies, icons, menu_width)
 	end
 
 	local lines = {}
-	---@type vim.api.keyset.sign_placelist[]
+	---@type vim.fn.sign_placelist.list.item[]
 	local placelist = {}
 	for display_idx, e in ipairs(entries) do
 		lines[display_idx] = string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.title
-		-- Cell 1: dot sign (priority 5)
-		---@type vim.api.keyset.sign_placelist
+		---@type vim.fn.sign_placelist.list.item
 		local dot_placement = {
 			buffer = buf,
 			group = sign_group,
@@ -294,9 +272,8 @@ list.update = function(buf, poppies, icons, menu_width)
 			name = pick_sign((e.is_active or e.is_hidden) and "•" or " ", e.cat, e.is_active, e.is_hidden),
 		}
 		placelist[#placelist + 1] = dot_placement
-		-- Cells 2-3: icon sign (priority 5). Skip for the empty-list placeholder.
 		if e.cat ~= "" then
-			---@type vim.api.keyset.sign_placelist
+			---@type vim.fn.sign_placelist.list.item
 			local icon_placement = {
 				buffer = buf,
 				group = sign_group,
@@ -315,7 +292,7 @@ list.update = function(buf, poppies, icons, menu_width)
 
 	for display_idx, e in ipairs(entries) do
 		if e.hl then
-			---@type vim.api.keyset.extmark
+			---@type vim.api.keyset.set_extmark
 			local hl_extmark = {
 				end_row = display_idx - 1,
 				line_hl_group = e.hl,
@@ -328,10 +305,6 @@ list.update = function(buf, poppies, icons, menu_width)
 end
 
 M.list = list
-
--- =====================================================================
--- Hints panel
--- =====================================================================
 
 local hints_ns = vim.api.nvim_create_namespace("poppy_hints_bar")
 local INDENT = "  "
@@ -346,8 +319,6 @@ local fmt_hint = function(key, label, indent)
 	return indent .. padded .. COL_GAP .. label .. " "
 end
 
--- Each entry is `[config_key, label]`. `config_key` is looked up on `keys`
--- so all four keybindings stay in one place; `label` is the hint text.
 local ACTIVE = {
 	{ "select", "Select" },
 	{ "kill", "Kill" },
@@ -362,8 +333,6 @@ local HINT_SPECS = {
 	menu = ACTIVE,
 }
 
--- Total rendered lines per kind = 1 separator + N hint entries. Single
--- source of truth for the window-height math in view.lua.
 M.HINT_LINES = {
 	landing = #HINT_SPECS.landing,
 	menu = #HINT_SPECS.menu,
@@ -390,8 +359,6 @@ hints.create_bottom_right = function(parent_win, keys)
 
 	local text = " " .. keys.poppy_action .. " Menu "
 	local win_conf = vim.api.nvim_win_get_config(parent_win)
-	-- Tucked into the bottom-right corner above the content border so it
-	-- sits on top of the z stack without overlapping the TUI.
 	local row = math.max(0, win_conf.height) + 1
 	local col = math.max(0, win_conf.width) + 1
 
@@ -459,8 +426,6 @@ hints.recreate = function(wrapper_win, buf, opts)
 	return win
 end
 
--- Write the hint lines once. Hints are static (config keys + layout kind);
--- no runtime mutations. Called from view.lua at mount time only.
 ---@param buf integer
 ---@param keys PoppyKeys
 ---@param kind "landing"|"menu"
@@ -485,7 +450,6 @@ hints.write_static = function(buf, keys, kind, wrapper_width)
 		table.insert(lines, hint_text .. string.rep(" ", padding))
 	end
 
-	-- Defensive: zero entries -> blank line.
 	if #lines == 0 then
 		table.insert(lines, "")
 		table.insert(per_line_segments, {})

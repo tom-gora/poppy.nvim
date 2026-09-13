@@ -2,21 +2,15 @@ require("poppy._types")
 
 local M = {}
 
--- Stacking priority for all poppy UI windows. We sit just below
--- Neovim's default of 50 (used by completion pum, hover/documentation
--- floats, preview windows, diagnostics, notifications, :help, etc.)
--- so those transient overlays reliably appear on top of the poppy
--- UI rather than being obscured by it. Other plugin pickers
--- (Telescope, Snacks, aerial code actions, etc.) typically sit at
--- z=200+, so they continue to render above us as well.
+-- 48 keeps us under Neovim's default 50 (completion pum, hovers, notifications) while staying above other plugin pickers.
 M.POPPY_Z_INDEX = 48
 
 local HEADER_HEIGHT = 3
 
 local shared = require("poppy.core.shared")
 
----@param opts? PoppyConfig
----@param poppies PoppyEntry[]
+---@param opts? PoppyMergedConfig
+---@param poppies PoppySessionEntry[]
 ---@return integer
 M.compute_landing_view_width = function(opts, poppies)
 	local max_line = 0
@@ -32,7 +26,7 @@ M.compute_landing_view_width = function(opts, poppies)
 	return math.max(max_line, hints_len) + 4
 end
 
----@param opts? PoppyConfig
+---@param opts? PoppyMergedConfig
 ---@return integer
 M.get_header_height = function(opts)
 	return (opts and opts.title_header ~= false) and HEADER_HEIGHT or 0
@@ -57,9 +51,7 @@ M.normalize_dimension = function(value, default)
 	return default
 end
 
--- Resolve a raw dimension value (already resolved from function/static)
--- to its final integer cell count. >1 means absolute columns/lines;
--- <=1 means a ratio of `total`. Clamps to sane bounds and notifies.
+-- >1 = absolute cells; <=1 = ratio of `total`.
 ---@param value number
 ---@param total integer
 ---@param name string
@@ -80,7 +72,7 @@ local resolve_dimension = function(value, total, name)
 	return math.floor(total * ratio)
 end
 
----@param opts? PoppyConfig
+---@param opts? PoppyMergedConfig
 ---@param vim_cols integer
 ---@param vim_lines integer
 ---@param override_width? integer

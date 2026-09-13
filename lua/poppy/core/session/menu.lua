@@ -1,21 +1,11 @@
----@diagnostic disable: param-type-mismatch
 local M = {}
 
 local state = require("poppy.core.session.state")
 local view = require("poppy.core.ui.view")
 local shared = require("poppy.core.shared")
 
--- <C-_> is the single focus router between content and the list panel,
--- but what "toggling off" means depends on menu_autohide:
---
---   autohide = false: sidebar is always visible. Toggle just moves
---                     focus between content_win and list_win; visibility
---                     is never touched.
---
---   autohide = true:  sidebar was hidden on switch_by_name. Toggle
---                     brings the sidebar back (narrower content) and
---                     focuses list; toggle again hides it again
---                     (full-width content, hint shown).
+-- Routes focus between content and list. With menu_autohide, also toggles
+-- sidebar visibility (mount + narrow content / unmount + widen content).
 M.toggle_menu = function()
 	if not shared.ensure_setup() then
 		return
@@ -31,8 +21,6 @@ M.toggle_menu = function()
 	end
 
 	local keymaps = require("poppy.core.session.keymaps")
-	-- Remounting the sidebar in autohide mode produces a fresh list_buf;
-	-- rebind the list keys so <Esc>/select/kill work after the toggle.
 	if want_focus then
 		local list_buf = view.get_list_buf()
 		if list_buf and vim.api.nvim_buf_is_valid(list_buf) then
