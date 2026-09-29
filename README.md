@@ -59,7 +59,6 @@ require("poppy").setup({
     title_header      = true,  -- show "POPPY" header above the sidebar
     autoclose         = true,  -- close the manager when focus leaves all poppy windows
     exclusive_float   = true,  -- when poppy opens, close any other floating windows
-    confirm_create_file = false, -- if true, prompt before creating a missing file path at setup
     menu_width        = 25,    -- width of the sidebar (cols)
     win_height        = 0.75,  -- UI height: ratio (0.2 to 1.0), absolute cells (>1), or function
     win_width         = 0.8,   -- same, for width
@@ -94,10 +93,8 @@ require("poppy").setup({
 })
 ```
 
-If a `file` function returns `nil` or `""` at setup, or the resolved
-path doesn't exist, the poppy is dropped with a WARN. If
-`confirm_create_file = true` is set, you are prompted per missing
-path before dropping. See [Confirm file creation](#confirm-file-creation).
+If a `file` function returns `nil` or `""`, or the path expands to an
+empty string, the poppy is dropped with a WARN.
 
 ### Poppy modes
 
@@ -105,8 +102,8 @@ Each poppy declares exactly one of:
 
 | Key | Type | Notes |
 | ------- | ------------------ | --------------------------------------------------------------------- |
-| `exec` | `string\|string[]` | Command run in a terminal buffer (TUIs, log tails, dev servers). The first token must be on `$PATH` at setup; otherwise the poppy is dropped. |
-| `file` | `string\|function` | File to open. Must exist at setup; otherwise the poppy is dropped. With `confirm_create_file = true`, missing paths prompt for creation. |
+| `exec` | `string\|string[]\|function` | Command run in a terminal buffer (TUIs, log tails, dev servers). The first token must be on `$PATH` at setup; otherwise the poppy is dropped. |
+| `file` | `string\|function` | File to open. Not checked at setup. If the file is missing on first open, its parent directories are created and an empty file is written. |
 | `shell` | `string\|function` | Shell binary path; `"default"` resolves to `$SHELL` (falls back to `bash`). Must be on `$PATH` at setup; otherwise the poppy is dropped. |
 
 `exec` and `file`/`shell` may also be functions returning a string (or
@@ -120,34 +117,20 @@ runtime check will catch it and drop the poppy with a WARN.
 `title` is optional. For files, the basename is used; for exec/shell,
 the first whitespace-delimited token.
 
-### Confirm file creation
+### Unsaved edits and missing files
 
-By default, a file poppy whose path doesn't exist at setup is dropped
-with a WARN. Set `confirm_create_file = true` to be prompted per
-missing path before dropping:
+Buffers are kept (`bufhidden = "hide"`) between switches, so unsaved
+edits survive switching away and back. On re-open:
 
-```lua
-require("poppy").setup({
-    confirm_create_file = true,
-    poppies = {
-        notes = { file = "~/TODO.md", title = "Notes" },
-    },
-})
-```
+- a **clean** buffer is re-read, so edits made outside nvim show up
+- a **modified** buffer is reattached untouched — your work is never
+  overwritten. Use `:write` to save it, or `:edit!` to discard it
+- if the file was **deleted** while it was closed, a clean buffer keeps
+  its contents and `:write` recreates the file at the same path; a
+  modified buffer is left alone entirely
 
-The prompt is `vim.ui.select({"Create", "Skip"})` with a 20s
-auto-skip timeout. If the user-installed picker is async, the default
-synchronous impl runs and the timeout covers headless / picker-hung
-cases. If the user picks Skip or the timer fires, the poppy is
-dropped. If the user picks Create, the parent directories are
-created with `mkdir -p` and an empty file is written to the resolved
-path.
-
-If a file disappears between setup and the first open, the runtime
-check drops the poppy with a WARN. The buffer is preserved (because
-`bufhidden = "hide"`); use `:write` to recreate the file at its
-original path. Poppy does not synthesize a fallback location at
-runtime — no clutter without confirmation.
+If the `file` value is a function and resolves to a *different* path
+than last time, the old buffer is discarded and the new file is loaded.
 
 ## Usage
 

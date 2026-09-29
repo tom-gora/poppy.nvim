@@ -14,9 +14,9 @@
 ---@field file string
 
 ---@class PoppyItemConfig
----@field exec? string|string[]
----@field file? string
----@field shell? string|function
+---@field exec? string|string[]|function # Command for a terminal buffer. A function is called at setup (validation) and again at open.
+---@field file? string|function # Path to open. A function is called at setup and again at open.
+---@field shell? string|function # Shell binary, or "default" for $SHELL.
 ---@field title? string
 
 ---@class PoppyConfig
@@ -47,9 +47,12 @@
 ---@field poppies_resolved table<string, PoppyResolvedConfig>
 ---@field dropped_names string[]
 
+-- Only `mode` and `title` are actually resolved. exec/file/shell keep the
+-- user's raw value verbatim (function included) so modes can re-evaluate at
+-- open time; a `file` string is also unexpanded here.
 ---@class PoppyResolvedConfig
----@field exec? string|string[]
----@field file? string
+---@field exec? string|string[]|function
+---@field file? string|function # Raw, unexpanded path or function returning one.
 ---@field shell? string|function
 ---@field mode "term"|"file"
 ---@field title string
@@ -57,7 +60,7 @@
 ---@class PoppyRuntimeState
 ---@field active boolean
 ---@field hidden boolean
----@field bufnr integer
+---@field bufnr integer|nil
 ---@field win integer|nil
 ---@field title string
 

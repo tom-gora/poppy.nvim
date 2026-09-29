@@ -350,11 +350,14 @@ hints.create = function(wrapper_win, opts)
 end
 
 ---@param parent_win integer
----@param keys PoppyKeys
+---@param keys PoppyKeys?
 ---@return integer? win
 ---@return integer? buf
 hints.create_bottom_right = function(parent_win, keys)
 	local buf = create_buf()
+	if not keys then
+		return nil, buf
+	end
 
 	local text = " " .. keys.poppy_action .. " Menu "
 	local win_conf = api.nvim_win_get_config(parent_win)
@@ -426,7 +429,7 @@ hints.recreate = function(wrapper_win, buf, opts)
 end
 
 ---@param buf integer
----@param keys PoppyKeys
+---@param keys PoppyKeys?
 ---@param kind "landing"|"menu"
 ---@param wrapper_width integer
 ---@return void

@@ -52,6 +52,28 @@ M.normalize_dimension = function(value, default)
 	return default
 end
 
+-- A dimension function is user code; a throw or a non-number return must not
+-- abort the open. Falls back to the ratio default with a warn.
+---@param value number|function
+---@param default number
+---@param name string
+---@return number
+local evaluate_dimension = function(value, default, name)
+	if type(value) ~= "function" then
+		return value
+	end
+	local ok, result = pcall(value)
+	if not ok then
+		shared.notify_warn("%s function errored: %s; falling back to %s", name, tostring(result), tostring(default))
+		return default
+	end
+	if type(result) ~= "number" then
+		shared.notify_warn("%s function returned %s, expected number; falling back to %s", name, type(result), tostring(default))
+		return default
+	end
+	return result
+end
+
 -- >1 = absolute cells; <=1 = ratio of `total`.
 ---@param value number
 ---@param total integer
@@ -83,17 +105,8 @@ end
 M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, override_width)
 	opts = opts or {}
 
-	local raw_w = opts.win_width
-	if type(raw_w) == "function" then
-		raw_w = raw_w()
-	end
-	raw_w = raw_w or 0.8
-
-	local raw_h = opts.win_height
-	if type(raw_h) == "function" then
-		raw_h = raw_h()
-	end
-	raw_h = raw_h or 0.75
+	local raw_w = evaluate_dimension(opts.win_width or 0.8, 0.8, "win_width")
+	local raw_h = evaluate_dimension(opts.win_height or 0.75, 0.75, "win_height")
 
 	local width = override_width or resolve_dimension(raw_w, vim_cols, "win_width")
 	local height = resolve_dimension(raw_h, vim_lines, "win_height")

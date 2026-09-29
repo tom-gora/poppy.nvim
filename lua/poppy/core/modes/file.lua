@@ -6,14 +6,26 @@ local fn = vim.fn
 local state = require("poppy.core.session.state")
 local shared = require("poppy.core.shared")
 
+local normalize = function(path)
+	return fn.fnamemodify(path, ":p")
+end
+
+-- Returns a hidden buffer only if it still points at `file_path`. A dynamic
+-- file function can resolve elsewhere between opens, and a buffer for the old
+-- path is dropped rather than reattached under the new file's name.
 ---@param name string
+---@param file_path string
 ---@return integer|nil
-local usable = function(name)
+local reusable = function(name, file_path)
 	local runtime = state.runtime(name)
 	if not (runtime and runtime.hidden and runtime.bufnr) then
 		return nil
 	end
 	if not api.nvim_buf_is_valid(runtime.bufnr) then
+		return nil
+	end
+	if normalize(api.nvim_buf_get_name(runtime.bufnr)) ~= normalize(file_path) then
+		pcall(api.nvim_buf_delete, runtime.bufnr, { force = true })
 		return nil
 	end
 	return runtime.bufnr
@@ -26,7 +38,6 @@ end
 local attach = function(poppy_name, bufnr, parent_win, title)
 	vim.bo[bufnr].buflisted = false
 	vim.bo[bufnr].bufhidden = "hide"
-	vim.bo[bufnr].swapfile = false
 	api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
 	api.nvim_win_set_buf(parent_win, bufnr)
 	state.poppies_runtime[poppy_name] = {
@@ -38,17 +49,35 @@ local attach = function(poppy_name, bufnr, parent_win, title)
 	}
 end
 
+-- Open the file for real in the target window. A buffer built by hand
+-- (readfile + set_lines + set_name) is modifiable but Vim still treats it as
+-- never-read-from-disk, so :w fails with E13 "File exists (add ! to
+-- override)". Going through :edit gives a genuine file buffer and, for free,
+-- filetype detection, checktime and the rest of the normal load path.
+--
+-- Only ever called for a fresh open. Reloading a reused buffer is done in
+-- place instead, because :edit! would unload that buffer and the BufUnload
+-- handler would read it as the poppy dying.
+---@param parent_win integer
+---@param file_path string
+---@return integer? bufnr
+local open_file = function(parent_win, file_path)
+	local ok, err = pcall(api.nvim_win_call, parent_win, function()
+		vim.cmd("edit " .. fn.fnameescape(file_path))
+	end)
+	if not ok then
+		shared.notify_warn("could not open %s: %s", file_path, tostring(err))
+		return nil
+	end
+	return api.nvim_win_get_buf(parent_win)
+end
+
 ---@param poppy_name string
 ---@param poppy_opts PoppyResolvedConfig
 ---@param parent_win integer
 ---@param on_die? fun(poppy_name: string)  -- accepted for interface symmetry with modes/term.lua; unused
 ---@return boolean ok
 M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
-	local bufnr = usable(poppy_name)
-	if not bufnr then
-		bufnr = api.nvim_create_buf(false, false)
-	end
-
 	local raw_val
 	if type(poppy_opts.file) == "function" then
 		raw_val = poppy_opts.file()
@@ -57,20 +86,26 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 	end
 	if raw_val == nil or raw_val == "" then
 		shared.notify_warn("poppy '%s' file function returned %s at open; dropping", poppy_name, raw_val == nil and "nil" or "empty string")
-		pcall(api.nvim_buf_delete, bufnr, { force = true })
 		return false
 	end
 	local file_path = fn.expand(raw_val)
+
+	local reused = reusable(poppy_name, file_path)
+	local is_fresh = reused == nil
 
 	---@param reason string
 	---@return false
 	local fail = function(reason)
 		shared.drop_poppy(poppy_name, reason)
-		pcall(api.nvim_buf_delete, bufnr, { force = true })
+		-- Never destroy a buffer we adopted from a previous open.
+		if is_fresh and reused and api.nvim_buf_is_valid(reused) then
+			pcall(api.nvim_buf_delete, reused, { force = true })
+		end
 		return false
 	end
 
-	if fn.filereadable(file_path) ~= 1 then
+	local file_missing = fn.filereadable(file_path) ~= 1
+	if file_missing and is_fresh then
 		local parent = vim.fs.dirname(file_path)
 		if parent ~= "" then
 			local mk_ok, mk_err = pcall(fn.mkdir, parent, "p")
@@ -84,16 +119,26 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 			shared.notify_warn("poppy '%s' could not write %s: %s", poppy_name, file_path, tostring(wr_err))
 			return fail("writefile failed at open")
 		end
+		file_missing = false
 	end
 
-	local lines = fn.readfile(file_path, "b")
-	api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-	pcall(api.nvim_buf_set_name, bufnr, file_path)
-	pcall(api.nvim_exec_autocmds, "BufRead", {
-		buffer = bufnr,
-		modeline = false,
-	})
-	api.nvim_set_option_value("modified", false, { buf = bufnr })
+	local bufnr
+	if reused then
+		-- A clean buffer whose file still exists is re-read, so external edits
+		-- show up. A modified one is reattached untouched, and a file that
+		-- vanished is left alone -- :w recreates it at the same path.
+		local modified = api.nvim_get_option_value("modified", { buf = reused })
+		if not file_missing and not modified then
+			api.nvim_buf_set_lines(reused, 0, -1, false, fn.readfile(file_path))
+			api.nvim_set_option_value("modified", false, { buf = reused })
+		end
+		bufnr = reused
+	else
+		bufnr = open_file(parent_win, file_path)
+		if not bufnr then
+			return fail("edit failed at open")
+		end
+	end
 
 	attach(poppy_name, bufnr, parent_win, poppy_opts.title)
 	return true

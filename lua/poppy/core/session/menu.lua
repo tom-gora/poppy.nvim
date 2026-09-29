@@ -1,3 +1,5 @@
+require("poppy._types")
+
 local M = {}
 
 local api = vim.api

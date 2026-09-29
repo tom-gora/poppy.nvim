@@ -1,3 +1,5 @@
+require("poppy._types")
+
 local M = {}
 
 local api = vim.api
@@ -8,6 +10,13 @@ local shared = require("poppy.core.shared")
 local config = require("poppy.config")
 local keymaps = require("poppy.core.session.keymaps")
 local menu = require("poppy.core.session.menu")
+
+-- Static dispatch: a dynamic require("poppy.core.modes." .. mode) resolves
+-- fine at runtime but hides the mode modules from the LSP.
+local MODES = {
+	term = require("poppy.core.modes.term"),
+	file = require("poppy.core.modes.file"),
+}
 
 local CAT_ORDER = { exec = 0, file = 1, shell = 2 }
 
@@ -32,7 +41,11 @@ local sort_config = function(opts)
 end
 
 local setup_global_key = function()
-	vim.keymap.set(shared.NORM_TERM_MODES, shared.keys().poppy_action, function()
+	local keys = shared.keys()
+	if not keys then
+		return
+	end
+	vim.keymap.set(shared.NORM_TERM_MODES, keys.poppy_action, function()
 		M.toggle()
 	end, { desc = "Poppy: Toggle UI" })
 end
@@ -253,6 +266,10 @@ end
 M.get_current_poppy_name = shared.session_get_current_poppy_name
 M.is_open = shared.session_is_open
 
+-- Destroys every live poppy buffer, forcing a full rebuild on the next open.
+-- Deliberately keeps poppies_configured intact: the registry is the user's
+-- declared config, not runtime state, and clearing it made the manager
+-- permanently empty after one :Poppy close.
 local clear_poppies = function()
 	for _, configured in ipairs(state.poppies_configured) do
 		local rt = state.runtime(configured.name)
@@ -260,7 +277,6 @@ local clear_poppies = function()
 			api.nvim_buf_delete(rt.bufnr, { force = true })
 		end
 	end
-	state.poppies_configured = {}
 	state.poppies_runtime = {}
 end
 
@@ -291,7 +307,17 @@ local cleanup = function(drop_poppies)
 
 		state.windows.recovering = false
 
-		-- UI scratch buffers are safe to delete when no poppy has a live runtime_state.
+		-- A poppy buffer currently in use must never be wiped here: it can
+		-- hold unsaved edits, and it is what the next open restores. Since
+		-- file poppies are opened with :edit, the content window's own buffer
+		-- *is* the poppy's buffer, so this is the normal case, not a corner one.
+		local in_use = {}
+		for _, rt in pairs(state.poppies_runtime) do
+			if rt and rt.bufnr then
+				in_use[rt.bufnr] = true
+			end
+		end
+
 		local has_live_poppy = next(state.poppies_runtime) ~= nil
 		local buffers = { state.windows.content_buf }
 		if not has_live_poppy then
@@ -308,7 +334,7 @@ local cleanup = function(drop_poppies)
 		end
 
 		for _, buf in ipairs(buffers) do
-			if buf and api.nvim_buf_is_valid(buf) then
+			if buf and not in_use[buf] and api.nvim_buf_is_valid(buf) then
 				api.nvim_buf_delete(buf, { force = true })
 			end
 		end
@@ -476,9 +502,12 @@ M.switch_by_name = function(poppy_name)
 		end
 	end
 
-	local mode_ok = require("poppy.core.modes." .. poppy_opts.mode).run(
-		poppy_name, poppy_opts, state.windows.content_win, on_die
-	)
+	local mode = MODES[poppy_opts.mode]
+	if not mode then
+		shared.notify_warn("unknown mode '%s' for poppy '%s'", tostring(poppy_opts.mode), poppy_name)
+		return
+	end
+	local mode_ok = mode.run(poppy_name, poppy_opts, state.windows.content_win, on_die)
 	if not mode_ok then
 		-- Mode rejected the poppy (e.g. file() couldn't resolve). The mode
 		-- plugin already dropped it from state and refreshed the list;

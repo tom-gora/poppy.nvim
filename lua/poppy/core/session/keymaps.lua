@@ -1,3 +1,5 @@
+require("poppy._types")
+
 local M = {}
 
 local state = require("poppy.core.session.state")
@@ -23,6 +25,9 @@ end
 ---@param buf integer
 M.setup_list_keys = function(buf)
 	local keys = shared.keys()
+	if not keys then
+		return
+	end
 
 	local function opts_for(desc)
 		return { buffer = buf, desc = desc }
@@ -55,6 +60,9 @@ end
 ---@param buf integer
 M.setup_content_keys = function(buf)
 	local keys = shared.keys()
+	if not keys then
+		return
+	end
 
 	local function opts_for(desc)
 		return { buffer = buf, desc = desc }
