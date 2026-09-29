@@ -5,6 +5,8 @@ local M = {}
 local api = vim.api
 local state = require("poppy.core.session.state")
 
+---@param win integer|nil
+---@return boolean
 M.try_focus_win = function(win)
 	if win and api.nvim_win_is_valid(win) then
 		api.nvim_set_current_win(win)
@@ -13,10 +15,12 @@ M.try_focus_win = function(win)
 	return false
 end
 
+---@return boolean
 M.session_is_open = function()
 	return state.windows.wrapper_win ~= nil and api.nvim_win_is_valid(state.windows.wrapper_win)
 end
 
+---@return string|nil
 M.session_get_current_poppy_name = function()
 	return state.windows.current_poppy_name
 end
@@ -51,6 +55,7 @@ M.close_menu_hint = function()
 	state.windows.menu_hint_buf = nil
 end
 
+---@return PoppyKeys?
 M.keys = function()
 	return state.windows.opts and state.windows.opts.keys
 end
@@ -75,6 +80,7 @@ end
 ---@type string[]
 M.NORM_TERM_MODES = { "n", "t" }
 
+---@return boolean
 M.ensure_setup = function()
 	if state and state.windows and state.windows.opts then
 		return true

@@ -20,7 +20,6 @@ local term_get_or_create_buffer = function(poppy_name)
 end
 
 ---@param poppy_opts PoppyResolvedConfig
----@return string|string[]|function|nil
 -- Defense-in-depth: setup already validated this. Re-evaluates the function
 -- only if the cached value is a function (e.g. someone mutated state manually).
 -- Returns nil when the resolved value is unusable; the caller drops the poppy.

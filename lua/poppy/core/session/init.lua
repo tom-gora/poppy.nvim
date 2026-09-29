@@ -167,6 +167,8 @@ local init_or_reset_state = function()
 	state.poppies_runtime = {}
 end
 
+---@param user_opts? PoppyConfig
+---@return nil
 M.setup = function(user_opts)
 	init_or_reset_state()
 	view.setup_style()
@@ -198,6 +200,8 @@ M.setup = function(user_opts)
 	})
 end
 
+---@param name string
+---@return PoppySessionEntry?
 M.get_poppy_by_name = function(name)
 	local configured = state.poppy_configured(name)
 	if not configured then return nil end
@@ -208,6 +212,8 @@ M.get_poppy_by_name = function(name)
 	}
 end
 
+---@param index integer
+---@return PoppySessionEntry?
 M.get_poppy_by_index = function(index)
 	local configured = state.poppies_configured[index]
 	if not configured then return nil end
@@ -218,6 +224,7 @@ M.get_poppy_by_index = function(index)
 	}
 end
 
+---@return PoppySessionEntry?
 M.get_current_poppy = function()
 	local name = state.windows.current_poppy_name
 	if not name then return nil end
@@ -230,6 +237,7 @@ M.get_current_poppy = function()
 	}
 end
 
+---@return PoppySessionEntry[]
 M.get_poppies = function()
 	local result = {}
 	for _, configured in ipairs(state.poppies_configured) do
@@ -412,6 +420,7 @@ local cursor_to_poppy_index = function()
 end
 
 ---@param name_or_index string|integer|nil
+---@return { name: string, runtime: PoppyRuntimeState? }?
 local resolve = function(name_or_index)
 	if type(name_or_index) == "number" then
 		local configured = state.poppies_configured[name_or_index]
@@ -426,6 +435,8 @@ local resolve = function(name_or_index)
 	return { name = name_or_index, runtime = state.runtime(name_or_index) }
 end
 
+---@param poppy_name string
+---@return nil
 M.switch_by_name = function(poppy_name)
 	if not shared.ensure_setup() then
 		return
@@ -494,6 +505,8 @@ M.switch_by_name = function(poppy_name)
 	end
 end
 
+---@param index integer
+---@return nil
 M.switch_by_index = function(index)
 	if not shared.ensure_setup() then
 		return
@@ -504,6 +517,7 @@ M.switch_by_index = function(index)
 	end
 end
 
+---@return nil
 M.switch_by_cursor = function()
 	if not shared.ensure_setup() then
 		return
@@ -515,6 +529,8 @@ M.switch_by_cursor = function()
 end
 
 -- Tear down a poppy's runtime state. Returns true if this was the active poppy.
+---@param name string
+---@return boolean
 local _kill = function(name)
 	if not name then
 		return false
@@ -538,6 +554,7 @@ local _kill = function(name)
 end
 
 -- Drop the target buffer up-front so any callback recover() schedules lands on clean state.
+---@return nil
 M.kill_active = function()
 	if not shared.ensure_setup() then
 		return
@@ -549,6 +566,8 @@ M.kill_active = function()
 	M.recover()
 end
 
+---@param resolved { name: string, runtime: PoppyRuntimeState? }?
+---@return nil
 local _kill_then_refresh = function(resolved)
 	if not resolved then
 		return
@@ -563,6 +582,8 @@ local _kill_then_refresh = function(resolved)
 	end
 end
 
+---@param name string
+---@return nil
 M.kill_by_name = function(name)
 	if not shared.ensure_setup() then
 		return
@@ -570,6 +591,8 @@ M.kill_by_name = function(name)
 	return _kill_then_refresh(resolve(name))
 end
 
+---@param index integer
+---@return nil
 M.kill_by_index = function(index)
 	if not shared.ensure_setup() then
 		return
@@ -577,6 +600,7 @@ M.kill_by_index = function(index)
 	return _kill_then_refresh(resolve(index))
 end
 
+---@return nil
 M.kill_by_cursor = function()
 	if not shared.ensure_setup() then
 		return

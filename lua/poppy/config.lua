@@ -111,6 +111,8 @@ local resolve_and_validate_value = function(name, raw)
 	return value, true, nil
 end
 
+---@param name string
+---@param poppy PoppyItemConfig?
 ---@return PoppyResolvedConfig?
 local resolve_poppy = function(name, poppy)
 	if not poppy then
