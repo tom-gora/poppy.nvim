@@ -48,15 +48,21 @@ end
 
 M.windows = M.default_state()
 
--- Array index == display order. Set once at setup; only `runtime_state` flips as poppies open/close.
----@type PoppySessionEntry[]
-M.poppies = {}
+-- Immutable after M.setup. Array index = display row. Set once at setup;
+-- removed only by shared.drop_poppy when a poppy is unrecoverably broken.
+---@type {name: string, config: PoppyResolvedConfig}[]
+M.poppies_configured = {}
 
--- Linear scan; ~5-30 entries typical.
+-- Mutable map: name -> runtime_state. nil lookup = "never opened or just closed".
+-- Set by mode.run on open; cleared by clear_runtime and drop_poppy.
+---@type table<string, PoppyRuntimeState?>
+M.poppies_runtime = {}
+
+-- Linear scan over the small configured set; encapsulation for callers.
 ---@param name string
----@return PoppySessionEntry?
-M.poppy = function(name)
-	for _, entry in ipairs(M.poppies) do
+---@return {name: string, config: PoppyResolvedConfig}?
+M.poppy_configured = function(name)
+	for _, entry in ipairs(M.poppies_configured) do
 		if entry.name == name then
 			return entry
 		end
@@ -64,10 +70,11 @@ M.poppy = function(name)
 	return nil
 end
 
+-- Display-row index of a configured poppy, or nil.
 ---@param name string
 ---@return integer?
 M.poppy_index = function(name)
-	for i, entry in ipairs(M.poppies) do
+	for i, entry in ipairs(M.poppies_configured) do
 		if entry.name == name then
 			return i
 		end
@@ -75,23 +82,23 @@ M.poppy_index = function(name)
 	return nil
 end
 
+---@param name string
+---@return PoppyRuntimeState?
+M.runtime = function(name)
+	return M.poppies_runtime[name]
+end
+
 ---@param name string|nil
 M.set_current_poppy_name = function(name)
-	if name ~= nil and not M.poppy(name) then
+	if name ~= nil and not M.poppy_configured(name) then
 		error("poppy: unknown poppy name: " .. tostring(name))
 	end
 	M.windows.current_poppy_name = name
 end
 
----@return PoppySessionEntry[]
-M.poppies_runtime = function()
-	local result = {}
-	for _, entry in ipairs(M.poppies) do
-		if entry.runtime_state then
-			result[#result + 1] = entry
-		end
-	end
-	return result
+---@param name string
+M.clear_runtime = function(name)
+	M.poppies_runtime[name] = nil
 end
 
 return M

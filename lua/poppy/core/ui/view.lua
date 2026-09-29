@@ -2,6 +2,7 @@ require("poppy._types")
 
 local M = {}
 
+local api = vim.api
 local state = require("poppy.core.session.state")
 local layout = require("poppy.core.ui.layout")
 local style = require("poppy.core.ui.style")
@@ -29,7 +30,7 @@ local wrapper_open_with = function(buf, poppy_opts, width_override)
 		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
 	}
-	local win = vim.api.nvim_open_win(buf, false, config)
+	local win = api.nvim_open_win(buf, false, config)
 	style.apply_border_style(win)
 	shared.apply_win_marker(win)
 	return win
@@ -40,7 +41,7 @@ end
 ---@return integer? win
 ---@return integer? buf
 M.wrapper.create = function(poppy_opts, width_override)
-	local buf = vim.api.nvim_create_buf(false, true)
+	local buf = api.nvim_create_buf(false, true)
 	local win = wrapper_open_with(buf, poppy_opts, width_override)
 	return win, buf
 end
@@ -53,7 +54,7 @@ M.wrapper.recreate = wrapper_open_with
 ---@return integer? win
 ---@return integer? buf
 M.wrapper.ensure = function(buf, poppy_opts, width_override)
-	if buf and vim.api.nvim_buf_is_valid(buf) then
+	if buf and api.nvim_buf_is_valid(buf) then
 		return M.wrapper.recreate(buf, poppy_opts, width_override), buf
 	end
 	local win, wbuf = M.wrapper.create(poppy_opts, width_override)
@@ -65,8 +66,8 @@ end
 ---@return integer? win
 ---@return integer? buf
 M.content.create = function(wrapper_win, list_panel_width)
-	local buf = vim.api.nvim_create_buf(false, true)
-	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
+	local buf = api.nvim_create_buf(false, true)
+	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local ext_nu = vim.o.number
 	local ext_rnu = vim.o.relativenumber
 
@@ -85,7 +86,7 @@ M.content.create = function(wrapper_win, list_panel_width)
 		win = wrapper_win,
 	}
 
-	local win = vim.api.nvim_open_win(buf, true, config)
+	local win = api.nvim_open_win(buf, true, config)
 
 	style.apply_content_style(win, ext_nu, ext_rnu)
 	shared.apply_win_marker(win)
@@ -95,14 +96,14 @@ end
 ---@param b integer|nil
 ---@return boolean
 local valid_buf = function(b)
-	return b and vim.api.nvim_buf_is_valid(b)
+	return b and api.nvim_buf_is_valid(b)
 end
 
 ---@param win integer|nil
 ---@return void
 local close_panel = function(win)
-	if win and vim.api.nvim_win_is_valid(win) then
-		vim.api.nvim_win_close(win, true)
+	if win and api.nvim_win_is_valid(win) then
+		api.nvim_win_close(win, true)
 	end
 end
 
@@ -121,11 +122,11 @@ end
 ---@param row? integer
 ---@return void
 local resize_content = function(win, width, height, row)
-	if not win or not vim.api.nvim_win_is_valid(win) then
+	if not win or not api.nvim_win_is_valid(win) then
 		return
 	end
-	local win_conf = vim.api.nvim_win_get_config(win)
-	vim.api.nvim_win_set_config(win, {
+	local win_conf = api.nvim_win_get_config(win)
+	api.nvim_win_set_config(win, {
 		relative = win_conf.relative,
 		width = width,
 		height = height,
@@ -164,7 +165,9 @@ local header_height = function()
 end
 
 local menu_width = function()
-	return shared.opts_field("menu_width") or 25
+	local v = shared.opts_field("menu_width")
+	if type(v) == "function" then v = v() end
+	return v or layout.DEFAULT_MENU_WIDTH
 end
 
 local SIDEBAR = {
@@ -196,16 +199,14 @@ local LANDING = {
 }
 
 local mount_panels = function(wrapper_win)
-	local wc = vim.api.nvim_win_get_config(wrapper_win)
+	local wc = api.nvim_win_get_config(wrapper_win)
 	local hh = header_height()
 	local mw = menu_width()
 	local is_landing = state.windows.is_landing
 	local cfg = is_landing and LANDING or SIDEBAR
 
 	local list_w = (cfg.width_source == "menu") and mw or wc.width
-	local hints_hl = (cfg.hints_lines_source == "menu")
-		and render.HINT_LINES.menu
-		or render.HINT_LINES.landing + 2
+	local hints_hl = (cfg.hints_lines_source == "menu") and render.HINT_LINES.menu or render.HINT_LINES.landing + 2
 
 	ensure_panel("list_buf", "list_win", function()
 		return render.list.create(wrapper_win, list_w, cfg.list_focusable, hints_hl, hh)
@@ -233,6 +234,11 @@ local mount_panels = function(wrapper_win)
 		render.hints.write_static(state.windows.hints_buf, shared.keys(), cfg.hints_kind, write_w)
 	end
 
+	-- Populate the list at mount so first show isn't stale (kill-then-show under autohide, etc.).
+	if valid_buf(state.windows.list_buf) then
+		render.list.update(state.windows.list_buf, state.poppies_configured, shared.opts_field("icons"), list_w)
+	end
+
 	state.windows.wrapper_win = wrapper_win
 	state.windows.hidden = false
 end
@@ -257,26 +263,24 @@ M.set_visible = function(visible, content_win)
 		return
 	end
 	local wrapper_win = state.windows.wrapper_win
-	if not vim.api.nvim_win_is_valid(wrapper_win) then
+	if not api.nvim_win_is_valid(wrapper_win) then
 		return
 	end
-	local wc = vim.api.nvim_win_get_config(wrapper_win)
+	-- Already in the requested state; nothing to do.
+	if state.windows.hidden == (not visible) then
+		return
+	end
 
+	local wc = api.nvim_win_get_config(wrapper_win)
 	if visible then
-		if not state.windows.hidden then
-			return
-		end
 		mount_panels(wrapper_win)
-		if content_win and vim.api.nvim_win_is_valid(content_win) then
+		if content_win and api.nvim_win_is_valid(content_win) then
 			resize_content(content_win, wc.width - menu_width() - 2, wc.height - 2)
 		end
 	else
-		if state.windows.hidden then
-			return
-		end
 		close_all_panels()
 		state.windows.hidden = true
-		if content_win and vim.api.nvim_win_is_valid(content_win) then
+		if content_win and api.nvim_win_is_valid(content_win) then
 			resize_content(content_win, wc.width - 2, wc.height - 2, 0)
 		end
 	end
@@ -286,23 +290,23 @@ end
 ---@return void
 M.set_focused = function(focused)
 	local list_win = state.windows.list_win
-	if not list_win or not vim.api.nvim_win_is_valid(list_win) then
+	if not list_win or not api.nvim_win_is_valid(list_win) then
 		return
 	end
-	local conf = vim.api.nvim_win_get_config(list_win)
+	local conf = api.nvim_win_get_config(list_win)
 	if conf.focusable ~= focused then
 		conf.focusable = focused
-		vim.api.nvim_win_set_config(list_win, conf)
+		api.nvim_win_set_config(list_win, conf)
 	end
 end
 
 ---@return boolean
 M.is_menu_focused = function()
 	local list_win = state.windows.list_win
-	if not list_win or not vim.api.nvim_win_is_valid(list_win) then
+	if not list_win or not api.nvim_win_is_valid(list_win) then
 		return false
 	end
-	return vim.api.nvim_get_current_win() == list_win
+	return api.nvim_get_current_win() == list_win
 end
 
 ---@return integer|nil
@@ -333,11 +337,11 @@ M.refresh_poppies = function()
 	end
 	local width
 	if state.windows.is_landing and state.windows.wrapper_win then
-		width = vim.api.nvim_win_get_width(state.windows.wrapper_win)
+		width = api.nvim_win_get_width(state.windows.wrapper_win)
 	else
 		width = menu_width()
 	end
-	render.list.update(state.windows.list_buf, state.poppies, shared.opts_field("icons"), width)
+	render.list.update(state.windows.list_buf, state.poppies_configured, shared.opts_field("icons"), width)
 end
 
 M.setup_style = style.setup

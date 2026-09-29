@@ -20,7 +20,9 @@ without a major-version bump.
 
 Drop it into your runtimepath:
 
-    git clone https://github.com/tomeczku/poppy.nvim ~/.config/nvim/pack/plugins/start/poppy.nvim
+```
+git clone https://github.com/tomeczku/poppy.nvim ~/.config/nvim/pack/plugins/start/poppy.nvim
+```
 
 (or use your plugin manager of choice; no `lazy`/`packer`-specific
 setup is required).
@@ -53,20 +55,21 @@ require("poppy").setup({
         shell = "$",
         file  = "F",
     },
-    menu_autohide   = false, -- hide sidebar after selecting a poppy; show a tiny "Menu" hint in the corner
-    title_header    = true,  -- show "POPPY" header above the sidebar
-    autoclose       = true,  -- close the manager when focus leaves all poppy windows
-    exclusive_float = true,  -- when poppy opens, close any other floating windows
-    menu_width      = 25,    -- width of the sidebar (cols)
-    win_height      = 0.75,  -- UI height: ratio (0.2 to 1.0), absolute cells (>1), or function
-    win_width       = 0.8,   -- same, for width
-    win_location    = "center", -- "center" | "top" | "bottom"
+    menu_autohide     = false, -- hide sidebar after selecting a poppy; show a tiny "Menu" hint in the corner
+    title_header      = true,  -- show "POPPY" header above the sidebar
+    autoclose         = true,  -- close the manager when focus leaves all poppy windows
+    exclusive_float   = true,  -- when poppy opens, close any other floating windows
+    confirm_create_file = false, -- if true, prompt before creating a missing file path at setup
+    menu_width        = 25,    -- width of the sidebar (cols)
+    win_height        = 0.75,  -- UI height: ratio (0.2 to 1.0), absolute cells (>1), or function
+    win_width         = 0.8,   -- same, for width
+    win_location      = "center", -- "center" | "top" | "bottom"
 
     poppies = {
         -- TUI / command
         lazygit = { exec = "lazygit", title = "LazyGit" },
 
-        -- File buffer; created on first open if missing
+        -- File buffer; path is checked at setup
         todos = {
             file  = "~/Documents/TODO.md",
             title = "Todos",
@@ -91,18 +94,60 @@ require("poppy").setup({
 })
 ```
 
+If a `file` function returns `nil` or `""` at setup, or the resolved
+path doesn't exist, the poppy is dropped with a WARN. If
+`confirm_create_file = true` is set, you are prompted per missing
+path before dropping. See [Confirm file creation](#confirm-file-creation).
+
 ### Poppy modes
 
 Each poppy declares exactly one of:
 
-| Key     | Type               | Notes                                                                 |
+| Key | Type | Notes |
 | ------- | ------------------ | --------------------------------------------------------------------- |
-| `exec`  | `string`           | Command run in a terminal buffer (TUIs, log tails, dev servers).      |
-| `file`  | `string\|function` | File to open; created if missing. Function is called per open.       |
-| `shell` | `string\|function` | Shell binary path; `"default"` resolves to `$SHELL` (falls back to bash). |
+| `exec` | `string\|string[]` | Command run in a terminal buffer (TUIs, log tails, dev servers). The first token must be on `$PATH` at setup; otherwise the poppy is dropped. |
+| `file` | `string\|function` | File to open. Must exist at setup; otherwise the poppy is dropped. With `confirm_create_file = true`, missing paths prompt for creation. |
+| `shell` | `string\|function` | Shell binary path; `"default"` resolves to `$SHELL` (falls back to `bash`). Must be on `$PATH` at setup; otherwise the poppy is dropped. |
+
+`exec` and `file`/`shell` may also be functions returning a string (or
+list of strings for `exec`). Functions are called twice: once at setup
+to validate the result, and again at the first open to resolve the
+final value. This means the function must be safe to call at setup
+time, and the result at setup is the snapshot used for the title. If
+you need a different path at open time than at setup time, the
+runtime check will catch it and drop the poppy with a WARN.
 
 `title` is optional. For files, the basename is used; for exec/shell,
 the first whitespace-delimited token.
+
+### Confirm file creation
+
+By default, a file poppy whose path doesn't exist at setup is dropped
+with a WARN. Set `confirm_create_file = true` to be prompted per
+missing path before dropping:
+
+```lua
+require("poppy").setup({
+    confirm_create_file = true,
+    poppies = {
+        notes = { file = "~/TODO.md", title = "Notes" },
+    },
+})
+```
+
+The prompt is `vim.ui.select({"Create", "Skip"})` with a 20s
+auto-skip timeout. If the user-installed picker is async, the default
+synchronous impl runs and the timeout covers headless / picker-hung
+cases. If the user picks Skip or the timer fires, the poppy is
+dropped. If the user picks Create, the parent directories are
+created with `mkdir -p` and an empty file is written to the resolved
+path.
+
+If a file disappears between setup and the first open, the runtime
+check drops the poppy with a WARN. The buffer is preserved (because
+`bufhidden = "hide"`); use `:write` to recreate the file at its
+original path. Poppy does not synthesize a fallback location at
+runtime — no clutter without confirmation.
 
 ## Usage
 
@@ -147,10 +192,10 @@ require("poppy").kill_by_name(name)
 require("poppy").kill_by_index(1..N)
 require("poppy").kill_by_cursor()
 
-require("poppy").get_poppies()           -- the registry (PoppySessionEntry[])
-require("poppy").get_poppy_by_name(name)  -- PoppySessionEntry?
-require("poppy").get_poppy_by_index(1..N) -- PoppySessionEntry?
-require("poppy").get_current_poppy()      -- PoppySessionEntry?
+require("poppy").get_poppies()           -- list of {name, config, runtime_state?} entries
+require("poppy").get_poppy_by_name(name)  -- {name, config, runtime_state?} or nil
+require("poppy").get_poppy_by_index(1..N) -- {name, config, runtime_state?} or nil
+require("poppy").get_current_poppy()      -- {name, config, runtime_state?} or nil
 require("poppy").get_current_poppy_name() -- string?
 require("poppy").is_open()               -- boolean
 ```
@@ -185,3 +230,4 @@ files so editors/lsp pick them up.
 ## License
 
 Public domain; see [UNLICENSE](./UNLICENSE).
+

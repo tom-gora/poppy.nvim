@@ -9,15 +9,15 @@ M.focus_list_with_cursor = function()
 	if not shared.try_focus_win(list_win) then
 		return
 	end
-	if not state.windows.current_poppy_name then
+	local name = state.windows.current_poppy_name
+	if not name then
 		return
 	end
-	if state.poppy(state.windows.current_poppy_name) then
-		local idx = state.poppy_index(state.windows.current_poppy_name)
-		if idx then
-			pcall(vim.api.nvim_win_set_cursor, list_win, { idx, 0 })
-		end
+	local idx = state.poppy_index(name)
+	if not idx then
+		return
 	end
+	pcall(vim.api.nvim_win_set_cursor, list_win, { idx, 0 })
 end
 
 ---@param buf integer

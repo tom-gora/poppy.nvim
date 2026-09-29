@@ -2,17 +2,20 @@ require("poppy._types")
 
 local M = {}
 
+local api = vim.api
+local fn = vim.fn
+local state = require("poppy.core.session.state")
 local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 
 local function create_buf()
-	local buf = vim.api.nvim_create_buf(false, true)
+	local buf = api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
 	return buf
 end
 
-local header_ns = vim.api.nvim_create_namespace("poppy_header_panel")
+local header_ns = api.nvim_create_namespace("poppy_header_panel")
 local header = {}
 
 ---@param wrapper_win integer
@@ -31,7 +34,7 @@ end
 ---@param col_override? integer
 ---@return integer? win
 header.recreate = function(wrapper_win, buf, width_override, col_override)
-	local wc = vim.api.nvim_win_get_config(wrapper_win)
+	local wc = api.nvim_win_get_config(wrapper_win)
 	local width = width_override or wc.width
 	local col = col_override or 0
 
@@ -49,72 +52,73 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 		win = wrapper_win,
 	}
 
-	local win = vim.api.nvim_open_win(buf, false, config)
+	local win = api.nvim_open_win(buf, false, config)
 	style.apply_panel_style(win)
 	shared.apply_win_marker(win)
 
 	local title = "P◉PPY.NVIM"
-	local title_w = vim.fn.strdisplaywidth(title)
+	local title_w = fn.strdisplaywidth(title)
 	local title_col = math.max(0, math.floor((width - title_w) / 2))
 	local sep = " " .. string.rep("─", width - 2) .. " "
 	local title_line = string.rep(" ", title_col) .. title
 
 	shared.with_modifiable(buf, function()
-		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "", title_line, sep })
+		api.nvim_buf_set_lines(buf, 0, -1, false, { "", title_line, sep })
 	end)
 
 	---@type vim.api.keyset.set_extmark
 	local title_extmark = { end_col = #title_line, hl_group = "NormalPoppyUIPanel" }
-	vim.api.nvim_buf_set_extmark(buf, header_ns, 1, 0, title_extmark)
+	api.nvim_buf_set_extmark(buf, header_ns, 1, 0, title_extmark)
 
 	-- Resolve display col to byte offset so any glyph swap (◉ is 3-byte UTF-8) just works.
-	local dot_display_col = vim.fn.strdisplaywidth(title_col .. "P")
-	local dot_byte_col = vim.fn.byteidx(title_line, dot_display_col)
-	local dot_byte_end = vim.fn.byteidx(title_line, dot_display_col + 1)
+	local dot_display_col = fn.strdisplaywidth(title_col .. "P")
+	local dot_byte_col = fn.byteidx(title_line, dot_display_col)
+	local dot_byte_end = fn.byteidx(title_line, dot_display_col + 1)
 	---@type vim.api.keyset.set_extmark
 	local dot_extmark = {
 		end_col = dot_byte_end,
 		hl_group = "PoppyRed",
 	}
-	vim.api.nvim_buf_set_extmark(buf, header_ns, 1, dot_byte_col, dot_extmark)
+	api.nvim_buf_set_extmark(buf, header_ns, 1, dot_byte_col, dot_extmark)
 	return win
 end
 
 M.header = header
 
-local list_ns = vim.api.nvim_create_namespace("poppy_list_panel")
+local list_ns = api.nvim_create_namespace("poppy_list_panel")
 local sign_group = "poppy_list"
 local list = {}
 
 local DOT_PRIORITY = 10
 local ICON_PRIORITY = 5
 
+---@param category "exec"|"file"|"shell"
+---@return string  Titlecased category, e.g. "exec" -> "Exec"
+local cap_category = function(category)
+	return category:sub(1, 1):upper() .. category:sub(2)
+end
+
 ---@param dot string
----@param cat "exec"|"file"|"shell"
+---@param category "exec"|"file"|"shell"
 ---@param is_active boolean
 ---@param is_hidden boolean
 ---@return string
-local pick_sign = function(dot, cat, is_active, is_hidden)
+local pick_sign = function(dot, category, is_active, is_hidden)
 	if dot == " " then
 		return "PoppyDotNone"
 	end
 	if is_active then
-		local cap = cat:sub(1, 1):upper() .. cat:sub(2)
-		return "PoppyDotCurrent" .. cap
+		return "PoppyDotCurrent" .. cap_category(category)
 	end
-	local prefix = "PoppyDot" .. cat:sub(1, 1):upper() .. cat:sub(2)
-	return prefix .. (is_hidden and "H" or "A")
+	return "PoppyDot" .. cap_category(category) .. (is_hidden and "H" or "A")
 end
 
----@param cat "exec"|"file"|"shell"
+---@param category "exec"|"file"|"shell"
 ---@param is_active boolean
 ---@return string
-local pick_icon_sign = function(cat, is_active)
-	local cap = cat:sub(1, 1):upper() .. cat:sub(2)
-	if is_active then
-		return "PoppyIconCurrent" .. cap
-	end
-	return "PoppyIcon" .. cap
+local pick_icon_sign = function(category, is_active)
+	local prefix = is_active and "PoppyIconCurrent" or "PoppyIcon"
+	return prefix .. cap_category(category)
 end
 
 ---@param wrapper_win integer
@@ -133,7 +137,7 @@ list.create = function(wrapper_win, menu_width, focusable, hint_height, row_over
 			vim.cmd("stopinsert")
 		end,
 	}
-	vim.api.nvim_create_autocmd("InsertEnter", insert_enter_autocmd)
+	api.nvim_create_autocmd("InsertEnter", insert_enter_autocmd)
 	return list.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override), buf
 end
 
@@ -145,7 +149,7 @@ end
 ---@param row_override? integer
 ---@return integer? win
 list.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
-	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
+	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local hint_offset = hint_height and hint_height or 5
 	local height = math.max(1, hint_offset and (wrapper_conf.height - hint_offset) or wrapper_conf.height)
 	local row = wrapper_conf.height - hint_offset
@@ -168,20 +172,20 @@ list.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 		win = wrapper_win,
 	}
 
-	local win = vim.api.nvim_open_win(buf, false, config)
+	local win = api.nvim_open_win(buf, false, config)
 	vim.wo[win].signcolumn = "yes:3"
 	style.apply_panel_style(win)
 	shared.apply_win_marker(win)
 	return win
 end
 
-local cat_hl = {
+local category_hl = {
 	file = "PoppyFile",
 	exec = "PoppyExec",
 	shell = "PoppyShell",
 }
 
-local cat_hl_hidden = {
+local category_hl_hidden = {
 	file = "PoppyFileHidden",
 	exec = "PoppyExecHidden",
 	shell = "PoppyShellHidden",
@@ -197,54 +201,49 @@ end
 ---@param max_width integer
 ---@return string
 local trim_title = function(title, max_width)
-	if vim.fn.strdisplaywidth(title) <= max_width then
+	if fn.strdisplaywidth(title) <= max_width then
 		return title
 	end
 	local result = ""
 	for word in title:gmatch("%S+") do
 		local test = result == "" and word or (result .. " " .. word)
-		if vim.fn.strdisplaywidth(test) > max_width then
+		if fn.strdisplaywidth(test) > max_width then
 			break
 		end
 		result = test
 	end
 	result = result:gsub("[%p]+%s*$", "")
-	if vim.fn.strdisplaywidth(result .. "…") <= max_width then
+	if fn.strdisplaywidth(result .. "…") <= max_width then
 		result = result .. "…"
 	end
 	return result
 end
 
 ---@param buf integer
----@param poppies PoppySessionEntry[]
+---@param poppies {name: string, config: PoppyResolvedConfig}[]
 ---@param icons? PoppyIcons
 ---@param menu_width integer
 ---@return void
 list.update = function(buf, poppies, icons, menu_width)
-	vim.api.nvim_buf_clear_namespace(buf, list_ns, 0, -1)
+	api.nvim_buf_clear_namespace(buf, list_ns, 0, -1)
 
 	local idx_width = max_index_width(#poppies)
 	local entries = {}
 
-	for display_idx, entry in ipairs(poppies) do
-		local cat = shared.cat(entry.config)
-		local icon = (icons and icons[cat]) or " "
-		local raw_title = entry.config.title or entry.name
-		local runtime = entry.runtime_state
+	for display_idx, configured in ipairs(poppies) do
+		local category = shared.category_from_resolved(configured.config)
+		local icon = (icons and icons[category]) or " "
+		local raw_title = configured.config.title or configured.name
+		local runtime = state.runtime(configured.name)
 		local is_hidden = runtime and runtime.hidden or false
 		local is_active = runtime and runtime.active or false
-		local title_max = menu_width - 1 - vim.fn.strdisplaywidth(icon) - 1 - idx_width - 1
-		local hl
-		if is_active then
-			hl = "PoppyCurrentRow" .. cat:sub(1, 1):upper() .. cat:sub(2)
-		elseif is_hidden then
-			hl = cat_hl_hidden[cat]
-		else
-			hl = cat_hl[cat]
-		end
+		local title_max = menu_width - 1 - fn.strdisplaywidth(icon) - 1 - idx_width - 1
+		local hl = is_active and ("PoppyCurrentRow" .. cap_category(category))
+			or (is_hidden and category_hl_hidden[category])
+			or category_hl[category]
 		entries[display_idx] = {
-			name = entry.name,
-			cat = cat,
+			name = configured.name,
+			category = category,
 			icon = icon,
 			title = trim_title(raw_title, title_max),
 			is_active = is_active,
@@ -254,40 +253,40 @@ list.update = function(buf, poppies, icons, menu_width)
 	end
 
 	if #entries == 0 then
-		entries[1] = { cat = "", icon = " ", title = "", is_active = false, is_hidden = false, hl = nil }
+		entries[1] = { category = "", icon = " ", title = "", is_active = false, is_hidden = false, hl = nil }
 	end
 
 	local lines = {}
-	---@type vim.fn.sign_placelist.list.item[]
+	---@type fn.sign_placelist.list.item[]
 	local placelist = {}
 	for display_idx, e in ipairs(entries) do
 		lines[display_idx] = string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.title
-		---@type vim.fn.sign_placelist.list.item
+		---@type fn.sign_placelist.list.item
 		local dot_placement = {
 			buffer = buf,
 			group = sign_group,
 			id = display_idx * 10,
 			lnum = display_idx,
 			priority = DOT_PRIORITY,
-			name = pick_sign((e.is_active or e.is_hidden) and "•" or " ", e.cat, e.is_active, e.is_hidden),
+			name = pick_sign((e.is_active or e.is_hidden) and "•" or " ", e.category, e.is_active, e.is_hidden),
 		}
 		placelist[#placelist + 1] = dot_placement
-		if e.cat ~= "" then
-			---@type vim.fn.sign_placelist.list.item
+		if e.category ~= "" then
+			---@type fn.sign_placelist.list.item
 			local icon_placement = {
 				buffer = buf,
 				group = sign_group,
 				id = display_idx * 10 + 1,
 				lnum = display_idx,
 				priority = ICON_PRIORITY,
-				name = pick_icon_sign(e.cat, e.is_active),
+				name = pick_icon_sign(e.category, e.is_active),
 			}
 			placelist[#placelist + 1] = icon_placement
 		end
 	end
 
 	shared.with_modifiable(buf, function()
-		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+		api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)
 
 	for display_idx, e in ipairs(entries) do
@@ -297,16 +296,16 @@ list.update = function(buf, poppies, icons, menu_width)
 				end_row = display_idx - 1,
 				line_hl_group = e.hl,
 			}
-			vim.api.nvim_buf_set_extmark(buf, list_ns, display_idx - 1, 0, hl_extmark)
+			api.nvim_buf_set_extmark(buf, list_ns, display_idx - 1, 0, hl_extmark)
 		end
 	end
 
-	vim.fn.sign_placelist(placelist)
+	fn.sign_placelist(placelist)
 end
 
 M.list = list
 
-local hints_ns = vim.api.nvim_create_namespace("poppy_hints_bar")
+local hints_ns = api.nvim_create_namespace("poppy_hints_bar")
 local INDENT = "  "
 local KEY_COL = 5
 local COL_GAP = "  "
@@ -358,7 +357,7 @@ hints.create_bottom_right = function(parent_win, keys)
 	local buf = create_buf()
 
 	local text = " " .. keys.poppy_action .. " Menu "
-	local win_conf = vim.api.nvim_win_get_config(parent_win)
+	local win_conf = api.nvim_win_get_config(parent_win)
 	local row = math.max(0, win_conf.height) + 1
 	local col = math.max(0, win_conf.width) + 1
 
@@ -377,11 +376,11 @@ hints.create_bottom_right = function(parent_win, keys)
 		win = parent_win,
 	}
 
-	local win = vim.api.nvim_open_win(buf, false, config)
+	local win = api.nvim_open_win(buf, false, config)
 	style.apply_hints_panel_style(win)
 
 	shared.with_modifiable(buf, function()
-		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { text })
+		api.nvim_buf_set_lines(buf, 0, -1, false, { text })
 	end)
 
 	shared.apply_win_marker(win)
@@ -396,7 +395,7 @@ end
 hints.recreate = function(wrapper_win, buf, opts)
 	opts = opts or {}
 	local kind = opts.kind or "menu"
-	local wrapper_conf = vim.api.nvim_win_get_config(wrapper_win)
+	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local col = opts.col or wrapper_conf.width
 	local row = opts.row or wrapper_conf.height
 	local width = opts.width or wrapper_conf.width
@@ -420,7 +419,7 @@ hints.recreate = function(wrapper_win, buf, opts)
 		win = wrapper_win,
 	}
 
-	local win = vim.api.nvim_open_win(buf, false, config)
+	local win = api.nvim_open_win(buf, false, config)
 	style.apply_hints_panel_style(win)
 	shared.apply_win_marker(win)
 	return win
@@ -456,9 +455,9 @@ hints.write_static = function(buf, keys, kind, wrapper_width)
 	end
 	table.insert(lines, " ")
 
-	vim.api.nvim_buf_clear_namespace(buf, hints_ns, 0, -1)
+	api.nvim_buf_clear_namespace(buf, hints_ns, 0, -1)
 	shared.with_modifiable(buf, function()
-		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+		api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)
 end
 

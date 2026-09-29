@@ -1,5 +1,6 @@
 local M = {}
 
+local api = vim.api
 local state = require("poppy.core.session.state")
 local view = require("poppy.core.ui.view")
 local shared = require("poppy.core.shared")
@@ -23,7 +24,7 @@ M.toggle_menu = function()
 	local keymaps = require("poppy.core.session.keymaps")
 	if want_focus then
 		local list_buf = view.get_list_buf()
-		if list_buf and vim.api.nvim_buf_is_valid(list_buf) then
+		if list_buf and api.nvim_buf_is_valid(list_buf) then
 			keymaps.setup_list_keys(list_buf)
 		end
 	end
@@ -56,7 +57,7 @@ M.exit_menu = function()
 
 	view.refresh_poppies()
 	if shared.try_focus_win(state.windows.content_win) then
-		local cbuf = vim.api.nvim_win_get_buf(state.windows.content_win)
+		local cbuf = api.nvim_win_get_buf(state.windows.content_win)
 		if vim.bo[cbuf].buftype == "terminal" then
 			vim.cmd("startinsert")
 		end

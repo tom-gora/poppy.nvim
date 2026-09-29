@@ -4,18 +4,19 @@ local M = {}
 
 -- 48 keeps us under Neovim's default 50 (completion pum, hovers, notifications) while staying above other plugin pickers.
 M.POPPY_Z_INDEX = 48
+M.DEFAULT_MENU_WIDTH = 25
 
 local HEADER_HEIGHT = 3
 
 local shared = require("poppy.core.shared")
 
 ---@param opts? PoppyMergedConfig
----@param poppies PoppySessionEntry[]
+---@param poppies {name: string, config: PoppyResolvedConfig}[]
 ---@return integer
 M.compute_landing_view_width = function(opts, poppies)
 	local max_line = 0
 	for i, item in ipairs(poppies) do
-		local icon = (opts and opts.icons and opts.icons[shared.cat(item.config)]) or " "
+		local icon = (opts and opts.icons and opts.icons[shared.category_from_resolved(item.config)]) or " "
 		local title = item.config.title or item.name
 		local line = string.format(" %s %s %d %s", " ", icon, i, title)
 		max_line = math.max(max_line, #line)
@@ -60,10 +61,10 @@ local resolve_dimension = function(value, total, name)
 	if value > 1 then
 		local min_v = math.floor(total / 3)
 		if value < min_v then
-			vim.notify(string.format("Poppy: %s %d too small, minimum is %d", name, value, min_v), vim.log.levels.WARN)
+			shared.notify_warn("%s %d too small, minimum is %d", name, value, min_v)
 			value = min_v
 		elseif value > total then
-			vim.notify(string.format("Poppy: %s %d exceeds screen size %d", name, value, total), vim.log.levels.WARN)
+			shared.notify_warn("%s %d exceeds screen size %d", name, value, total)
 			value = total
 		end
 		return math.floor(value)

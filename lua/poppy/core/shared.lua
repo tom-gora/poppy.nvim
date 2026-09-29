@@ -2,18 +2,19 @@ require("poppy._types")
 
 local M = {}
 
+local api = vim.api
 local state = require("poppy.core.session.state")
 
 M.try_focus_win = function(win)
-	if win and vim.api.nvim_win_is_valid(win) then
-		vim.api.nvim_set_current_win(win)
+	if win and api.nvim_win_is_valid(win) then
+		api.nvim_set_current_win(win)
 		return true
 	end
 	return false
 end
 
 M.session_is_open = function()
-	return state.windows.wrapper_win ~= nil and vim.api.nvim_win_is_valid(state.windows.wrapper_win)
+	return state.windows.wrapper_win ~= nil and api.nvim_win_is_valid(state.windows.wrapper_win)
 end
 
 M.session_get_current_poppy_name = function()
@@ -22,8 +23,7 @@ end
 
 ---@param name string
 M.hide_poppy = function(name)
-	local entry = state.poppy(name)
-	local runtime = entry and entry.runtime_state
+	local runtime = state.runtime(name)
 	if not runtime then
 		return
 	end
@@ -36,7 +36,7 @@ end
 M.show_menu_hint = function()
 	M.close_menu_hint()
 	local content_win = state.windows.content_win
-	if content_win and vim.api.nvim_win_is_valid(content_win) then
+	if content_win and api.nvim_win_is_valid(content_win) then
 		local render = require("poppy.core.ui.render")
 		state.windows.menu_hint_win, state.windows.menu_hint_buf =
 			render.hints.create_bottom_right(content_win, M.keys())
@@ -44,8 +44,8 @@ M.show_menu_hint = function()
 end
 
 M.close_menu_hint = function()
-	if state.windows.menu_hint_win and vim.api.nvim_win_is_valid(state.windows.menu_hint_win) then
-		vim.api.nvim_win_close(state.windows.menu_hint_win, true)
+	if state.windows.menu_hint_win and api.nvim_win_is_valid(state.windows.menu_hint_win) then
+		api.nvim_win_close(state.windows.menu_hint_win, true)
 	end
 	state.windows.menu_hint_win = nil
 	state.windows.menu_hint_buf = nil
@@ -58,16 +58,18 @@ end
 ---@param field string
 ---@return any
 M.opts_field = function(field)
-	if not state.windows.opts then return nil end
+	if not state.windows.opts then
+		return nil
+	end
 	return state.windows.opts[field]
 end
 
 ---@param buf integer
----@param fn fun()
-M.with_modifiable = function(buf, fn)
-	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-	fn()
-	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+---@param apply fun()
+M.with_modifiable = function(buf, apply)
+	api.nvim_set_option_value("modifiable", true, { buf = buf })
+	apply()
+	api.nvim_set_option_value("modifiable", false, { buf = buf })
 end
 
 ---@type string[]
@@ -77,36 +79,80 @@ M.ensure_setup = function()
 	if state and state.windows and state.windows.opts then
 		return true
 	end
-	vim.notify("Poppy: setup() must be called before opening", vim.log.levels.WARN)
+	M.notify_error("setup() must be called before using poppy.nvim")
 	return false
+end
+
+---@param template string
+---@param ... any
+M.notify_warn = function(template, ...)
+	vim.notify("Poppy: " .. string.format(template, ...), vim.log.levels.WARN)
+end
+
+---@param template string
+---@param ... any
+M.notify_error = function(template, ...)
+	vim.notify("Poppy: " .. string.format(template, ...), vim.log.levels.ERROR)
 end
 
 ---@param poppy PoppyResolvedConfig
 ---@return "exec"|"file"|"shell"
-M.cat = function(poppy)
-	if poppy.exec then
-		return "exec"
-	elseif poppy.file then
-		return "file"
-	end
-	return "shell"
+M.category_from_resolved = function(poppy)
+	return poppy.exec and "exec" or poppy.file and "file" or "shell"
 end
 
 local WIN_MARKER = "poppy_window"
 
 ---@param win integer
 M.apply_win_marker = function(win)
-	vim.api.nvim_win_set_var(win, WIN_MARKER, true)
+	api.nvim_win_set_var(win, WIN_MARKER, true)
 end
 
 ---@param win integer|nil
 ---@return boolean
 M.is_poppy_window = function(win)
-	if not win or not vim.api.nvim_win_is_valid(win) then
+	if not win or not api.nvim_win_is_valid(win) then
 		return false
 	end
-	local _, val = pcall(vim.api.nvim_win_get_var, win, WIN_MARKER)
+	local _, val = pcall(api.nvim_win_get_var, win, WIN_MARKER)
 	return val == true
+end
+
+-- Drop a poppy. Called from failure paths: missing binary, file()
+-- returning nil/empty, defensive post-spawn jobstart failure. At the
+-- moment this runs, the poppy has never been successfully opened,
+-- so poppies_runtime[name] is already nil.
+---@param name string
+---@param reason? string
+---@return boolean was_active
+M.drop_poppy = function(name, reason)
+	for i, entry in ipairs(state.poppies_configured) do
+		if entry.name == name then
+			table.remove(state.poppies_configured, i)
+			break
+		end
+	end
+	state.poppies_runtime[name] = nil
+	if state.windows.opts then
+		state.windows.opts.poppies[name] = nil
+		state.windows.opts.poppies_resolved[name] = nil
+		table.insert(state.windows.opts.dropped_names, name)
+	end
+	local was_active = state.windows.current_poppy_name == name
+	if was_active then
+		state.windows.current_poppy_name = nil
+	end
+	if state.windows.last_poppy_name == name then
+		state.windows.last_poppy_name = nil
+	end
+	if reason then
+		M.notify_warn("dropped poppy '%s': %s", name, reason)
+	end
+	if M.session_is_open() then
+		local view = require("poppy.core.ui.view")
+		view.refresh_poppies()
+	end
+	return was_active
 end
 
 return M

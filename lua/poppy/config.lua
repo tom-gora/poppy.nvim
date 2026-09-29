@@ -2,52 +2,50 @@ require("poppy._types")
 
 local M = {}
 
+local fn = vim.fn
 local layout = require("poppy.core.ui.layout")
+local shared = require("poppy.core.shared")
 
 local DEFAULT_KEYS = { "poppy_action", "select", "kill", "exit_menu" }
 local DEFAULT_ICONS = { "exec", "shell", "file" }
 
 -- max_display_width=2 fits one 2-cell nerdfont glyph; reject_pct blocks '%' which would break string.format downstream.
+---@param v any
+---@param max_display_width? integer
+---@param reject_pct? boolean
+---@return boolean ok
+---@return string? reason
+local validate_string_field = function(v, max_display_width, reject_pct)
+	if type(v) ~= "string" then
+		return false, "value is " .. type(v) .. ", expected string"
+	end
+	if v == "" then
+		return false, "value is empty string"
+	end
+	if max_display_width then
+		local w = fn.strdisplaywidth(v)
+		if w > max_display_width then
+			return false, string.format("display width %d exceeds max %d", w, max_display_width)
+		end
+	end
+	if reject_pct and v:find("%", 1, true) then
+		return false, "value contains '%' which would break string.format downstream"
+	end
+	return true, nil
+end
+
 local sanitize_string_fields = function(defaults, user, keys, max_display_width, reject_pct)
 	local out = {}
 	for _, k in ipairs(keys) do
 		local v = (type(user) == "table") and user[k] or nil
-		local valid = type(v) == "string" and v ~= ""
-		if valid and max_display_width then
-			valid = vim.fn.strdisplaywidth(v) <= max_display_width
-		end
-		if valid and reject_pct then
-			valid = not v:find("%", 1, true)
-		end
-		if not valid and v ~= nil then
-			local reason
-			if type(v) ~= "string" then
-				reason = "value is " .. type(v) .. ", expected string"
-			elseif v == "" then
-				reason = "value is empty string"
-			elseif max_display_width and vim.fn.strdisplaywidth(v) > max_display_width then
-				reason = string.format(
-					"display width %d exceeds max %d",
-					vim.fn.strdisplaywidth(v),
-					max_display_width
-				)
-			elseif reject_pct and v:find("%", 1, true) then
-				reason = "value contains '%' which would break string.format downstream"
-			else
-				reason = "value failed validation"
-			end
-			vim.notify(
-				string.format(
-					"Poppy: ignoring invalid %s.%s (%s); falling back to default '%s'",
-					"config",
-					k,
-					reason,
-					tostring(defaults[k])
-				),
-				vim.log.levels.WARN
+		local ok, reason = validate_string_field(v, max_display_width, reject_pct)
+		if not ok and v ~= nil then
+			shared.notify_warn(
+				"ignoring invalid %s.%s (%s); falling back to default '%s'",
+				"config", k, reason, tostring(defaults[k])
 			)
 		end
-		out[k] = valid and v or defaults[k]
+		out[k] = ok and v or defaults[k]
 	end
 	return out
 end
@@ -59,22 +57,58 @@ local default_opts = {
 	title_header = true,
 	autoclose = true,
 	exclusive_float = true,
-	menu_width = 25,
+	menu_width = layout.DEFAULT_MENU_WIDTH,
 	win_height = 0.75,
 	win_width = 0.8,
 	win_location = "center",
 }
 
+-- First whitespace-delimited token of a string command, or first element of a list command.
+---@param command string|string[]|function|nil
 ---@return string|nil
-local title_fallback = function(mode, value)
+local argv0 = function(command)
+	if type(command) == "string" then
+		return (command:gsub("%s.*", ""))
+	elseif type(command) == "table" and #command > 0 and type(command[1]) == "string" then
+		return command[1]
+	end
+	return nil
+end
+
+---Evaluate a user-supplied function (or pass through a string/list), and validate
+---the result against the type that the corresponding field requires. Returns
+---`value, ok`. On `not ok` the caller should drop the poppy. Validation at setup
+---time guarantees that anything in `state.poppies_configured` is invokable.
+---@param name string
+---@param raw string|string[]|function|nil
+---@return string|string[]|nil value
+---@return boolean ok
+---@return string|nil err
+local resolve_and_validate_value = function(name, raw)
+	if raw == nil then
+		return nil, false, "value is nil"
+	end
+	local value = raw
 	if type(value) == "function" then
-		value = value()
+		local ok, result = pcall(value)
+		if not ok then
+			shared.notify_warn("poppy '%s' function errored at setup: %s", tostring(name), tostring(result))
+			return nil, false, "function errored"
+		end
+		value = result
 	end
-	if mode == "file" then
-		return vim.fs.basename(vim.fn.expand(value))
+	if value == nil or value == "" then
+		return nil, false, "value is empty"
 	end
-	local first_arg = type(value) == "table" and value[1] or vim.split(value, " ")[1]
-	return vim.fs.basename(first_arg)
+	if type(value) ~= "string" and type(value) ~= "table" then
+		shared.notify_warn(
+			"poppy '%s' resolved to %s, expected string or list of strings",
+			tostring(name),
+			type(value)
+		)
+		return nil, false, "type mismatch"
+	end
+	return value, true, nil
 end
 
 ---@return PoppyResolvedConfig?
@@ -84,23 +118,55 @@ local resolve_poppy = function(name, poppy)
 	end
 
 	local mode
+	local raw
 	if poppy.exec then
 		mode = "term"
+		raw = poppy.exec
 	elseif poppy.file then
 		mode = "file"
+		raw = poppy.file
 	elseif poppy.shell then
 		mode = "term"
+		raw = poppy.shell
 	else
-		vim.notify(
-			"Poppy: Poppy '" .. name .. "' must have exactly one of 'exec', 'file', or 'shell'.",
-			vim.log.levels.ERROR
-		)
+		shared.notify_error("poppy '%s' must have exactly one of 'exec', 'file', or 'shell'", tostring(name))
 		return nil
 	end
 
+	local value, ok, err = resolve_and_validate_value(name, raw)
+	if not ok then
+		shared.notify_warn("poppy '%s' dropped at setup: %s", tostring(name), err)
+		return nil
+	end
+
+	if mode == "file" then
+		local expanded = fn.expand(value)
+		if expanded == "" then
+			shared.notify_warn("poppy '%s' file path resolved to empty: %s", tostring(name), tostring(value))
+			return nil
+		end
+		value = expanded
+	else
+		local check = value
+		if poppy.shell and value == "default" then
+			check = os.getenv("SHELL") or "bash"
+		end
+		local argv = argv0(check)
+		if argv and argv ~= "" and fn.executable(argv) == 0 then
+			shared.notify_warn("poppy '%s' binary '%s' not found on $PATH", tostring(name), argv)
+			return nil
+		end
+	end
+
 	local title = poppy.title
-		if title == nil then
-		title = title_fallback(mode, poppy.exec or poppy.file or poppy.shell or os.getenv("SHELL") or "shell")
+	if title == nil then
+		if mode == "file" then
+			title = vim.fs.basename(value)
+		elseif type(value) == "table" then
+			title = vim.fs.basename(value[1] or name)
+		else
+			title = vim.fs.basename(vim.split(value, " ")[1] or name)
+		end
 	end
 
 	return {
@@ -108,7 +174,7 @@ local resolve_poppy = function(name, poppy)
 		file = poppy.file,
 		shell = poppy.shell,
 		mode = mode,
-		title = title or "",
+		title = title,
 	}
 end
 
@@ -119,13 +185,7 @@ M.merge = function(user_opts)
 
 	-- vim.tbl_deep_extend errors on non-table; catch up front.
 	if type(user) ~= "table" then
-		vim.notify(
-			string.format(
-				"Poppy: setup() expected a table of options, got %s. Using defaults.",
-				type(user)
-			),
-			vim.log.levels.WARN
-		)
+		shared.notify_warn("setup() expected a table of options, got %s. Using defaults.", type(user))
 		user = {}
 	end
 
@@ -145,22 +205,15 @@ M.merge = function(user_opts)
 		"win_width",
 		"win_location",
 	}
+	local known_set = {}
+	for _, name in ipairs(known_top) do
+		known_set[name] = true
+	end
 	for k in pairs(user) do
-		local is_known = false
-		for _, name in ipairs(known_top) do
-			if k == name then
-				is_known = true
-				break
-			end
-		end
-		if not is_known then
-			vim.notify(
-				string.format(
-					"Poppy: unknown config key '%s'. (Known keys: %s.)",
-					tostring(k),
-					table.concat(known_top, ", ")
-				),
-				vim.log.levels.WARN
+		if not known_set[k] then
+			shared.notify_warn(
+				"unknown config key '%s'. (Known keys: %s.)",
+				tostring(k), table.concat(known_top, ", ")
 			)
 		end
 	end
@@ -168,14 +221,9 @@ M.merge = function(user_opts)
 	local bool_keys = { "menu_autohide", "title_header", "autoclose", "exclusive_float" }
 	for _, k in ipairs(bool_keys) do
 		if merged[k] ~= nil and type(merged[k]) ~= "boolean" then
-			vim.notify(
-				string.format(
-					"Poppy: config key '%s' expected boolean, got %s. Falling back to default %s.",
-					k,
-					type(merged[k]),
-					tostring(default_opts[k])
-				),
-				vim.log.levels.WARN
+			shared.notify_warn(
+				"config key '%s' expected boolean, got %s. Falling back to default %s.",
+				k, type(merged[k]), tostring(default_opts[k])
 			)
 			merged[k] = default_opts[k]
 		end
@@ -184,26 +232,18 @@ M.merge = function(user_opts)
 	local num_keys = { "menu_width" }
 	for _, k in ipairs(num_keys) do
 		if merged[k] ~= nil and type(merged[k]) ~= "number" and type(merged[k]) ~= "function" then
-			vim.notify(
-				string.format(
-					"Poppy: config key '%s' expected number or function, got %s. Falling back to default %s.",
-					k,
-					type(merged[k]),
-					tostring(default_opts[k])
-				),
-				vim.log.levels.WARN
+			shared.notify_warn(
+				"config key '%s' expected number or function, got %s. Falling back to default %s.",
+				k, type(merged[k]), tostring(default_opts[k])
 			)
 			merged[k] = default_opts[k]
 		end
 	end
 
 	if merged.poppies ~= nil and type(merged.poppies) ~= "table" then
-		vim.notify(
-			string.format(
-				"Poppy: config key 'poppies' expected a table of name -> config, got %s. No poppies will be available.",
-				type(merged.poppies)
-			),
-			vim.log.levels.WARN
+		shared.notify_warn(
+			"config key 'poppies' expected a table of name -> config, got %s. No poppies will be available.",
+			type(merged.poppies)
 		)
 		merged.poppies = {}
 	end
@@ -214,9 +254,9 @@ M.merge = function(user_opts)
 	local valid_locations = { center = true, top = true, bottom = true }
 	local win_location = merged.win_location
 	if not valid_locations[win_location] then
-		vim.notify(
-			"Poppy: Invalid win_location '" .. tostring(win_location) .. "'. Falling back to 'center'.",
-			vim.log.levels.WARN
+		shared.notify_warn(
+			"invalid win_location '%s'. Falling back to 'center'.",
+			tostring(win_location)
 		)
 		win_location = default_opts.win_location
 	end
@@ -226,13 +266,9 @@ M.merge = function(user_opts)
 	local dropped_names = {}
 	for name, poppy in pairs(poppies) do
 		if type(poppy) ~= "table" then
-			vim.notify(
-				string.format(
-					"Poppy: poppy '%s' has non-table config (%s); dropping.",
-					tostring(name),
-					type(poppy)
-				),
-				vim.log.levels.WARN
+			shared.notify_warn(
+				"poppy '%s' has non-table config (%s); dropping.",
+				tostring(name), type(poppy)
 			)
 			table.insert(dropped_names, name)
 		else
