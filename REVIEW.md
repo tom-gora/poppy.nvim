@@ -62,22 +62,23 @@ overloaded module and the place where the shape gets muddy.
 
 ### Correctness / data risk
 
-- `file.lua:89-96` blows away the whole buffer on every open
-  (`nvim_buf_set_lines(bufnr, 0, -1, ...)` then `modified = false`).
-  Switching away from a file poppy and back silently discards unsaved
-  edits. For a plugin whose whole point is "come back to my things", this
-  is the worst bug in the codebase.
-- `session/init.lua:544-546` force-deletes a poppy's buffer on kill with
-  no `modified` check, so a modified file buffer is gone with no prompt.
-- `layout.lua:21-27` computes landing width with `#line` (bytes) while
+~- `file.lua:89-96` blows away the whole buffer on every open
+(`nvim_buf_set_lines(bufnr, 0, -1, ...)` then `modified = false`).
+Switching away from a file poppy and back silently discards unsaved
+edits. For a plugin whose whole point is "come back to my things", this
+is the worst bug in the codebase.~
+
+- ~`session/init.lua:544-546` force-deletes a poppy's buffer on kill with
+  no `modified` check, so a modified file buffer is gone with no prompt.~
+- ~`layout.lua:21-27` computes landing width with `#line` (bytes) while
   `render.lua` trims by `strdisplaywidth`. The default 🛠/🗋 icons are 4
   bytes / 2 cells, so the landing float is systematically too wide. The
   format string also has a doubled leading space (`" %s %s %d %s", " "`,
-  `icon`, …) that the render path doesn't reproduce.
-- `M.recover` (`session/init.lua:725`) clears `current_poppy_name`
+  `icon`, …) that the render path doesn't reproduce.~
+- ~`M.recover` (`session/init.lua:725`) clears `current_poppy_name`
   unconditionally *before* scheduling, so the `or state.windows.current_poppy_name`
   check inside the scheduled body at line 730 can never be true. It works
-  by accident, via `recover_pick_fallback` instead.
+  by accident, via `recover_pick_fallback` instead.~
 - `render.lua:154`: `math.max(1, hint_offset and (h - hint_offset) or h)` —
   `hint_offset` always defaults to 5 and is always truthy, so the `or h`
   branch is unreachable. The `and/or` idiom also silently misbehaves if
@@ -86,45 +87,17 @@ overloaded module and the place where the shape gets muddy.
   `state.poppy_configured(poppy_name)` twice for the same name, discarding
   the first result.
 
-### Doc drift
-
-- **`confirm_create_file` is documented but does not exist.** It's in
-  `_types.lua:34`-era config docs, two README sections, and the whole
-  "Confirm file creation" section — but `config.lua` never reads it, so
-  setting it trips the "unknown config key" warning while `file.lua:73-87`
-  unconditionally `mkdir -p` + `writefile`s the file anyway. A documented
-  safety confirmation that does nothing, on the one code path that touches
-  the filesystem.
-- `_types.lua:17-19` types `file?: string` and `exec?: string|string[]`,
-  but both accept `function` per README and per `config.lua`'s own
-  `resolve_and_validate_value`. `shell?` is typed `string|function` while
-  `exec?` isn't, with no reason for the asymmetry. LSP will flag valid
-  configs as wrong.
-- README says the plugin "bundles a `.luarc.json` pointing at the
-  `$VIMRUNTIME` meta files". It points at a hardcoded absolute path,
-  `/home/tomeczku/Programming/nvim_types/_meta` — not portable, and not
-  `$VIMRUNTIME`.
-- `state.lua:51` comments that `poppies_configured` is "immutable after
-  setup", but `shared.drop_poppy` mutates it at runtime.
-- `M.transition_to_content`, `M.enter_landing`, and `M.recover` are public
-  on the session module and reachable, but absent from the README's Lua
-  API list. Either document or make them local.
-- `:Poppy menu` is listed in the README, but `menu.toggle_menu` returns
-  early when the session is closed, so the documented "toggle just the
-  sidebar" silently no-ops on a closed manager.
-
 ### Dead code
 
-- `render.lua:441-455` builds a whole `per_line_segments` table with hint
+- ~~`render.lua:441-455` builds a whole `per_line_segments` table with hint
   text, padding, and highlight slots, then never reads it. Only the plain
   `lines` strings are used. ~15 lines of pure dead weight, and it
-  misleadingly suggests the hints bar is extmark-rendered.
-- `render.lua:134-140`: `list.create` registers a buffer-local
+  misleadingly suggests the hints bar is extmark-rendered.~~
+- ~`render.lua:134-140`: `list.create` registers a buffer-local
   `InsertEnter → stopinsert` autocmd with no group, on every list-buffer
   creation. Buffers are reused across mounts so it doesn't pile up much,
   but it's an unbounded pattern for a guard that could live on the buffer
-  once at creation.
-- `relative.md` is a zero-byte tracked file.
+  once at creation.~
 
 ### Structure & ergonomics
 
@@ -169,3 +142,4 @@ overloaded module and the place where the shape gets muddy.
 - `layout.resolve_dimension` warns about too-small/too-large absolute
   dimensions on *every* wrapper open. A correctly-configured user will
   see the same warning repeatedly.
+

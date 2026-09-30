@@ -86,6 +86,8 @@ end
 M.header = header
 
 local list_ns = api.nvim_create_namespace("poppy_list_panel")
+-- Own group, not poppy_ui: that one is cleared on every mount, which would drop the guard.
+local list_autocmd_group = api.nvim_create_augroup("poppy_list_buffer", { clear = false })
 local sign_group = "poppy_list"
 local list = {}
 
@@ -130,14 +132,15 @@ end
 ---@return integer? buf
 list.create = function(wrapper_win, menu_width, focusable, hint_height, row_override)
 	local buf = create_buf()
-	---@type vim.api.keyset.create_autocmd
-	local insert_enter_autocmd = {
+	-- The list is a read-only panel; refuse insert mode. Buffer-local, so it dies with the buffer.
+	api.nvim_clear_autocmds({ group = list_autocmd_group, buffer = buf })
+	api.nvim_create_autocmd("InsertEnter", {
+		group = list_autocmd_group,
 		buffer = buf,
 		callback = function()
 			vim.cmd("stopinsert")
 		end,
-	}
-	api.nvim_create_autocmd("InsertEnter", insert_enter_autocmd)
+	})
 	return list.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override), buf
 end
 
@@ -305,7 +308,6 @@ end
 
 M.list = list
 
-local hints_ns = api.nvim_create_namespace("poppy_hints_bar")
 local INDENT = "  "
 local KEY_COL = 5
 local COL_GAP = "  "
@@ -438,27 +440,15 @@ hints.write_static = function(buf, keys, kind, wrapper_width)
 		return
 	end
 	local sep = " " .. string.rep("─", math.max(0, wrapper_width - #INDENT - 1)) .. " "
-	local spec = HINT_SPECS[kind] or {}
-
 	local lines = { sep }
-	local per_line_segments = { { { text = sep, hl = nil } } }
 
-	for _, kp in ipairs(spec) do
+	for _, kp in ipairs(HINT_SPECS[kind] or {}) do
 		local hint_text = fmt_hint(keys[kp[1]], kp[2], INDENT)
-		local left_len = #hint_text
-		local padding = math.max(1, wrapper_width - left_len)
-		local segments = { { text = hint_text, hl = nil }, { text = string.rep(" ", padding), hl = nil } }
-		table.insert(per_line_segments, segments)
-		table.insert(lines, hint_text .. string.rep(" ", padding))
+		table.insert(lines, hint_text .. string.rep(" ", math.max(1, wrapper_width - #hint_text)))
 	end
 
-	if #lines == 0 then
-		table.insert(lines, "")
-		table.insert(per_line_segments, {})
-	end
 	table.insert(lines, " ")
 
-	api.nvim_buf_clear_namespace(buf, hints_ns, 0, -1)
 	shared.with_modifiable(buf, function()
 		api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)

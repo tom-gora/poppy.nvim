@@ -125,9 +125,8 @@ local setup_autocmds = function(opts, callbacks)
 				return
 			end
 
-			local entry = state.poppy_configured(poppy_name)
-			state.poppies_runtime[entry.name] = nil
-			if shared.session_is_open() and state.windows.current_poppy_name == poppy_name then
+			state.clear_runtime(poppy_name)
+			if state.windows.current_poppy_name == poppy_name then
 				M.recover()
 			end
 		end,
