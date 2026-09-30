@@ -60,52 +60,8 @@ overloaded module and the place where the shape gets muddy.
 
 ## Bad things
 
-### Correctness / data risk
-
-~- `file.lua:89-96` blows away the whole buffer on every open
-(`nvim_buf_set_lines(bufnr, 0, -1, ...)` then `modified = false`).
-Switching away from a file poppy and back silently discards unsaved
-edits. For a plugin whose whole point is "come back to my things", this
-is the worst bug in the codebase.~
-
-- ~`session/init.lua:544-546` force-deletes a poppy's buffer on kill with
-  no `modified` check, so a modified file buffer is gone with no prompt.~
-- ~`layout.lua:21-27` computes landing width with `#line` (bytes) while
-  `render.lua` trims by `strdisplaywidth`. The default 🛠/🗋 icons are 4
-  bytes / 2 cells, so the landing float is systematically too wide. The
-  format string also has a doubled leading space (`" %s %s %d %s", " "`,
-  `icon`, …) that the render path doesn't reproduce.~
-- ~`M.recover` (`session/init.lua:725`) clears `current_poppy_name`
-  unconditionally *before* scheduling, so the `or state.windows.current_poppy_name`
-  check inside the scheduled body at line 730 can never be true. It works
-  by accident, via `recover_pick_fallback` instead.~
-- `render.lua:154`: `math.max(1, hint_offset and (h - hint_offset) or h)` —
-  `hint_offset` always defaults to 5 and is always truthy, so the `or h`
-  branch is unreachable. The `and/or` idiom also silently misbehaves if
-  the expression ever yields `0`.
-- `session/init.lua:110-115`: the `BufUnload` handler calls
-  `state.poppy_configured(poppy_name)` twice for the same name, discarding
-  the first result.
-
-### Dead code
-
-- ~~`render.lua:441-455` builds a whole `per_line_segments` table with hint
-  text, padding, and highlight slots, then never reads it. Only the plain
-  `lines` strings are used. ~15 lines of pure dead weight, and it
-  misleadingly suggests the hints bar is extmark-rendered.~~
-- ~`render.lua:134-140`: `list.create` registers a buffer-local
-  `InsertEnter → stopinsert` autocmd with no group, on every list-buffer
-  creation. Buffers are reused across mounts so it doesn't pile up much,
-  but it's an unbounded pattern for a guard that could live on the buffer
-  once at creation.~
-
 ### Structure & ergonomics
 
-- `session/init.lua` at 748 lines holds setup, the `:Poppy` command,
-  completion, all four autocmds, cleanup, open/close/toggle, switch, kill,
-  the `WinClosed` watcher, and the landing/content transitions. The
-  autocmd and command registration (~120 lines) are the obvious
-  extraction candidates and would leave a readable orchestrator.
 - `state.windows` is a flat bag of 17 fields that callers reach into
   directly (`state.windows.content_win = ...` from `view.lua`, `menu.lua`,
   `keymaps.lua`, and `session/init.lua`). The single-state-table idea is
@@ -117,11 +73,6 @@ is the worst bug in the codebase.~
   `layout.lua:87-96`).
 - `argv0` is duplicated verbatim in `config.lua:69-76` and
   `term.lua:53-60`. They should be one function in `shared.lua`.
-- `cleanup(drop_poppies)` branches on `has_live_poppy` to decide which
-  scratch buffers to delete, but `has_live_poppy` is always false when
-  `drop_poppies` is true (which is the only caller that passes true) —
-  the branch only ever matters on the `cleanup()`-from-toggle path, where
-  the answer is always true. The condition is doing nothing.
 - The `recovering` flag is a boolean guarding re-entrancy across
   `cleanup`, `recover`, and `recover_goto_landing`. It works, but it's
   load-bearing and undocumented from the outside; a comment at each of

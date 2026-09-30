@@ -208,11 +208,12 @@ local mount_panels = function(wrapper_win)
 	local list_w = (cfg.width_source == "menu") and mw or wc.width
 	local hints_hl = (cfg.hints_lines_source == "menu") and render.HINT_LINES.menu or render.HINT_LINES.landing + 2
 
+	-- Landing's hints_hl already has +2 separator padding; sidebar's doesn't.
+	local list_hint = is_landing and hints_hl or (hints_hl + 2)
+
 	ensure_panel("list_buf", "list_win", function()
-		return render.list.create(wrapper_win, list_w, cfg.list_focusable, hints_hl, hh)
+		return render.list.create(wrapper_win, list_w, cfg.list_focusable, list_hint, hh)
 	end, function(buf)
-		-- Landing's hints_hl already has +2 separator padding; sidebar's doesn't.
-		local list_hint = is_landing and hints_hl or (hints_hl + 2)
 		return render.list.recreate(wrapper_win, buf, list_w, cfg.list_focusable, list_hint, hh)
 	end)
 

@@ -10,6 +10,7 @@ local shared = require("poppy.core.shared")
 local config = require("poppy.config")
 local keymaps = require("poppy.core.session.keymaps")
 local menu = require("poppy.core.session.menu")
+local autocommands = require("poppy.core.session.autocommands")
 
 -- Static dispatch: a dynamic require("poppy.core.modes." .. mode) resolves
 -- fine at runtime but hides the mode modules from the LSP.
@@ -109,70 +110,6 @@ local setup_command = function(opts, callbacks)
 	})
 end
 
----@param opts PoppyMergedConfig
----@param callbacks table
-local setup_autocmds = function(opts, callbacks)
-	api.nvim_create_augroup("poppy_group", { clear = true })
-
-	api.nvim_create_autocmd("BufUnload", {
-		group = "poppy_group",
-		callback = function(e)
-			if not shared.session_is_open() then
-				return
-			end
-			local ok, poppy_name = pcall(api.nvim_buf_get_var, e.buf, "poppy_popup")
-			if not ok or not poppy_name or not state.poppy_configured(poppy_name) then
-				return
-			end
-
-			state.clear_runtime(poppy_name)
-			if state.windows.current_poppy_name == poppy_name then
-				M.recover()
-			end
-		end,
-	})
-
-	if opts and opts.menu_autohide then
-		api.nvim_create_autocmd("CursorHold", {
-			group = "poppy_group",
-			callback = function()
-				if vim.bo.filetype == "poppy_menu" then
-					menu.exit_menu()
-				end
-			end,
-		})
-	end
-
-	if opts and opts.autoclose then
-		api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, {
-			group = "poppy_group",
-			callback = function()
-				if not shared.session_is_open() then
-					return
-				end
-				-- Defer so nvim_get_current_win() reports the new window.
-				vim.schedule(function()
-					if not shared.session_is_open() then
-						return
-					end
-					local cur = api.nvim_get_current_win()
-					if not api.nvim_win_is_valid(cur) then
-						return
-					end
-					if shared.is_poppy_window(cur) then
-						return
-					end
-					-- Cmdline exempt: user may be typing :Poppy or any command.
-					if vim.fn.win_gettype(cur) == "command" then
-						return
-					end
-					callbacks.toggle()
-				end)
-			end,
-		})
-	end
-end
-
 local init_or_reset_state = function()
 	state.windows = state.default_state()
 	state.poppies_configured = {}
@@ -203,7 +140,7 @@ M.setup = function(user_opts)
 		}
 	end
 	setup_global_key()
-	setup_autocmds(state.windows.opts, { toggle = M.toggle })
+	autocommands.setup(state.windows.opts)
 	setup_command(state.windows.opts, {
 		toggle = M.toggle,
 		open = M.open,
@@ -349,26 +286,6 @@ local cleanup = function(drop_poppies)
 	end
 end
 
-local setup_exclusive_float = function()
-	api.nvim_create_autocmd("WinEnter", {
-		group = "poppy_group",
-		once = true,
-		callback = function()
-			vim.schedule(function()
-				for _, w in ipairs(api.nvim_list_wins()) do
-					if not api.nvim_win_is_valid(w) or shared.is_poppy_window(w) then
-						goto continue
-					end
-					if api.nvim_win_get_config(w).relative ~= "" then
-						api.nvim_win_close(w, true)
-					end
-					::continue::
-				end
-			end)
-		end,
-	})
-end
-
 M.close = function()
 	if not shared.ensure_setup() then
 		return
@@ -407,7 +324,7 @@ M.open = function(poppy_name)
 	end
 
 	if shared.opts_field("exclusive_float") then
-		setup_exclusive_float()
+		autocommands.setup_exclusive_float()
 	end
 
 	local last_poppy = state.windows.current_poppy_name
@@ -639,36 +556,6 @@ M.kill_by_cursor = function()
 	end
 end
 
--- Forward-declared so the WinClosed callback can recursively re-arm itself on the replacement content window.
-local function watch_content_window(win_id, menu_w)
-	if not win_id then
-		return
-	end
-	local w = menu_w or layout.DEFAULT_MENU_WIDTH
-	api.nvim_create_autocmd("WinClosed", {
-		pattern = tostring(win_id),
-		once = true,
-		group = "poppy_ui",
-		callback = function()
-			if state.windows.recovering then
-				return
-			end
-			if not shared.session_is_open() then
-				return
-			end
-			local c_win, c_buf = view.content.create(state.windows.wrapper_win, w)
-			state.windows.content_win = c_win
-			state.windows.content_buf = c_buf
-			watch_content_window(c_win, w)
-			if state.windows.current_poppy_name then
-				M.kill_active()
-			else
-				M.recover()
-			end
-		end,
-	})
-end
-
 M.transition_to_content = function()
 	if state.windows.is_landing then
 		view.unmount()
@@ -686,7 +573,7 @@ M.transition_to_content = function()
 	local panel_width = view.menu_width()
 	local c_win, c_buf = view.content.create(state.windows.wrapper_win, panel_width)
 	view.mount(state.windows.wrapper_win)
-	watch_content_window(c_win, panel_width)
+	autocommands.watch_content_window(c_win, panel_width)
 	state.windows.content_win = c_win
 	state.windows.content_buf = c_buf
 end

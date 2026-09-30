@@ -153,8 +153,8 @@ end
 ---@return integer? win
 list.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local hint_offset = hint_height and hint_height or 5
-	local height = math.max(1, hint_offset and (wrapper_conf.height - hint_offset) or wrapper_conf.height)
+	local hint_offset = hint_height or 5
+	local height = math.max(1, wrapper_conf.height - hint_offset)
 	local row = wrapper_conf.height - hint_offset
 	if row_override then
 		height = math.max(1, height - row_override)
