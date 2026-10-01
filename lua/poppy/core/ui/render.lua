@@ -9,6 +9,13 @@ local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 
+-- Hint line geometry, used by both the renderer and the width measurements that
+-- layout.lua performs. Declared up here because the measuring helpers are
+-- exported above the hint section.
+local INDENT = "  "
+local KEY_COL = 5
+local COL_GAP = "  "
+
 local function create_buf()
 	local buf = api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
@@ -200,6 +207,41 @@ local max_index_width = function(count)
 	return #tostring(count)
 end
 
+-- Exported so layout.lua can size panels from the same arithmetic the renderer
+-- uses. When these were inlined here, the landing width had to re-guess the row
+-- format and drifted, which is how the legend ended up croppable.
+--
+-- A row's cost is the signcolumn plus "<idx> <title>". The icon is NOT part of
+-- this: it is drawn as a sign in the signcolumn, so it is never buffer text and
+-- must not be measured with strdisplaywidth here.
+--
+-- SIGN_COL is 6, not the 3 that `signcolumn = "yes:3"` asks for. Two signs stack
+-- in that column (the state dot and the category icon) and nvim reserves 2x the
+-- widest sign, so yes:3 occupies six cells. Measured via getwininfo().textoff
+-- on nvim 0.12.5: yes:1 -> 2, yes:2 -> 4, yes:3 -> 6. Using 3 here under-counts
+-- every row by three cells and crops long titles against the panel edge.
+M.SIGN_COL = 6
+
+---@param idx_width integer
+---@param title string
+---@return integer
+M.measure_list_row = function(idx_width, title)
+	return M.SIGN_COL + idx_width + 1 + fn.strdisplaywidth(title)
+end
+
+-- One hint line: indent + key padded to KEY_COL + gap + label + trailing space.
+local hint_line = function(key, label, indent)
+	local padded = key .. string.rep(" ", math.max(0, KEY_COL - #key))
+	return indent .. padded .. COL_GAP .. label .. " "
+end
+
+---@param key string
+---@param label string
+---@return integer
+M.measure_hint_line = function(key, label)
+	return fn.strdisplaywidth(hint_line(key, label, INDENT))
+end
+
 ---@param title string
 ---@param max_width integer
 ---@return string
@@ -214,6 +256,19 @@ local trim_title = function(title, max_width)
 			break
 		end
 		result = test
+	end
+	-- A single token with no whitespace never fits, so the loop above keeps
+	-- nothing. Hard-cut it instead of degrading to a lone ellipsis.
+	if result == "" then
+		local cut = max_width - 1
+		if cut < 1 then
+			return fn.strcharpart(title, 0, math.max(0, max_width))
+		end
+		local kept = fn.strcharpart(title, 0, cut)
+		while fn.strdisplaywidth(kept) > cut and kept ~= "" do
+			kept = kept:sub(1, -2)
+		end
+		return kept .. "…"
 	end
 	result = result:gsub("[%p]+%s*$", "")
 	if fn.strdisplaywidth(result .. "…") <= max_width then
@@ -240,7 +295,8 @@ list.update = function(buf, poppies, icons, menu_width)
 		local runtime = state.runtime(configured.name)
 		local is_hidden = runtime and runtime.hidden or false
 		local is_active = runtime and runtime.active or false
-		local title_max = menu_width - 1 - fn.strdisplaywidth(icon) - 1 - idx_width - 1
+		-- Same arithmetic as measure_list_row, inverted to get the title budget.
+		local title_max = menu_width - (M.measure_list_row(idx_width, "") - 1)
 		local hl = is_active and ("PoppyCurrentRow" .. cap_category(category))
 			or (is_hidden and category_hl_hidden[category])
 			or category_hl[category]
@@ -308,16 +364,12 @@ end
 
 M.list = list
 
-local INDENT = "  "
-local KEY_COL = 5
-local COL_GAP = "  "
-
 ---@param key string
 ---@param label string
 ---@param indent string
+---@return string
 local fmt_hint = function(key, label, indent)
-	local padded = key .. string.rep(" ", math.max(0, KEY_COL - #key))
-	return indent .. padded .. COL_GAP .. label .. " "
+	return hint_line(key, label, indent)
 end
 
 local ACTIVE = {
@@ -439,7 +491,7 @@ hints.write_static = function(buf, keys, kind, wrapper_width)
 	if not keys then
 		return
 	end
-	local sep = " " .. string.rep("─", math.max(0, wrapper_width - #INDENT - 1)) .. " "
+	local sep = " " .. string.rep("─", math.max(0, wrapper_width - #INDENT)) .. " "
 	local lines = { sep }
 
 	for _, kp in ipairs(HINT_SPECS[kind] or {}) do

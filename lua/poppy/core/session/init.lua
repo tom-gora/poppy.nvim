@@ -331,8 +331,7 @@ M.open = function(poppy_name)
 	local last_runtime = last_poppy and state.runtime(last_poppy)
 	local has_content = poppy_name or (last_runtime ~= nil)
 	local should_land = not has_content
-	local landing_width =
-		should_land and layout.compute_landing_view_width(state.windows.opts, state.poppies_configured) or nil
+	local landing_width = should_land and M.landing_width() or nil
 
 	local win = open_wrapper(landing_width)
 	state.windows.wrapper_win = win
@@ -570,7 +569,11 @@ M.transition_to_content = function()
 		})
 		state.windows.is_landing = false
 	end
-	local panel_width = view.menu_width()
+	-- Clamp against the wrapper, not the raw config: on a narrow wrapper the
+	-- sidebar is the binding constraint and content.create's subtraction would
+	-- otherwise go negative.
+	local wrapper_width = api.nvim_win_get_width(state.windows.wrapper_win)
+	local panel_width = view.menu_width(wrapper_width)
 	local c_win, c_buf = view.content.create(state.windows.wrapper_win, panel_width)
 	view.mount(state.windows.wrapper_win)
 	autocommands.watch_content_window(c_win, panel_width)
@@ -590,6 +593,16 @@ M.enter_landing = function()
 		api.nvim_set_current_win(list_win)
 	end
 	keymaps.setup_list_keys(list_buf)
+end
+
+-- Landing width, from content, capped by the screen. Both landing routes go
+-- through this: computing it separately per site is what made the panel come up
+-- wide on launch but narrow after a kill.
+M.landing_width = function()
+	return math.min(
+		layout.landing_min_width(state.windows.opts, state.poppies_configured),
+		vim.o.columns
+	)
 end
 
 -- Pick a previously-hidden poppy to restore, preferring last_poppy_name.
@@ -623,7 +636,8 @@ local recover_goto_landing = function()
 		api.nvim_win_close(state.windows.content_win, true)
 	end
 
-	local landing_width = layout.compute_landing_view_width(state.windows.opts, state.poppies_configured)
+	-- Same helper the launch path uses, so the two cannot disagree.
+	local landing_width = M.landing_width()
 	local wc = api.nvim_win_get_config(state.windows.wrapper_win)
 	api.nvim_win_set_config(state.windows.wrapper_win, {
 		relative = wc.relative,

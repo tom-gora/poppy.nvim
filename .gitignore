@@ -1,1 +1,7 @@
 **/TODO.md
+
+# Personal scratch: visual-debug tooling plus its rendered output, and the
+# running self-review. None of it belongs in the published plugin.
+# Source stays on disk; only git stops tracking these.
+REVIEW.md
+_debug_visual/

@@ -164,10 +164,77 @@ local header_height = function()
 	return layout.get_header_height(state.windows.opts)
 end
 
-local menu_width = function()
-	local v = shared.opts_field("menu_width")
-	if type(v) == "function" then v = v() end
-	return v or layout.DEFAULT_MENU_WIDTH
+-- Widest hint line the sidebar can ever need, measured from the renderer's own
+-- fmt_hint. Long titles are trim_title's problem (they get an ellipsis), but the
+-- legend is never cropped -- so this is what a narrow declared width is raised
+-- to. With default keys it is 20; the +1 is the hints separator's lead space.
+local legend_floor = function()
+	local keys = shared.keys()
+	if not keys then
+		return layout.MIN_MENU_WIDTH
+	end
+	return math.max(
+		render.measure_hint_line(keys.select, "Select") + 1,
+		render.measure_hint_line(keys.kill, "Kill") + 1,
+		render.measure_hint_line(keys.exit_menu, "Exit menu") + 1,
+		render.measure_hint_line(keys.poppy_action, "Toggle off") + 1
+	)
+end
+
+-- Out-of-bounds menu_width values already warned about, so a repaint does not
+-- re-notify on every mount.
+local warned_widths = {}
+
+-- A declared menu_width is used exactly as given. It is only pulled into
+-- [MIN, MAX] when it falls outside, and that notifies rather than silently
+-- substituting. The wrapper then bounds it further, so the content panel always
+-- has room: a wrapper narrower than the sidebar used to make content.create's
+-- subtraction negative and nvim_open_win rejected it.
+--
+-- Clamping here rather than at a call site keeps the three consumers
+-- -- mount_panels, set_visible, refresh_poppies -- agreeing on one width.
+---@param wrapper_width? integer
+---@return integer
+local menu_width = function(wrapper_width)
+	local declared = layout.evaluate_dimension(
+		shared.opts_field("menu_width"),
+		layout.DEFAULT_MENU_WIDTH,
+		"menu_width"
+	)
+	-- Floor first: 0 or a negative is a valid number, so evaluate_dimension lets
+	-- it through, and nvim_open_win rejects it.
+	local w = math.max(1, declared)
+
+	if w < layout.MIN_MENU_WIDTH or w > layout.MAX_MENU_WIDTH then
+		local clamped = math.min(math.max(w, layout.MIN_MENU_WIDTH), layout.MAX_MENU_WIDTH)
+		-- menu_width() runs on every mount and repaint, so warn once per
+		-- offending value rather than on each call.
+		if not warned_widths[declared] then
+			warned_widths[declared] = true
+			shared.notify_warn(
+				"menu_width %d is outside [%d, %d]; using %d",
+				declared,
+				layout.MIN_MENU_WIDTH,
+				layout.MAX_MENU_WIDTH,
+				clamped
+			)
+		end
+		w = clamped
+	end
+
+	-- The legend is fixed text needing ~21 cells, well under the ceiling, so it
+	-- does not override a declared width in [MIN, MAX]. This only engages if a
+	-- remapped key makes it impossible to honour even at MAX.
+	local legend = legend_floor()
+	if legend > w and legend > layout.MAX_MENU_WIDTH then
+		w = legend
+	end
+
+	if not wrapper_width then
+		return w
+	end
+	-- -3 reserves the content panel plus the 2-cell border content.create subtracts.
+	return math.min(w, math.max(1, wrapper_width - 3))
 end
 
 local SIDEBAR = {
@@ -201,7 +268,7 @@ local LANDING = {
 local mount_panels = function(wrapper_win)
 	local wc = api.nvim_win_get_config(wrapper_win)
 	local hh = header_height()
-	local mw = menu_width()
+	local mw = menu_width(wc.width)
 	local is_landing = state.windows.is_landing
 	local cfg = is_landing and LANDING or SIDEBAR
 
@@ -276,7 +343,7 @@ M.set_visible = function(visible, content_win)
 	if visible then
 		mount_panels(wrapper_win)
 		if content_win and api.nvim_win_is_valid(content_win) then
-			resize_content(content_win, wc.width - menu_width() - 2, wc.height - 2)
+			resize_content(content_win, wc.width - menu_width(wc.width) - 2, wc.height - 2)
 		end
 	else
 		close_all_panels()
@@ -340,7 +407,7 @@ M.refresh_poppies = function()
 	if state.windows.is_landing and state.windows.wrapper_win then
 		width = api.nvim_win_get_width(state.windows.wrapper_win)
 	else
-		width = menu_width()
+		width = menu_width(state.windows.wrapper_win and api.nvim_win_get_width(state.windows.wrapper_win))
 	end
 	render.list.update(state.windows.list_buf, state.poppies_configured, shared.opts_field("icons"), width)
 end
