@@ -5,7 +5,6 @@ local M = {}
 local api = vim.api
 local fn = vim.fn
 
-local PANELS_BG_LIGHTEN_FACTOR = 0.03
 local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.4
 -- 0 = full category color, 1 = full Normal fg. Tuned so the category peeks through but row reads as "almost normal".
 local NORMAL_LIST_ITEM_TINT_FACTOR = 0.7
@@ -102,10 +101,7 @@ end
 M.setup = function()
 	local nf = api.nvim_get_hl(0, { name = "NormalFloat" })
 	if nf.bg then
-		api.nvim_set_hl(0, "NormalPoppyUIPanel", {
-			bg = adjust_brightness(nf.bg, PANELS_BG_LIGHTEN_FACTOR),
-			fg = nf.fg,
-		})
+		api.nvim_set_hl(0, "NormalPoppyUIPanel", { bg = nf.bg, fg = nf.fg })
 		api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
 	else
 		api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "NormalFloat" })

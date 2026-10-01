@@ -34,7 +34,7 @@ local shared = require("poppy.core.shared")
 -- Measured from the renderers rather than re-derived here -- the previous
 -- version guessed the row format and measured the hints as one joined string,
 -- which is how a legend could end up croppable.
-local HEADER_TITLE = "P◉PPY.NVIM"
+local HEADER_TITLE = "P ◉ PPY.NVIM"
 
 -- Trailing breathing room, matching the separators' inset from the left edge.
 M.PANEL_PAD = 1
@@ -108,7 +108,12 @@ M.evaluate_dimension = function(value, default, name)
 		return default
 	end
 	if type(result) ~= "number" then
-		shared.notify_warn("%s function returned %s, expected number; falling back to %s", name, type(result), tostring(default))
+		shared.notify_warn(
+			"%s function returned %s, expected number; falling back to %s",
+			name,
+			type(result),
+			tostring(default)
+		)
 		return default
 	end
 	return result
@@ -153,8 +158,7 @@ M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width
 	-- A replacement, not a floor. Taking the max of the two let win_width win
 	-- whenever its ratio exceeded the content, which is why the landing came up
 	-- absurdly wide on launch but correctly narrow after a kill.
-	local width = content_width and math.min(content_width, vim_cols)
-		or resolve_dimension(raw_w, vim_cols, "win_width")
+	local width = content_width and math.min(content_width, vim_cols) or resolve_dimension(raw_w, vim_cols, "win_width")
 	local height = resolve_dimension(raw_h, vim_lines, "win_height")
 
 	local location = opts.win_location or "center"
