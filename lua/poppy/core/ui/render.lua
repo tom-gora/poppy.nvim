@@ -23,6 +23,9 @@ local function create_buf()
 end
 
 local header_ns = api.nvim_create_namespace("poppy_header_panel")
+-- Stable extmark ids so repeated header renders replace rather than accumulate.
+local TITLE_MARK = 1
+local DOT_MARK = 2
 local header = {}
 
 ---@param wrapper_win integer
@@ -70,15 +73,20 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 	local title_line = string.rep(" ", title_col) .. title
 
 	shared.with_modifiable(buf, function()
+		api.nvim_buf_clear_namespace(buf, header_ns, 0, -1)
 		api.nvim_buf_set_lines(buf, 0, -1, false, { "", title_line, sep })
 	end)
 
 	---@type vim.api.keyset.set_extmark
 	local title_extmark = { end_col = #title_line, hl_group = "NormalPoppyUIPanel" }
-	api.nvim_buf_set_extmark(buf, header_ns, 1, 0, title_extmark)
+	api.nvim_buf_set_extmark(buf, header_ns, 1, 0, vim.tbl_extend("force", title_extmark, { id = TITLE_MARK }))
 
 	-- Resolve display col to byte offset so any glyph swap (◉ is 3-byte UTF-8) just works.
-	local dot_display_col = fn.strdisplaywidth(title_col .. "P")
+	-- Display column of the circle: title_col spaces, then the "P" before it.
+	-- Not `title_col .. "P"` -- title_col is a number, so that concatenates to
+	-- "5P" and resolves to column 2 instead of 6, putting the highlight on the
+	-- space and the P rather than on the circle.
+	local dot_display_col = title_col + fn.strdisplaywidth("P")
 	local dot_byte_col = fn.byteidx(title_line, dot_display_col)
 	local dot_byte_end = fn.byteidx(title_line, dot_display_col + 1)
 	---@type vim.api.keyset.set_extmark
@@ -86,7 +94,10 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 		end_col = dot_byte_end,
 		hl_group = "PoppyRed",
 	}
-	api.nvim_buf_set_extmark(buf, header_ns, 1, dot_byte_col, dot_extmark)
+	-- Stable id: without it each recreate appends another mark instead of
+	-- replacing this one, and set_lines then clamps the leftovers into
+	-- meaningless slivers -- which left PoppyRed painting a third of the glyph.
+	api.nvim_buf_set_extmark(buf, header_ns, 1, dot_byte_col, vim.tbl_extend("force", dot_extmark, { id = DOT_MARK }))
 	return win
 end
 
