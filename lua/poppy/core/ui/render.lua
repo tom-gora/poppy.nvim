@@ -118,19 +118,17 @@ local cap_category = function(category)
 	return category:sub(1, 1):upper() .. category:sub(2)
 end
 
----@param dot string
----@param category "exec"|"file"|"shell"
----@param is_active boolean
----@param is_hidden boolean
----@return string
-local pick_sign = function(dot, category, is_active, is_hidden)
-	if dot == " " then
-		return "PoppyDotNone"
-	end
+-- Three states, all carried by the signcolumn: the active (running + focused)
+-- poppy gets the red logo circle, poppies running in the background get a small
+-- dot, and never-opened poppies get nothing.
+local pick_sign = function(category, is_active, is_hidden)
 	if is_active then
-		return "PoppyDotCurrent" .. cap_category(category)
+		return "PoppyDotActive"
 	end
-	return "PoppyDot" .. cap_category(category) .. (is_hidden and "H" or "A")
+	if is_hidden then
+		return "PoppyDot" .. cap_category(category) .. "H"
+	end
+	return "PoppyDotNone"
 end
 
 ---@param category "exec"|"file"|"shell"
@@ -157,6 +155,24 @@ list.create = function(wrapper_win, menu_width, focusable, hint_height, row_over
 		buffer = buf,
 		callback = function()
 			vim.cmd("stopinsert")
+		end,
+	})
+	-- The cursor doubles as the row marker and must stay in the leading cell.
+	-- j/k preserve the column; $ / l / w would not. Scoped to this buffer, and
+	-- re-reads the current window rather than assuming a list window exists,
+	-- since the list is recreated on every mount.
+	api.nvim_create_autocmd("CursorMoved", {
+		group = list_autocmd_group,
+		buffer = buf,
+		callback = function()
+			local win = api.nvim_get_current_win()
+			if not api.nvim_win_is_valid(win) or api.nvim_win_get_buf(win) ~= buf then
+				return
+			end
+			local ok, cursor = pcall(api.nvim_win_get_cursor, win)
+			if ok and cursor and cursor[1] and cursor[2] ~= 0 then
+				pcall(api.nvim_win_set_cursor, win, { cursor[1], 0 })
+			end
 		end,
 	})
 	return list.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override), buf
@@ -194,8 +210,8 @@ list.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	}
 
 	local win = api.nvim_open_win(buf, false, config)
-	vim.wo[win].signcolumn = "yes:3"
-	style.apply_panel_style(win)
+	vim.wo[win].signcolumn = "yes:2"
+	style.apply_list_style(win)
 	shared.apply_win_marker(win)
 	return win
 end
@@ -222,9 +238,9 @@ end
 -- uses. When these were inlined here, the landing width had to re-guess the row
 -- format and drifted, which is how the legend ended up croppable.
 --
--- A row's cost is the signcolumn plus "<idx> <title>". The icon is NOT part of
--- this: it is drawn as a sign in the signcolumn, so it is never buffer text and
--- must not be measured with strdisplaywidth here.
+-- A row's cost is the signcolumn, the marker cell, then "<idx> <title>". The
+-- icon is NOT part of this: it is drawn as a sign in the signcolumn, so it is
+-- never buffer text and must not be measured with strdisplaywidth here.
 --
 -- SIGN_COL is 6, not the 3 that `signcolumn = "yes:3"` asks for. Two signs stack
 -- in that column (the state dot and the category icon) and nvim reserves 2x the
@@ -237,7 +253,7 @@ M.SIGN_COL = 6
 ---@param title string
 ---@return integer
 M.measure_list_row = function(idx_width, title)
-	return M.SIGN_COL + idx_width + 1 + fn.strdisplaywidth(title)
+	return M.SIGN_COL + 1 + idx_width + 1 + fn.strdisplaywidth(title)
 end
 
 -- One hint line: indent + key padded to KEY_COL + gap + label + trailing space.
@@ -306,8 +322,10 @@ list.update = function(buf, poppies, icons, menu_width)
 		local runtime = state.runtime(configured.name)
 		local is_hidden = runtime and runtime.hidden or false
 		local is_active = runtime and runtime.active or false
-		-- Same arithmetic as measure_list_row, inverted to get the title budget.
-		local title_max = menu_width - (M.measure_list_row(idx_width, "") - 1)
+		-- Same arithmetic as measure_list_row, inverted to get the title budget,
+		-- minus one cell of right-hand margin so a truncated title never runs
+		-- flush to the panel edge.
+		local title_max = menu_width - (M.measure_list_row(idx_width, "") - 1) - 1
 		local hl = is_active and ("PoppyCurrentRow" .. cap_category(category))
 			or (is_hidden and category_hl_hidden[category])
 			or category_hl[category]
@@ -330,7 +348,9 @@ list.update = function(buf, poppies, icons, menu_width)
 	---@type fn.sign_placelist.list.item[]
 	local placelist = {}
 	for display_idx, e in ipairs(entries) do
-		lines[display_idx] = string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.title
+		-- Leading cell is where the real cursor sits (pinned to column 0), so it
+		-- needs to exist on every row to keep the text column fixed.
+		lines[display_idx] = "  " .. string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.title
 		---@type fn.sign_placelist.list.item
 		local dot_placement = {
 			buffer = buf,
@@ -338,7 +358,7 @@ list.update = function(buf, poppies, icons, menu_width)
 			id = display_idx * 10,
 			lnum = display_idx,
 			priority = DOT_PRIORITY,
-			name = pick_sign((e.is_active or e.is_hidden) and "•" or " ", e.category, e.is_active, e.is_hidden),
+			name = pick_sign(e.category, e.is_active, e.is_hidden),
 		}
 		placelist[#placelist + 1] = dot_placement
 		if e.category ~= "" then

@@ -223,6 +223,11 @@ local cleanup = function(drop_poppies)
 	end
 
 	local ok, err = pcall(function()
+		-- Before anything is torn down: the list window may have overridden the
+		-- global 'guicursor' to suppress blinking, and that must not outlive the
+		-- session. Idempotent, so the autocmd's own restore is harmless after.
+		view.restore_list_cursor()
+
 		if state.windows.current_poppy_name then
 			shared.hide_poppy(state.windows.current_poppy_name)
 		end

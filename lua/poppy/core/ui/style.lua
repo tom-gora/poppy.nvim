@@ -5,9 +5,14 @@ local M = {}
 local api = vim.api
 local fn = vim.fn
 
-local HIDDEN_LIST_ITEM_DARKEN_FACTOR = -0.4
--- 0 = full category color, 1 = full Normal fg. Tuned so the category peeks through but row reads as "almost normal".
-local NORMAL_LIST_ITEM_TINT_FACTOR = 0.7
+-- Darken the sidebar/landing panel background slightly so the float reads as its
+-- own surface against the editor's NormalFloat. Only the panel surface is
+-- touched -- fg and every text colour are left to the theme.
+--
+-- Increase the magnitude to make the panel more distinct; move it toward 0 to
+-- flatten the panel back into the surrounding background. Positive values
+-- lighten instead, which is how this used to work before it was dropped.
+local PANEL_BG_DARKEN_FACTOR = -0.3
 
 ---@param color integer
 ---@param factor number
@@ -24,35 +29,16 @@ local adjust_brightness = function(color, factor)
 	return r * 65536 + g * 256 + b
 end
 
----@param color integer
----@param target integer
----@param factor number
----@return integer
-local blend_towards = function(color, target, factor)
-	local r1 = math.floor(color / 65536)
-	local g1 = math.floor((color % 65536) / 256)
-	local b1 = color % 256
-	local r2 = math.floor(target / 65536)
-	local g2 = math.floor((target % 65536) / 256)
-	local b2 = target % 256
-	local r = math.max(0, math.min(255, math.floor(r1 + (r2 - r1) * factor)))
-	local g = math.max(0, math.min(255, math.floor(g1 + (g2 - g1) * factor)))
-	local b = math.max(0, math.min(255, math.floor(b1 + (b2 - b1) * factor)))
-	return r * 65536 + g * 256 + b
-end
-
 -- pcall so an unrecognized hl in a misconfigured theme doesn't abort. Re-run on every setup so signs track the just-set groups.
 local define_poppy_signs = function()
+	-- Three states, read purely from the signcolumn: the active poppy gets the
+	-- red logo circle, anything running in the background gets a small dot, and
+	-- never-opened poppies get nothing.
 	local signs = {
-		{ name = "PoppyDotFileA", text = "•", texthl = "PoppyFile" },
+		{ name = "PoppyDotActive", text = "◉", texthl = "PoppyRed" },
 		{ name = "PoppyDotFileH", text = "•", texthl = "PoppyFileHidden" },
-		{ name = "PoppyDotExecA", text = "•", texthl = "PoppyExec" },
 		{ name = "PoppyDotExecH", text = "•", texthl = "PoppyExecHidden" },
-		{ name = "PoppyDotShellA", text = "•", texthl = "PoppyShell" },
 		{ name = "PoppyDotShellH", text = "•", texthl = "PoppyShellHidden" },
-		{ name = "PoppyDotCurrentFile", text = "•", texthl = "PoppyCurrentRowFile" },
-		{ name = "PoppyDotCurrentExec", text = "•", texthl = "PoppyCurrentRowExec" },
-		{ name = "PoppyDotCurrentShell", text = "•", texthl = "PoppyCurrentRowShell" },
 		{ name = "PoppyDotNone", text = " ", texthl = "NormalPoppyUIPanel" },
 	}
 	for _, s in ipairs(signs) do
@@ -101,7 +87,10 @@ end
 M.setup = function()
 	local nf = api.nvim_get_hl(0, { name = "NormalFloat" })
 	if nf.bg then
-		api.nvim_set_hl(0, "NormalPoppyUIPanel", { bg = nf.bg, fg = nf.fg })
+		api.nvim_set_hl(0, "NormalPoppyUIPanel", {
+			bg = adjust_brightness(nf.bg, PANEL_BG_DARKEN_FACTOR),
+			fg = nf.fg,
+		})
 		api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
 	else
 		api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "NormalFloat" })
@@ -126,21 +115,23 @@ M.setup = function()
 	local lnra = api.nvim_get_hl(0, { name = "LineNrAbove" })
 	local lnrb = api.nvim_get_hl(0, { name = "LineNrBelow" })
 
-	-- White fallback defends against transparent Normals.
-	local n = api.nvim_get_hl(0, { name = "Normal" })
-	local n_fg = n.fg or 0xFFFFFF
+	-- The list imitates a selector: the cursor row is marked by a cursorline
+	-- background, and the real cursor acts as the row marker. Sourced from the
+	-- theme so it matches the terminal rather than imposing a colour. nvim 0.13
+	-- has a native cursorlinehl option; on 0.12 this goes through winhl.
+	local cline = api.nvim_get_hl(0, { name = "CursorLine" })
+	api.nvim_set_hl(0, "PoppyCursorLine", { fg = cline.fg, bg = cline.bg })
 
+	-- Rows use the raw category colour. No tinting toward Normal and no dimming
+	-- for hidden rows: state is carried by the signcolumn, not by the text.
 	local CATEGORY = { { "File", type_hl }, { "Exec", string_hl }, { "Shell", func_hl } }
 
 	for _, entry in ipairs(CATEGORY) do
 		local cap, hl = entry[1], entry[2]
-		local fg = hl.fg and blend_towards(hl.fg, n_fg, NORMAL_LIST_ITEM_TINT_FACTOR) or n_fg
-		api.nvim_set_hl(0, "Poppy" .. cap, { fg = fg })
-		api.nvim_set_hl(0, "PoppyCurrentRow" .. cap, { fg = hl.fg, bold = true })
+		api.nvim_set_hl(0, "Poppy" .. cap, { fg = hl.fg })
+		api.nvim_set_hl(0, "PoppyCurrentRow" .. cap, { fg = hl.fg })
 		if hl.fg then
-			api.nvim_set_hl(0, "Poppy" .. cap .. "Hidden", {
-				fg = adjust_brightness(hl.fg, HIDDEN_LIST_ITEM_DARKEN_FACTOR),
-			})
+			api.nvim_set_hl(0, "Poppy" .. cap .. "Hidden", { fg = hl.fg })
 		else
 			api.nvim_set_hl(0, "Poppy" .. cap .. "Hidden", { link = "Comment" })
 		end
@@ -178,6 +169,25 @@ end
 ---@param win integer
 M.apply_panel_style = function(win)
 	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
+end
+
+-- The list imitates a selector. The real cursor is the row marker, sitting in
+-- the leading cell each row reserves, over a cursorline background.
+-- SignColumn is pinned to the panel background so cursorline never bleeds into
+-- it -- state lives there, and it must stay static.
+---@param win integer
+M.apply_list_style = function(win)
+	vim.schedule(function()
+		if not api.nvim_win_is_valid(win) then
+			return
+		end
+		api.nvim_set_option_value(
+			"winhl",
+			"Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel,CursorLine:PoppyCursorLine",
+			{ scope = "local", win = win }
+		)
+		api.nvim_set_option_value("cursorline", true, { win = win })
+	end)
 end
 
 ---@param win integer
