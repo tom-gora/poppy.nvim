@@ -6,6 +6,7 @@ local api = vim.api
 local state = require("poppy.core.session.state")
 local view = require("poppy.core.ui.view")
 local layout = require("poppy.core.ui.layout")
+local style = require("poppy.core.ui.style")
 local shared = require("poppy.core.shared")
 local config = require("poppy.config")
 local keymaps = require("poppy.core.session.keymaps")
@@ -110,6 +111,24 @@ local setup_command = function(opts, callbacks)
 	})
 end
 
+-- setup() is documented as call-once, but re-sourcing a config calls it again
+-- with a session live. init_or_reset_state() replaces state.windows wholesale,
+-- so every window id in it -- wrapper, content, list, hints, header -- is
+-- dereferenced, and setup() then clears the augroup that owns the WinClosed
+-- watcher. What stays on screen is then unreachable: is_open() correctly
+-- reports false, yet five floats are still up with nothing left to close them.
+--
+-- Tearing down through the public close() keeps one teardown path rather than
+-- adding a second. It has to run before init_or_reset_state(), which discards
+-- the state it reads. The opts check is what keeps a genuine first call silent:
+-- M.close would otherwise trip ensure_setup's "setup() must be called first".
+---@return nil
+local teardown_live_session = function()
+	if state.windows.opts and shared.session_is_open() then
+		M.close()
+	end
+end
+
 local init_or_reset_state = function()
 	state.windows = state.default_state()
 	state.poppies_configured = {}
@@ -119,6 +138,7 @@ end
 ---@param user_opts? PoppyConfig
 ---@return nil
 M.setup = function(user_opts)
+	teardown_live_session()
 	init_or_reset_state()
 	view.setup_style()
 	api.nvim_create_augroup("poppy_ui", { clear = true })
@@ -216,8 +236,17 @@ local clear_poppies = function()
 	state.poppies_runtime = {}
 end
 
--- recovering guards the WinClosed watcher from re-firing during teardown.
+-- recovering guards the WinClosed watcher from re-firing during teardown, and
+-- the augroup clear is what unsubscribes it. Both belong at the top, not below
+-- the buffer deletes: clear_poppies() deletes poppy buffers and the content
+-- window is showing one of them, so WinClosed fires from inside that loop --
+-- ahead of a clear further down. Unguarded, the watcher re-creates the content
+-- window and overwrites state.windows.content_buf, leaving the previous
+-- scratch buffer orphaned (one invisible buffer per close, accumulating).
 local cleanup = function(drop_poppies)
+	state.windows.recovering = true
+	api.nvim_create_augroup("poppy_ui", { clear = true })
+
 	if drop_poppies then
 		clear_poppies()
 	end
@@ -226,7 +255,7 @@ local cleanup = function(drop_poppies)
 		-- Before anything is torn down: the list window may have overridden the
 		-- global 'guicursor' to suppress blinking, and that must not outlive the
 		-- session. Idempotent, so the autocmd's own restore is harmless after.
-		view.restore_list_cursor()
+		style.restore_cursor_mode()
 
 		if state.windows.current_poppy_name then
 			shared.hide_poppy(state.windows.current_poppy_name)
@@ -236,9 +265,6 @@ local cleanup = function(drop_poppies)
 		shared.close_menu_hint()
 
 		view.unmount()
-
-		state.windows.recovering = true
-		api.nvim_create_augroup("poppy_ui", { clear = true })
 
 		for _, win in ipairs({ state.windows.wrapper_win, state.windows.content_win }) do
 			if win and api.nvim_win_is_valid(win) then
@@ -315,10 +341,34 @@ local open_wrapper = function(width_override)
 	return win
 end
 
----@param poppy_name? string
----@return integer?
+-- One place decides whether a name is real, so every entry point that takes a
+-- name can reject it before touching state rather than after. nil means "no
+-- name given", which is always fine.
+---@param name? string
+---@return boolean
+local is_known_poppy = function(name)
+	if name == nil then
+		return true
+	end
+	if state.poppy_configured(name) then
+		return true
+	end
+	shared.notify_warn("'%s' does not exist", tostring(name))
+	return false
+end
+
+---@param poppy_name? string Name to open; nil opens the manager on the landing view.
+--- A name that was never configured is rejected with a warning: nothing opens,
+--- and an already-open session is left untouched.
+---@return integer? win wrapper window, or nil if nothing opened
 M.open = function(poppy_name)
 	if not shared.ensure_setup() then
+		return nil
+	end
+	-- Checked here rather than left to switch_by_name, which checks too: by the
+	-- time M.open delegates, it has already transitioned to content mode, and
+	-- that transition is what leaves a session open with no current poppy.
+	if not is_known_poppy(poppy_name) then
 		return nil
 	end
 	if shared.session_is_open() then
@@ -395,8 +445,7 @@ M.switch_by_name = function(poppy_name)
 	end
 
 	local configured = state.poppy_configured(poppy_name)
-	if not configured then
-		shared.notify_warn("unknown poppy '%s'", tostring(poppy_name))
+	if not is_known_poppy(poppy_name) or not configured then
 		return
 	end
 
@@ -535,6 +584,9 @@ end
 ---@return nil
 M.kill_by_name = function(name)
 	if not shared.ensure_setup() then
+		return
+	end
+	if not is_known_poppy(name) then
 		return
 	end
 	return _kill_then_refresh(resolve(name))

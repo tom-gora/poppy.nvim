@@ -158,7 +158,9 @@ landing view automatically.
 :Poppy open [<name>]   " open (or switch to <name> if already open)
 ```
 
-Tab-completion knows your configured poppy names.
+Tab-completion knows your configured poppy names. A name that was never
+configured is refused with a warning: nothing opens, and a manager that is
+already up is left as it is.
 
 ## Lua API
 
@@ -182,6 +184,12 @@ require("poppy").get_current_poppy()      -- {name, config, runtime_state?} or n
 require("poppy").get_current_poppy_name() -- string?
 require("poppy").is_open()               -- boolean
 ```
+
+`setup` is meant to be called once, but re-sourcing your config calls it
+again. A second call tears down a live session first, exactly as
+`:Poppy close` does, so a config reload cannot leave the previous floats on
+screen. It is a full reset: in-flight poppy buffers are not preserved, so a
+modified file buffer with unsaved edits is discarded.
 
 ## How it works
 

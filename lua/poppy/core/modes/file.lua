@@ -93,14 +93,14 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 	local reused = reusable(poppy_name, file_path)
 	local is_fresh = reused == nil
 
+	-- Every callsite below is on a fresh-open path: the mkdir/writefile block is
+	-- guarded by is_fresh, and open_file is only reached on the `not reused`
+	-- branch. So there is no adopted buffer here to protect or clean up. If a
+	-- fail path is ever added to the reuse branch, buffer handling belongs there.
 	---@param reason string
 	---@return false
 	local fail = function(reason)
 		shared.drop_poppy(poppy_name, reason)
-		-- Never destroy a buffer we adopted from a previous open.
-		if is_fresh and reused and api.nvim_buf_is_valid(reused) then
-			pcall(api.nvim_buf_delete, reused, { force = true })
-		end
 		return false
 	end
 
