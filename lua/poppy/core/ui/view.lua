@@ -18,7 +18,8 @@ M.content = {}
 ---@param width_override? integer
 ---@return integer? win
 local wrapper_open_with = function(buf, poppy_opts, width_override)
-	local width, height, row = layout.compute_wrapper_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override)
+	local width, height, row =
+		layout.compute_wrapper_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override, M.min_wrapper_width())
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "editor",
@@ -234,8 +235,26 @@ local menu_width = function(wrapper_width)
 	if not wrapper_width then
 		return w
 	end
-	-- -3 reserves the content panel plus the 2-cell border content.create subtracts.
-	return math.min(w, math.max(1, wrapper_width - 3))
+	-- The sidebar is what gives way on a narrow wrapper, so that the content
+	-- pane keeps at least MIN_CONTENT_WIDTH cells. That floor can only be met
+	-- once the wrapper is at least MIN_CONTENT_WIDTH + 3 wide (floor + the 1-cell
+	-- sidebar minimum + the 2 content.create subtracts for the border); below
+	-- that the sidebar is clamped to its 1-cell floor and stops being readable.
+	--
+	-- TODO: future feat after doing some design and thinking over: BETTER VERT MENU VARIANT. Include as noted in future reviews.
+	local reserved = layout.MIN_CONTENT_WIDTH + 2
+	return math.min(w, math.max(1, wrapper_width - reserved))
+end
+
+-- Smallest wrapper that can still honour the sidebar *and* the content floor:
+-- the sidebar as declared (menu_width() with no wrapper bound, so it is the
+-- clamped-but-not-squeezed width) plus the floor plus content.create's border.
+-- Passed into compute_wrapper_dimensions so a narrow screen widens the wrapper
+-- instead of crushing the sidebar to a 1-cell sliver.
+--
+-- TODO: future feat after doing some design and thinking over: BETTER VERT MENU VARIANT. Include as noted in future reviews.
+M.min_wrapper_width = function()
+	return menu_width() + layout.MIN_CONTENT_WIDTH + 2
 end
 
 local SIDEBAR = {

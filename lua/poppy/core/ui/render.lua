@@ -238,22 +238,24 @@ end
 -- uses. When these were inlined here, the landing width had to re-guess the row
 -- format and drifted, which is how the legend ended up croppable.
 --
--- A row's cost is the signcolumn, the marker cell, then "<idx> <title>". The
--- icon is NOT part of this: it is drawn as a sign in the signcolumn, so it is
--- never buffer text and must not be measured with strdisplaywidth here.
+-- A row's cost is the signcolumn, then the two spaces that pad the index, then
+-- "<idx> <title>". The icon is NOT part of this: it is drawn as a sign in the
+-- signcolumn, so it is never buffer text and must not be measured with
+-- strdisplaywidth here.
 --
--- SIGN_COL is 6, not the 3 that `signcolumn = "yes:3"` asks for. Two signs stack
--- in that column (the state dot and the category icon) and nvim reserves 2x the
--- widest sign, so yes:3 occupies six cells. Measured via getwininfo().textoff
--- on nvim 0.12.5: yes:1 -> 2, yes:2 -> 4, yes:3 -> 6. Using 3 here under-counts
--- every row by three cells and crops long titles against the panel edge.
-M.SIGN_COL = 6
+-- Two signs stack in this column (the state dot and the category icon) and nvim
+-- reserves 2 cells per sign, so `signcolumn = "yes:2"` -- what list.recreate
+-- sets -- occupies 4. Measured via getwininfo().textoff on nvim 0.12.5: yes:1 ->
+-- 2, yes:2 -> 4, yes:3 -> 6. This must track that option: too small and long
+-- titles crop against the panel edge, too large and the landing grows by cells
+-- that do not exist.
+M.SIGN_COL = 4
 
 ---@param idx_width integer
 ---@param title string
 ---@return integer
 M.measure_list_row = function(idx_width, title)
-	return M.SIGN_COL + 1 + idx_width + 1 + fn.strdisplaywidth(title)
+	return M.SIGN_COL + 2 + idx_width + 1 + fn.strdisplaywidth(title)
 end
 
 -- One hint line: indent + key padded to KEY_COL + gap + label + trailing space.
@@ -322,10 +324,11 @@ list.update = function(buf, poppies, icons, menu_width)
 		local runtime = state.runtime(configured.name)
 		local is_hidden = runtime and runtime.hidden or false
 		local is_active = runtime and runtime.active or false
-		-- Same arithmetic as measure_list_row, inverted to get the title budget,
-		-- minus one cell of right-hand margin so a truncated title never runs
-		-- flush to the panel edge.
-		local title_max = menu_width - (M.measure_list_row(idx_width, "") - 1) - 1
+		-- Everything a row spends except the title, minus one further cell so a
+		-- truncated title never runs flush to the panel edge. Spelled out rather
+		-- than folded into a sum of subtractions: with two -1s they cancelled
+		-- and the margin silently vanished.
+		local title_max = menu_width - M.measure_list_row(idx_width, "") - 1
 		local hl = is_active and ("PoppyCurrentRow" .. cap_category(category))
 			or (is_hidden and category_hl_hidden[category])
 			or category_hl[category]

@@ -11,6 +11,16 @@ M.DEFAULT_MENU_WIDTH = 25
 M.MIN_MENU_WIDTH = 20
 M.MAX_MENU_WIDTH = 35
 
+-- Floor on the content pane's width. On a narrow wrapper the sidebar and the
+-- content pane compete for the same cells, and the sidebar wins by default: at
+-- win_width = 0.2 on a 92-column screen the pane came out 1 cell wide, so the
+-- popup was unreadable while the content pane had no text in it to show. The
+-- sidebar is what gives way -- it truncates titles and clips the legend.
+--
+-- content.create subtracts the panel width plus 2 for the border, so reserving
+-- this plus those 2 cells is what guarantees the floor.
+M.MIN_CONTENT_WIDTH = 35
+
 local HEADER_HEIGHT = 3
 
 local fn = vim.fn
@@ -146,10 +156,11 @@ end
 ---@param vim_cols integer
 ---@param vim_lines integer
 ---@param content_width? integer Landing width: sized to its content, replacing win_width rather than competing with it. Only the screen caps it.
+---@param min_width? integer Smallest wrapper the caller can still use, ignoring the ratio. Applied only when there is no content_width: the landing is sized to its content and must not be inflated.
 ---@return integer width
 ---@return integer height
 ---@return integer row
-M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width)
+M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width, min_width)
 	opts = opts or {}
 
 	local raw_w = evaluate_dimension(opts.win_width or 0.8, 0.8, "win_width")
@@ -159,6 +170,16 @@ M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width
 	-- whenever its ratio exceeded the content, which is why the landing came up
 	-- absurdly wide on launch but correctly narrow after a kill.
 	local width = content_width and math.min(content_width, vim_cols) or resolve_dimension(raw_w, vim_cols, "win_width")
+
+	-- The ratio is a preference, not a promise: on a screen too narrow to hold
+	-- both the sidebar and the content floor, the wrapper grows rather than
+	-- squeezing either. Still bounded by the screen, so on a very narrow
+	-- terminal the floor simply cannot be met and menu_width() falls back to
+	-- clamping the sidebar instead.
+	if min_width and not content_width and width < min_width then
+		width = math.min(min_width, vim_cols)
+	end
+
 	local height = resolve_dimension(raw_h, vim_lines, "win_height")
 
 	local location = opts.win_location or "center"

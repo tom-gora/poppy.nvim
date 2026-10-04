@@ -129,6 +129,9 @@ M.watch_content_window = function(win_id, menu_w)
 			if not shared.session_is_open() then
 				return
 			end
+			-- The pane being replaced had its own scratch and the rebuild does
+			-- not reuse it, so drop it rather than leave it in the buffer list.
+			shared.drop_scratch_buffer(state.windows.content_buf)
 			local c_win, c_buf = view.content.create(state.windows.wrapper_win, w)
 			state.windows.content_win = c_win
 			state.windows.content_buf = c_buf

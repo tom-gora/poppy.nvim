@@ -431,24 +431,10 @@ local resolve = function(name_or_index)
 	return { name = name_or_index, runtime = state.runtime(name_or_index) }
 end
 
+---@param configured {name: string, config: PoppyResolvedConfig}
 ---@param poppy_name string
 ---@return nil
-M.switch_by_name = function(poppy_name)
-	if not shared.ensure_setup() then
-		return
-	end
-	if poppy_name == state.windows.current_poppy_name then
-		return
-	end
-	if not shared.session_is_open() then
-		return
-	end
-
-	local configured = state.poppy_configured(poppy_name)
-	if not is_known_poppy(poppy_name) or not configured then
-		return
-	end
-
+local do_switch = function(configured, poppy_name)
 	if state.windows.current_poppy_name then
 		shared.hide_poppy(state.windows.current_poppy_name)
 	end
@@ -500,6 +486,37 @@ M.switch_by_name = function(poppy_name)
 	local is_terminal = vim.bo[cbuf].buftype == "terminal"
 	if shared.try_focus_win(state.windows.content_win) and is_terminal then
 		vim.cmd("startinsert")
+	end
+end
+
+---@param poppy_name string
+---@return nil
+M.switch_by_name = function(poppy_name)
+	if not shared.ensure_setup() then
+		return
+	end
+	if poppy_name == state.windows.current_poppy_name then
+		return
+	end
+	if not shared.session_is_open() then
+		return
+	end
+
+	local configured = state.poppy_configured(poppy_name)
+	if not is_known_poppy(poppy_name) or not configured then
+		return
+	end
+
+	local ok, err = pcall(do_switch, configured, poppy_name)
+	if not ok then
+		-- Something threw partway through: a repaint under textlock, a mode
+		-- touching a buffer that died, a window closed under us. Whichever it
+		-- was, the session is now half-switched -- current_poppy_name names a
+		-- poppy whose sidebar row, focus and hints were never settled. Take
+		-- the same route the mode.run-failed branch takes.
+		shared.notify_error("switch to '%s' failed: %s", tostring(poppy_name), tostring(err))
+		state.set_current_poppy_name(nil)
+		M.recover()
 	end
 end
 
@@ -616,7 +633,8 @@ M.transition_to_content = function()
 	if state.windows.is_landing then
 		view.unmount()
 		local wc = api.nvim_win_get_config(state.windows.wrapper_win)
-		local full_width = layout.compute_wrapper_dimensions(state.windows.opts, vim.o.columns, vim.o.lines)
+		local full_width = layout.compute_wrapper_dimensions(
+			state.windows.opts, vim.o.columns, vim.o.lines, nil, view.min_wrapper_width())
 		api.nvim_win_set_config(state.windows.wrapper_win, {
 			relative = wc.relative,
 			width = full_width,
@@ -642,6 +660,7 @@ M.enter_landing = function()
 	state.windows.is_landing = true
 	view.mount(state.windows.wrapper_win)
 	state.windows.content_win = nil
+	shared.drop_scratch_buffer(state.windows.content_buf)
 	state.windows.content_buf = nil
 	local list_buf = view.get_list_buf()
 	vim.bo[list_buf].filetype = "poppy_menu"
