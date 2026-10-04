@@ -306,14 +306,27 @@ local trim_title = function(title, max_width)
 	return result
 end
 
----@param buf integer
+-- Exported so a menu backend can budget a title against a panel width with exactly
+-- the arithmetic the painter uses, rather than re-guessing it.
+M.trim_title = trim_title
+
+---@class PoppyRow
+---@field title string Pre-trimmed text after the index.
+---@field marks string[] Sign names to stack in this row's signcolumn, highest priority first.
+---@field hl string|nil
+
+---@class PoppyRowSet
+---@field idx_width integer
+---@field rows PoppyRow[]
+
+---Build the row model for the poppy list. Split from list.paint so a menu whose
+---rows are not poppies (a dialog's answers) can paint through the same path
+---without inheriting the category/state icon derivation below.
 ---@param poppies {name: string, config: PoppyResolvedConfig}[]
 ---@param icons? PoppyIcons
 ---@param menu_width integer
----@return void
-list.update = function(buf, poppies, icons, menu_width)
-	api.nvim_buf_clear_namespace(buf, list_ns, 0, -1)
-
+---@return PoppyRowSet
+list.rows = function(poppies, icons, menu_width)
 	local idx_width = max_index_width(#poppies)
 	local entries = {}
 
@@ -332,49 +345,61 @@ list.update = function(buf, poppies, icons, menu_width)
 		local hl = is_active and ("PoppyCurrentRow" .. cap_category(category))
 			or (is_hidden and category_hl_hidden[category])
 			or category_hl[category]
+
+		-- The state dot always sits on the row; the category icon only when there
+		-- is a category, which is what keeps a placeholder row free of signs.
+		local marks = { pick_sign(category, is_active, is_hidden) }
+		if category ~= "" then
+			marks[#marks + 1] = pick_icon_sign(category, is_active)
+		end
+
 		entries[display_idx] = {
-			name = configured.name,
-			category = category,
-			icon = icon,
 			title = trim_title(raw_title, title_max),
-			is_active = is_active,
-			is_hidden = is_hidden,
+			marks = marks,
 			hl = hl,
 		}
 	end
 
 	if #entries == 0 then
-		entries[1] = { category = "", icon = " ", title = "", is_active = false, is_hidden = false, hl = nil }
+		entries[1] = { title = "", marks = { pick_sign("", false, false) }, hl = nil }
 	end
 
+	return { idx_width = idx_width, rows = entries }
+end
+
+---Paint a row set into a list buffer: lines, signcolumn placements, then line
+---highlights. Signs get stable ids derived from the display row so a repaint
+---replaces rather than accumulates.
+---@param buf integer
+---@param spec PoppyRowSet
+---@return void
+list.paint = function(buf, spec)
+	api.nvim_buf_clear_namespace(buf, list_ns, 0, -1)
+
+	local idx_width = spec.idx_width
 	local lines = {}
 	---@type fn.sign_placelist.list.item[]
 	local placelist = {}
-	for display_idx, e in ipairs(entries) do
+
+	for display_idx, e in ipairs(spec.rows) do
 		-- Leading cell is where the real cursor sits (pinned to column 0), so it
 		-- needs to exist on every row to keep the text column fixed.
 		lines[display_idx] = "  " .. string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.title
-		---@type fn.sign_placelist.list.item
-		local dot_placement = {
-			buffer = buf,
-			group = sign_group,
-			id = display_idx * 10,
-			lnum = display_idx,
-			priority = DOT_PRIORITY,
-			name = pick_sign(e.category, e.is_active, e.is_hidden),
-		}
-		placelist[#placelist + 1] = dot_placement
-		if e.category ~= "" then
+		for mark_idx, name in ipairs(e.marks or {}) do
+			-- Ids keep the two-mark shape this has always used -- row*10 for the
+			-- first mark, then row*10+1, +2 -- so a repaint replaces placements
+			-- instead of accumulating, and a two-mark row set produces exactly
+			-- the ids the poppy list produced before rows became pluggable.
+			local sign_id = mark_idx == 1 and display_idx * 10 or (display_idx * 10 + mark_idx - 1)
 			---@type fn.sign_placelist.list.item
-			local icon_placement = {
+			placelist[#placelist + 1] = {
 				buffer = buf,
 				group = sign_group,
-				id = display_idx * 10 + 1,
+				id = sign_id,
 				lnum = display_idx,
-				priority = ICON_PRIORITY,
-				name = pick_icon_sign(e.category, e.is_active),
+				priority = mark_idx == 1 and DOT_PRIORITY or ICON_PRIORITY,
+				name = name,
 			}
-			placelist[#placelist + 1] = icon_placement
 		end
 	end
 
@@ -382,7 +407,7 @@ list.update = function(buf, poppies, icons, menu_width)
 		api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)
 
-	for display_idx, e in ipairs(entries) do
+	for display_idx, e in ipairs(spec.rows) do
 		if e.hl then
 			---@type vim.api.keyset.set_extmark
 			local hl_extmark = {
@@ -394,6 +419,15 @@ list.update = function(buf, poppies, icons, menu_width)
 	end
 
 	fn.sign_placelist(placelist)
+end
+
+---@param buf integer
+---@param poppies {name: string, config: PoppyResolvedConfig}[]
+---@param icons? PoppyIcons
+---@param menu_width integer
+---@return void
+list.update = function(buf, poppies, icons, menu_width)
+	list.paint(buf, list.rows(poppies, icons, menu_width))
 end
 
 M.list = list
@@ -517,18 +551,18 @@ hints.recreate = function(wrapper_win, buf, opts)
 end
 
 ---@param buf integer
----@param keys PoppyKeys?
----@param kind "landing"|"menu"
+---@param keys PoppyKeys
+---@param spec {string, string}[]|nil Explicit hint rows: PoppyKeys field name, label.
 ---@param wrapper_width integer
 ---@return void
-hints.write_static = function(buf, keys, kind, wrapper_width)
-	if not keys then
+hints.write_spec = function(buf, keys, spec, wrapper_width)
+	if not keys or not spec then
 		return
 	end
 	local sep = " " .. string.rep("─", math.max(0, wrapper_width - #INDENT)) .. " "
 	local lines = { sep }
 
-	for _, kp in ipairs(HINT_SPECS[kind] or {}) do
+	for _, kp in ipairs(spec) do
 		local hint_text = fmt_hint(keys[kp[1]], kp[2], INDENT)
 		table.insert(lines, hint_text .. string.rep(" ", math.max(1, wrapper_width - #hint_text)))
 	end
@@ -538,6 +572,15 @@ hints.write_static = function(buf, keys, kind, wrapper_width)
 	shared.with_modifiable(buf, function()
 		api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)
+end
+
+---@param buf integer
+---@param keys PoppyKeys?
+---@param kind "landing"|"menu"
+---@param wrapper_width integer
+---@return void
+hints.write_static = function(buf, keys, kind, wrapper_width)
+	hints.write_spec(buf, keys, HINT_SPECS[kind], wrapper_width)
 end
 
 M.hints = hints
