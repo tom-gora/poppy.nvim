@@ -9,9 +9,7 @@ local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 
--- Hint line geometry, used by both the renderer and the width measurements that
--- layout.lua performs. Declared up here because the measuring helpers are
--- exported above the hint section.
+-- Hint line geometry, shared with layout.lua's width measurements.
 local INDENT = "  "
 local KEY_COL = 5
 local COL_GAP = "  "
@@ -23,7 +21,7 @@ local function create_buf()
 end
 
 local header_ns = api.nvim_create_namespace("poppy_header_panel")
--- Stable extmark ids so repeated header renders replace rather than accumulate.
+-- Stable extmark ids so re-renders replace rather than accumulate.
 local TITLE_MARK = 1
 local DOT_MARK = 2
 local header = {}
@@ -81,11 +79,8 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 	local title_extmark = { end_col = #title_line, hl_group = "NormalPoppyUIPanel" }
 	api.nvim_buf_set_extmark(buf, header_ns, 1, 0, vim.tbl_extend("force", title_extmark, { id = TITLE_MARK }))
 
-	-- Resolve display col to byte offset so any glyph swap (◉ is 3-byte UTF-8) just works.
-	-- Display column of the circle: title_col spaces, then the "P" before it.
-	-- Not `title_col .. "P"` -- title_col is a number, so that concatenates to
-	-- "5P" and resolves to column 2 instead of 6, putting the highlight on the
-	-- space and the P rather than on the circle.
+	-- ◉ is 3-byte UTF-8, so resolve display col to byte offset before setting the extmark.
+	-- title_col is a number; "5P" would concatenate to "5P" and resolve to col 2.
 	local dot_display_col = title_col + fn.strdisplaywidth("P")
 	local dot_byte_col = fn.byteidx(title_line, dot_display_col)
 	local dot_byte_end = fn.byteidx(title_line, dot_display_col + 1)
@@ -94,20 +89,17 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 		end_col = dot_byte_end,
 		hl_group = "PoppyRed",
 	}
-	-- Stable id: without it each recreate appends another mark instead of
-	-- replacing this one, and set_lines then clamps the leftovers into
-	-- meaningless slivers -- which left PoppyRed painting a third of the glyph.
 	api.nvim_buf_set_extmark(buf, header_ns, 1, dot_byte_col, vim.tbl_extend("force", dot_extmark, { id = DOT_MARK }))
 	return win
 end
 
 M.header = header
 
-local list_ns = api.nvim_create_namespace("poppy_list_panel")
--- Own group, not poppy_ui: that one is cleared on every mount, which would drop the guard.
-local list_autocmd_group = api.nvim_create_augroup("poppy_list_buffer", { clear = false })
-local sign_group = "poppy_list"
-local list = {}
+local body_ns = api.nvim_create_namespace("poppy_body_panel")
+-- Own augroup, not poppy_ui: that one is cleared on every mount and would drop the cursor guard.
+local body_autocmd_group = api.nvim_create_augroup("poppy_body_buffer", { clear = false })
+local sign_group = "poppy_body"
+local body = {}
 
 local DOT_PRIORITY = 10
 local ICON_PRIORITY = 5
@@ -118,9 +110,7 @@ local cap_category = function(category)
 	return category:sub(1, 1):upper() .. category:sub(2)
 end
 
--- Three states, all carried by the signcolumn: the active (running + focused)
--- poppy gets the red logo circle, poppies running in the background get a small
--- dot, and never-opened poppies get nothing.
+-- Active poppy: red dot. Hidden (running in background): small dot. Never opened: nothing.
 local pick_sign = function(category, is_active, is_hidden)
 	if is_active then
 		return "PoppyDotActive"
@@ -146,23 +136,20 @@ end
 ---@param row_override? integer
 ---@return integer? win
 ---@return integer? buf
-list.create = function(wrapper_win, menu_width, focusable, hint_height, row_override)
+body.create = function(wrapper_win, menu_width, focusable, hint_height, row_override)
 	local buf = create_buf()
-	-- The list is a read-only panel; refuse insert mode. Buffer-local, so it dies with the buffer.
-	api.nvim_clear_autocmds({ group = list_autocmd_group, buffer = buf })
+	-- Refuse insert: body is a read-only panel.
+	api.nvim_clear_autocmds({ group = body_autocmd_group, buffer = buf })
 	api.nvim_create_autocmd("InsertEnter", {
-		group = list_autocmd_group,
+		group = body_autocmd_group,
 		buffer = buf,
 		callback = function()
 			vim.cmd("stopinsert")
 		end,
 	})
-	-- The cursor doubles as the row marker and must stay in the leading cell.
-	-- j/k preserve the column; $ / l / w would not. Scoped to this buffer, and
-	-- re-reads the current window rather than assuming a list window exists,
-	-- since the list is recreated on every mount.
+	-- Pin cursor to column 0 (the row marker). Window re-read because body is recreated on every mount.
 	api.nvim_create_autocmd("CursorMoved", {
-		group = list_autocmd_group,
+		group = body_autocmd_group,
 		buffer = buf,
 		callback = function()
 			local win = api.nvim_get_current_win()
@@ -175,7 +162,7 @@ list.create = function(wrapper_win, menu_width, focusable, hint_height, row_over
 			end
 		end,
 	})
-	return list.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override), buf
+	return body.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override), buf
 end
 
 ---@param wrapper_win integer
@@ -185,7 +172,7 @@ end
 ---@param hint_height? integer
 ---@param row_override? integer
 ---@return integer? win
-list.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
+body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local hint_offset = hint_height or 5
 	local height = math.max(1, wrapper_conf.height - hint_offset)
@@ -211,7 +198,7 @@ list.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 
 	local win = api.nvim_open_win(buf, false, config)
 	vim.wo[win].signcolumn = "yes:2"
-	style.apply_list_style(win)
+	style.apply_body_style(win)
 	shared.apply_win_marker(win)
 	return win
 end
@@ -234,28 +221,16 @@ local max_index_width = function(count)
 	return #tostring(count)
 end
 
--- Exported so layout.lua can size panels from the same arithmetic the renderer
--- uses. When these were inlined here, the landing width had to re-guess the row
--- format and drifted, which is how the legend ended up croppable.
---
--- A row's cost is the signcolumn, then the two spaces that pad the index, then
--- "<idx> <title>". The icon is NOT part of this: it is drawn as a sign in the
--- signcolumn, so it is never buffer text and must not be measured with
--- strdisplaywidth here.
---
--- Two signs stack in this column (the state dot and the category icon) and nvim
--- reserves 2 cells per sign, so `signcolumn = "yes:2"` -- what list.recreate
--- sets -- occupies 4. Measured via getwininfo().textoff on nvim 0.12.5: yes:1 ->
--- 2, yes:2 -> 4, yes:3 -> 6. This must track that option: too small and long
--- titles crop against the panel edge, too large and the landing grows by cells
--- that do not exist.
+-- Cell width reserved for signs in each body row. Two signs (state dot + category icon)
+-- at signcolumn="yes:2" = 2 cells per sign = 4. Must match body.recreate's signcolumn.
+-- Exported so layout.lua can size panels from the same arithmetic.
 M.SIGN_COL = 4
 
 ---@param idx_width integer
 ---@param title string
 ---@return integer
-M.measure_list_row = function(idx_width, title)
-	return M.SIGN_COL + 2 + idx_width + 1 + fn.strdisplaywidth(title)
+M.measure_item = function(idx_width, label)
+	return M.SIGN_COL + 2 + idx_width + 1 + fn.strdisplaywidth(label)
 end
 
 -- One hint line: indent + key padded to KEY_COL + gap + label + trailing space.
@@ -274,26 +249,25 @@ end
 ---@param title string
 ---@param max_width integer
 ---@return string
-local trim_title = function(title, max_width)
-	if fn.strdisplaywidth(title) <= max_width then
-		return title
+local fit_text = function(label, max_width)
+	if fn.strdisplaywidth(label) <= max_width then
+		return label
 	end
 	local result = ""
-	for word in title:gmatch("%S+") do
+	for word in label:gmatch("%S+") do
 		local test = result == "" and word or (result .. " " .. word)
 		if fn.strdisplaywidth(test) > max_width then
 			break
 		end
 		result = test
 	end
-	-- A single token with no whitespace never fits, so the loop above keeps
-	-- nothing. Hard-cut it instead of degrading to a lone ellipsis.
+	-- Single token with no whitespace: hard-cut rather than degrade to a lone ellipsis.
 	if result == "" then
 		local cut = max_width - 1
 		if cut < 1 then
-			return fn.strcharpart(title, 0, math.max(0, max_width))
+			return fn.strcharpart(label, 0, math.max(0, max_width))
 		end
-		local kept = fn.strcharpart(title, 0, cut)
+		local kept = fn.strcharpart(label, 0, cut)
 		while fn.strdisplaywidth(kept) > cut and kept ~= "" do
 			kept = kept:sub(1, -2)
 		end
@@ -306,75 +280,170 @@ local trim_title = function(title, max_width)
 	return result
 end
 
--- Exported so a menu backend can budget a title against a panel width with exactly
--- the arithmetic the painter uses, rather than re-guessing it.
-M.trim_title = trim_title
+-- Exported so a menu can budget a title against the panel width with the painter's own arithmetic.
+M.fit_text = fit_text
 
----@class PoppyRow
----@field title string Pre-trimmed text after the index.
----@field marks string[] Sign names to stack in this row's signcolumn, highest priority first.
----@field hl string|nil
+---Wrap text to `width` on word boundaries. Differs from 'wrap'/'linebreak' (display-only,
+---no height back) so the caller knows the line count *before* the window exists, enabling
+---a one-pass measure-and-size. A word longer than `width` is hard-cut; the remainder is
+---carried forward and never silently dropped.
+---@param text string
+---@param width integer
+---@return string[]
+M.wrap_text = function(text, width)
+	width = math.max(1, width)
+	local out = {}
 
----@class PoppyRowSet
----@field idx_width integer
----@field rows PoppyRow[]
+	---Wrap a single paragraph to `width`. A word longer than `width` is hard-cut; the
+	---remainder is fed back into the word loop on subsequent iterations.
+	---@param paragraph string
+	---@return string[]
+	local function wrap_paragraph(paragraph)
+		if paragraph == "" then
+			return { "" }
+		end
+		local lines = {}
+		local line = ""
+	-- Words list built up front so a hard-cut's remainder can be appended as the
+	-- next "word" and re-enter the normal break logic on the next pass.
+	local words = {}
+		for word in paragraph:gmatch("%S+") do
+			words[#words + 1] = word
+		end
+		local i = 1
+		while i <= #words do
+			local word = words[i]
+			if fn.strdisplaywidth(word) > width then
+				-- Hard-cut: drop trailing chars until it fits. Remainder is the next word.
+				local cut = word
+				while cut ~= "" and fn.strdisplaywidth(cut) > width do
+					cut = fn.strcharpart(cut, 0, #cut - 1)
+				end
+				if line ~= "" then
+					lines[#lines + 1] = line
+					line = ""
+				end
+				if cut ~= "" then
+					lines[#lines + 1] = cut
+				end
+				-- Remainder is what didn't fit; char-indexed because cut is in chars not bytes.
+				local cut_chars = fn.strchars(cut)
+				local remainder = fn.strcharpart(word, cut_chars)
+				if remainder ~= "" then
+					-- Feed the remainder back as the next word.
+					table.insert(words, i + 1, remainder)
+				end
+				i = i + 1
+			else
+				local candidate = line == "" and word or (line .. " " .. word)
+				if fn.strdisplaywidth(candidate) <= width then
+					line = candidate
+				else
+					if line ~= "" then
+						lines[#lines + 1] = line
+					end
+					line = word
+				end
+				i = i + 1
+			end
+		end
+		if line ~= "" then
+			lines[#lines + 1] = line
+		end
+		return lines
+	end
 
----Build the row model for the poppy list. Split from list.paint so a menu whose
----rows are not poppies (a dialog's answers) can paint through the same path
----without inheriting the category/state icon derivation below.
+	for _, paragraph in ipairs(vim.split(text, "\n", { plain = true })) do
+		for _, l in ipairs(wrap_paragraph(paragraph)) do
+			out[#out + 1] = l
+		end
+	end
+
+	if #out == 0 then
+		out[1] = ""
+	end
+	return out
+end
+
+-- Below: pure painter. Given an item set, write bytes into a buffer.
+
+---Resolve a spec to a fitted row set.
+---@param menu PoppyMenuSpec
+---@param panel_width integer
+---@return MenuItems
+M.rowset = function(menu, panel_width)
+	local rows = menu.rows
+	if type(menu.items) == "function" then
+		---@type MenuItem[]
+		rows = menu.items(panel_width) or { { label = "", marks = { "PoppyDotNone" }, hl = nil } }
+	end
+	local set = {
+		idx_width = #tostring(math.max(#rows, 1)),
+		rows = rows,
+	}
+	-- Reserve a one-cell trailing margin so a truncated label never runs flush to the edge.
+	local budget = panel_width - M.measure_item(set.idx_width, "") - 1
+	for i, row in ipairs(set.rows) do
+		set.rows[i] = {
+			label = M.fit_text(row.label, budget),
+			marks = row.marks,
+			hl = row.hl,
+		}
+	end
+	if #set.rows == 0 then
+		set.rows = { { label = "", marks = { "PoppyDotNone" }, hl = nil } }
+	end
+	return set
+end
+
 ---@param poppies {name: string, config: PoppyResolvedConfig}[]
 ---@param icons? PoppyIcons
 ---@param menu_width integer
----@return PoppyRowSet
-list.rows = function(poppies, icons, menu_width)
+---@return MenuItem[]
+local poppy_items = function(poppies, icons, menu_width)
 	local idx_width = max_index_width(#poppies)
-	local entries = {}
+	local items = {}
 
 	for display_idx, configured in ipairs(poppies) do
 		local category = shared.category_from_resolved(configured.config)
-		local icon = (icons and icons[category]) or " "
 		local raw_title = configured.config.title or configured.name
 		local runtime = state.runtime(configured.name)
 		local is_hidden = runtime and runtime.hidden or false
 		local is_active = runtime and runtime.active or false
-		-- Everything a row spends except the title, minus one further cell so a
-		-- truncated title never runs flush to the panel edge. Spelled out rather
-		-- than folded into a sum of subtractions: with two -1s they cancelled
-		-- and the margin silently vanished.
-		local title_max = menu_width - M.measure_list_row(idx_width, "") - 1
+		-- Reserve a one-cell trailing margin so a truncated label never runs flush to the edge.
+		local label_max = menu_width - M.measure_item(idx_width, "") - 1
 		local hl = is_active and ("PoppyCurrentRow" .. cap_category(category))
 			or (is_hidden and category_hl_hidden[category])
 			or category_hl[category]
 
-		-- The state dot always sits on the row; the category icon only when there
-		-- is a category, which is what keeps a placeholder row free of signs.
+		-- State dot always; category icon only when there's a category (placeholder items get neither).
 		local marks = { pick_sign(category, is_active, is_hidden) }
 		if category ~= "" then
 			marks[#marks + 1] = pick_icon_sign(category, is_active)
 		end
 
-		entries[display_idx] = {
-			title = trim_title(raw_title, title_max),
+		items[display_idx] = {
+			label = fit_text(raw_title, label_max),
 			marks = marks,
 			hl = hl,
 		}
 	end
 
-	if #entries == 0 then
-		entries[1] = { title = "", marks = { pick_sign("", false, false) }, hl = nil }
+	if #items == 0 then
+		items[1] = { label = "", marks = { pick_sign("", false, false) }, hl = nil }
 	end
 
-	return { idx_width = idx_width, rows = entries }
+	return items
 end
 
----Paint a row set into a list buffer: lines, signcolumn placements, then line
----highlights. Signs get stable ids derived from the display row so a repaint
----replaces rather than accumulates.
+---Paint an item set into a body buffer. Sign ids are row-derived, so a repaint replaces rather than accumulates.
+M.items_for_poppies = poppy_items
+
 ---@param buf integer
----@param spec PoppyRowSet
+---@param spec MenuItems
 ---@return void
-list.paint = function(buf, spec)
-	api.nvim_buf_clear_namespace(buf, list_ns, 0, -1)
+body.paint_items = function(buf, spec)
+	api.nvim_buf_clear_namespace(buf, body_ns, 0, -1)
 
 	local idx_width = spec.idx_width
 	local lines = {}
@@ -382,14 +451,10 @@ list.paint = function(buf, spec)
 	local placelist = {}
 
 	for display_idx, e in ipairs(spec.rows) do
-		-- Leading cell is where the real cursor sits (pinned to column 0), so it
-		-- needs to exist on every row to keep the text column fixed.
-		lines[display_idx] = "  " .. string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.title
+		-- Leading cell holds the cursor (pinned to col 0); every row needs it to keep the text column fixed.
+		lines[display_idx] = "  " .. string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.label
 		for mark_idx, name in ipairs(e.marks or {}) do
-			-- Ids keep the two-mark shape this has always used -- row*10 for the
-			-- first mark, then row*10+1, +2 -- so a repaint replaces placements
-			-- instead of accumulating, and a two-mark row set produces exactly
-			-- the ids the poppy list produced before rows became pluggable.
+			-- Sign id = row*10 + (mark_idx-1). Stable per row, so repaints replace, not accumulate.
 			local sign_id = mark_idx == 1 and display_idx * 10 or (display_idx * 10 + mark_idx - 1)
 			---@type fn.sign_placelist.list.item
 			placelist[#placelist + 1] = {
@@ -414,23 +479,59 @@ list.paint = function(buf, spec)
 				end_row = display_idx - 1,
 				line_hl_group = e.hl,
 			}
-			api.nvim_buf_set_extmark(buf, list_ns, display_idx - 1, 0, hl_extmark)
+			api.nvim_buf_set_extmark(buf, body_ns, display_idx - 1, 0, hl_extmark)
 		end
 	end
 
 	fn.sign_placelist(placelist)
 end
 
+---Plain stacked panel for a menu's question text. Anchored "SE" to the wrapper's right edge
+---so it sits in the sidebar; "row" is the TOP offset (bottom = row + height). Keeps the body's
+---signcolumn width so the question's left edge lines up with the items below.
+---@param wrapper_win integer
 ---@param buf integer
----@param poppies {name: string, config: PoppyResolvedConfig}[]
----@param icons? PoppyIcons
----@param menu_width integer
----@return void
-list.update = function(buf, poppies, icons, menu_width)
-	list.paint(buf, list.rows(poppies, icons, menu_width))
+---@param width integer
+---@param height integer
+---@param row integer
+---@return integer? win
+body.recreate_plain = function(wrapper_win, buf, width, height, row)
+	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
+	local h = math.max(1, height)
+	local config = {
+		relative = "win",
+		win = wrapper_win,
+		anchor = "SE",
+		row = row + h,
+		col = wrapper_conf.width,
+		width = width,
+		height = h,
+		style = "minimal",
+		border = "none",
+		zindex = layout.POPPY_Z_INDEX,
+		focusable = false,
+	}
+	local win = api.nvim_open_win(buf, false, config)
+	-- Match body's signcolumn so question and item text share a left edge.
+	vim.wo[win].signcolumn = "yes:2"
+	vim.wo[win].cursorline = false
+	style.apply_panel_style(win)
+	shared.apply_win_marker(win)
+	return win
 end
 
-M.list = list
+---@param wrapper_win integer
+---@param width integer
+---@param height integer
+---@param row integer
+---@return integer? win
+---@return integer buf
+body.create_plain = function(wrapper_win, width, height, row)
+	local buf = create_buf()
+	return body.recreate_plain(wrapper_win, buf, width, height, row), buf
+end
+
+M.body = body
 
 ---@param key string
 ---@param label string
@@ -439,25 +540,6 @@ M.list = list
 local fmt_hint = function(key, label, indent)
 	return hint_line(key, label, indent)
 end
-
-local ACTIVE = {
-	{ "select", "Select" },
-	{ "kill", "Kill" },
-	{ "exit_menu", "Exit menu" },
-	{ "poppy_action", "Toggle off" },
-}
-local HINT_SPECS = {
-	landing = {
-		{ "select", "Select" },
-		{ "poppy_action", "Toggle Off" },
-	},
-	menu = ACTIVE,
-}
-
-M.HINT_LINES = {
-	landing = #HINT_SPECS.landing,
-	menu = #HINT_SPECS.menu,
-}
 
 local hints = {}
 
@@ -519,15 +601,15 @@ end
 ---@return integer? win
 hints.recreate = function(wrapper_win, buf, opts)
 	opts = opts or {}
-	local kind = opts.kind or "menu"
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local col = opts.col or wrapper_conf.width
-	local row = opts.row or wrapper_conf.height
+	local row = (opts.row or wrapper_conf.height) + (opts.row_offset or 0)
 	local width = opts.width or wrapper_conf.width
-	local height = opts.height or M.HINT_LINES[kind]
-	if kind == "menu" then
-		row = row + 1
-	end
+	-- Legend lines, not panel height: the separator and trailing blank are added
+	-- below. Derived from the caller's own hint list when not given, so there is
+	-- no line-count table keyed by legend name to keep in step with the content.
+	-- Legend lines only; separator and trailing blank are added below.
+	local height = opts.height or #(opts.hints or {})
 
 	---@type vim.api.keyset.win_config
 	local config = {
@@ -572,15 +654,6 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	shared.with_modifiable(buf, function()
 		api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)
-end
-
----@param buf integer
----@param keys PoppyKeys?
----@param kind "landing"|"menu"
----@param wrapper_width integer
----@return void
-hints.write_static = function(buf, keys, kind, wrapper_width)
-	hints.write_spec(buf, keys, HINT_SPECS[kind], wrapper_width)
 end
 
 M.hints = hints

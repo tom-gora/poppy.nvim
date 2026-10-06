@@ -11,10 +11,10 @@ local shared = require("poppy.core.shared")
 local config = require("poppy.config")
 local keymaps = require("poppy.core.session.keymaps")
 local menu = require("poppy.core.session.menu")
+local dialog = require("poppy.core.session.dialog")
 local autocommands = require("poppy.core.session.autocommands")
 
--- Static dispatch: a dynamic require("poppy.core.modes." .. mode) resolves
--- fine at runtime but hides the mode modules from the LSP.
+-- Static dispatch keeps the mode modules visible to the LSP; a dynamic require("...modes."..mode) hides them.
 local MODES = {
 	term = require("poppy.core.modes.term"),
 	file = require("poppy.core.modes.file"),
@@ -111,17 +111,10 @@ local setup_command = function(opts, callbacks)
 	})
 end
 
--- setup() is documented as call-once, but re-sourcing a config calls it again
--- with a session live. init_or_reset_state() replaces state.windows wholesale,
--- so every window id in it -- wrapper, content, list, hints, header -- is
--- dereferenced, and setup() then clears the augroup that owns the WinClosed
--- watcher. What stays on screen is then unreachable: is_open() correctly
--- reports false, yet five floats are still up with nothing left to close them.
---
--- Tearing down through the public close() keeps one teardown path rather than
--- adding a second. It has to run before init_or_reset_state(), which discards
--- the state it reads. The opts check is what keeps a genuine first call silent:
--- M.close would otherwise trip ensure_setup's "setup() must be called first".
+-- setup() is documented as call-once, but re-sourcing a config re-calls it. Tearing down
+-- through the public close() before init_or_reset_state() keeps one teardown path and
+-- dereferences live windows. The opts check is what keeps a first call silent: M.close
+-- would otherwise trip ensure_setup's "setup() must be called first".
 ---@return nil
 local teardown_live_session = function()
 	if state.windows.opts and shared.session_is_open() then
@@ -222,10 +215,8 @@ end
 M.get_current_poppy_name = shared.session_get_current_poppy_name
 M.is_open = shared.session_is_open
 
--- Destroys every live poppy buffer, forcing a full rebuild on the next open.
--- Deliberately keeps poppies_configured intact: the registry is the user's
--- declared config, not runtime state, and clearing it made the manager
--- permanently empty after one :Poppy close.
+-- Destroys every live poppy buffer. Keeps poppies_configured intact: that's the user's
+-- declared config, not runtime state.
 local clear_poppies = function()
 	for _, configured in ipairs(state.poppies_configured) do
 		local rt = state.runtime(configured.name)
@@ -236,13 +227,9 @@ local clear_poppies = function()
 	state.poppies_runtime = {}
 end
 
--- recovering guards the WinClosed watcher from re-firing during teardown, and
--- the augroup clear is what unsubscribes it. Both belong at the top, not below
--- the buffer deletes: clear_poppies() deletes poppy buffers and the content
--- window is showing one of them, so WinClosed fires from inside that loop --
--- ahead of a clear further down. Unguarded, the watcher re-creates the content
--- window and overwrites state.windows.content_buf, leaving the previous
--- scratch buffer orphaned (one invisible buffer per close, accumulating).
+-- `recovering` and the augroup clear both belong at the top: clear_poppies() deletes poppy
+-- buffers while the content window is showing one, so WinClosed fires from inside that loop.
+-- Unguarded, the watcher re-creates the content window and overwrites content_buf.
 local cleanup = function(drop_poppies)
 	state.windows.recovering = true
 	api.nvim_create_augroup("poppy_ui", { clear = true })
@@ -252,9 +239,7 @@ local cleanup = function(drop_poppies)
 	end
 
 	local ok, err = pcall(function()
-		-- Before anything is torn down: the list window may have overridden the
-		-- global 'guicursor' to suppress blinking, and that must not outlive the
-		-- session. Idempotent, so the autocmd's own restore is harmless after.
+		-- Restore the global 'guicursor' first; the list window may have overridden it.
 		style.restore_cursor_mode()
 
 		if state.windows.current_poppy_name then
@@ -274,10 +259,10 @@ local cleanup = function(drop_poppies)
 
 		state.windows.recovering = false
 
-		-- A poppy buffer currently in use must never be wiped here: it can
-		-- hold unsaved edits, and it is what the next open restores. Since
-		-- file poppies are opened with :edit, the content window's own buffer
-		-- *is* the poppy's buffer, so this is the normal case, not a corner one.
+		-- in_use skips any live poppy's bufnr from deletion: file poppies reuse content_buf
+		-- as the live file buffer (can hold unsaved edits). Panel scratch buffers (wrapper,
+		-- hints, menu, header) are not in `in_use` and must be deleted even when a live
+		-- poppy remains; the toggle path skips `clear_poppies` so without this they'd leak.
 		local in_use = {}
 		for _, rt in pairs(state.poppies_runtime) do
 			if rt and rt.bufnr then
@@ -285,16 +270,17 @@ local cleanup = function(drop_poppies)
 			end
 		end
 
-		local has_live_poppy = next(state.poppies_runtime) ~= nil
 		local buffers = { state.windows.content_buf }
-		if not has_live_poppy then
-			table.insert(buffers, state.windows.wrapper_buf)
-			table.insert(buffers, view.get_hints_buf())
-			table.insert(buffers, view.get_list_buf())
-			local hbuf = view.get_header_buf()
-			if hbuf then
-				table.insert(buffers, hbuf)
-			end
+		table.insert(buffers, state.windows.wrapper_buf)
+		table.insert(buffers, view.get_hints_buf())
+		table.insert(buffers, view.get_menu_buf())
+		local qbuf = view.get_menu_header_buf()
+		if qbuf then
+			table.insert(buffers, qbuf)
+		end
+		local hbuf = view.get_header_buf()
+		if hbuf then
+			table.insert(buffers, hbuf)
 		end
 		if hint_buf and api.nvim_buf_is_valid(hint_buf) then
 			table.insert(buffers, hint_buf)
@@ -328,6 +314,10 @@ M.toggle = function()
 	if not shared.ensure_setup() then
 		return
 	end
+	-- A live question owns the session: toggling off would tear down the buffer it's asking about.
+	if dialog.trapped() then
+		return
+	end
 	if shared.session_is_open() then
 		cleanup()
 	else
@@ -341,10 +331,8 @@ local open_wrapper = function(width_override)
 	return win
 end
 
--- One place decides whether a name is real, so every entry point that takes a
--- name can reject it before touching state rather than after. nil means "no
--- name given", which is always fine.
----@param name? string
+-- One place decides whether a name is real so entry points can reject before touching state.
+---@param name? string nil is always fine
 ---@return boolean
 local is_known_poppy = function(name)
 	if name == nil then
@@ -365,9 +353,8 @@ M.open = function(poppy_name)
 	if not shared.ensure_setup() then
 		return nil
 	end
-	-- Checked here rather than left to switch_by_name, which checks too: by the
-	-- time M.open delegates, it has already transitioned to content mode, and
-	-- that transition is what leaves a session open with no current poppy.
+	-- Checked here rather than only in switch_by_name: by the time M.open delegates, it has
+	-- already transitioned to content mode, which would leave a session with no current poppy.
 	if not is_known_poppy(poppy_name) then
 		return nil
 	end
@@ -464,15 +451,13 @@ local do_switch = function(configured, poppy_name)
 	end
 	local mode_ok = mode.run(poppy_name, poppy_opts, state.windows.content_win, on_die)
 	if not mode_ok then
-		-- Mode rejected the poppy (e.g. file() couldn't resolve). The mode
-		-- plugin already dropped it from state and refreshed the list;
-		-- recover to land somewhere sensible.
+		-- Mode rejected: it already dropped the poppy and refreshed.
 		state.set_current_poppy_name(nil)
 		M.recover()
 		return
 	end
 
-	keymaps.setup_content_keys(api.nvim_win_get_buf(state.windows.content_win))
+	keymaps.bind_poppy_action(api.nvim_win_get_buf(state.windows.content_win))
 
 	if shared.opts_field("menu_autohide") then
 		view.set_visible(false, state.windows.content_win)
@@ -488,6 +473,9 @@ local do_switch = function(configured, poppy_name)
 		vim.cmd("startinsert")
 	end
 end
+
+-- Set while recovery re-drives a switch that already failed once. See switch_by_name's failure branch.
+local retrying_after_failure = false
 
 ---@param poppy_name string
 ---@return nil
@@ -507,17 +495,43 @@ M.switch_by_name = function(poppy_name)
 		return
 	end
 
-	local ok, err = pcall(do_switch, configured, poppy_name)
-	if not ok then
-		-- Something threw partway through: a repaint under textlock, a mode
-		-- touching a buffer that died, a window closed under us. Whichever it
-		-- was, the session is now half-switched -- current_poppy_name names a
-		-- poppy whose sidebar row, focus and hints were never settled. Take
-		-- the same route the mode.run-failed branch takes.
-		shared.notify_error("switch to '%s' failed: %s", tostring(poppy_name), tostring(err))
-		state.set_current_poppy_name(nil)
-		M.recover()
+	-- A dead content pane is recoverable: rebuild rather than bail. Normal after a poppy's
+	-- buffer is deleted (the pane goes with the buffer). Skipped on landing: do_switch creates it.
+	if not state.windows.is_landing then
+		local content_win = state.windows.content_win
+		if not content_win or not api.nvim_win_is_valid(content_win) then
+			if not shared.session_is_open() then
+				return
+			end
+			M.transition_to_content()
+			content_win = state.windows.content_win
+			if not content_win or not api.nvim_win_is_valid(content_win) then
+				shared.notify_error("cannot switch to '%s': no content pane", tostring(poppy_name))
+				state.set_current_poppy_name(nil)
+				return
+			end
+		end
 	end
+
+	local ok, err = pcall(do_switch, configured, poppy_name)
+	if ok then
+		retrying_after_failure = false
+		return
+	end
+
+	-- Something threw partway. Session is half-switched: current_poppy_name names a poppy whose
+	-- sidebar row, focus, and hints were never settled.
+	shared.notify_error("switch to '%s' failed: %s", tostring(poppy_name), tostring(err))
+	state.set_current_poppy_name(nil)
+
+	-- One retry, no more. recover() switches to a fallback; if that throws the same error it
+	-- would re-enter recover() and walk fallbacks forever.
+	if retrying_after_failure then
+		shared.notify_error("switch failed again; not retrying")
+		return
+	end
+	retrying_after_failure = true
+	M.recover()
 end
 
 ---@param index integer
@@ -543,10 +557,9 @@ M.switch_by_cursor = function()
 	end
 end
 
--- Tear down a poppy's runtime state. Returns true if this was the active poppy.
 ---@param name string
----@return boolean
-local _kill = function(name)
+---@return boolean was_active
+local _kill_now = function(name)
 	if not name then
 		return false
 	end
@@ -568,17 +581,33 @@ local _kill = function(name)
 	return was_active
 end
 
--- Drop the target buffer up-front so any callback recover() schedules lands on clean state.
+---Run `resume` either now or after a confirmation dialog if the buffer has unsaved edits.
+---Never deletes anything itself: resume is the only caller of _kill_now, so a "Go back" answer
+---(buffer still modified) cannot re-trigger the question.
+---@param name string
+---@param resume fun()
+---@return nil
+local _kill = function(name, resume)
+	if resume and dialog.needs_confirmation(name) then
+		dialog.open(name, resume)
+		return
+	end
+	resume()
+end
+
 ---@return nil
 M.kill_active = function()
 	if not shared.ensure_setup() then
 		return
 	end
-	if not state.windows.current_poppy_name then
+	local name = state.windows.current_poppy_name
+	if not name then
 		return
 	end
-	_kill(state.windows.current_poppy_name)
-	M.recover()
+	_kill(name, function()
+		_kill_now(name)
+		M.recover()
+	end)
 end
 
 ---@param resolved { name: string, runtime: PoppyRuntimeState? }?
@@ -590,11 +619,13 @@ local _kill_then_refresh = function(resolved)
 	if not resolved.runtime then
 		return
 	end
-	if _kill(resolved.name) then
-		M.recover()
-	elseif shared.session_is_open() and not state.windows.is_landing then
-		view.refresh_poppies()
-	end
+	_kill(resolved.name, function()
+		if _kill_now(resolved.name) then
+			M.recover()
+		elseif shared.session_is_open() and not state.windows.is_landing then
+			view.refresh_poppies()
+		end
+	end)
 end
 
 ---@param name string
@@ -644,9 +675,8 @@ M.transition_to_content = function()
 		})
 		state.windows.is_landing = false
 	end
-	-- Clamp against the wrapper, not the raw config: on a narrow wrapper the
-	-- sidebar is the binding constraint and content.create's subtraction would
-	-- otherwise go negative.
+	-- Clamp against the wrapper, not the raw config: on a narrow wrapper the sidebar is the
+	-- binding constraint and content.create's subtraction would otherwise go negative.
 	local wrapper_width = api.nvim_win_get_width(state.windows.wrapper_win)
 	local panel_width = view.menu_width(wrapper_width)
 	local c_win, c_buf = view.content.create(state.windows.wrapper_win, panel_width)
@@ -662,18 +692,12 @@ M.enter_landing = function()
 	state.windows.content_win = nil
 	shared.drop_scratch_buffer(state.windows.content_buf)
 	state.windows.content_buf = nil
-	local list_buf = view.get_list_buf()
-	vim.bo[list_buf].filetype = "poppy_menu"
-	local list_win = view.get_list_win()
-	if list_win and api.nvim_win_is_valid(list_win) then
-		api.nvim_set_current_win(list_win)
-	end
-	keymaps.setup_list_keys(list_buf)
+	local menu_buf = view.get_menu_buf()
+	vim.bo[menu_buf].filetype = "poppy_menu"
+	require("poppy.core.session.menu").focus_body()
 end
 
--- Landing width, from content, capped by the screen. Both landing routes go
--- through this: computing it separately per site is what made the panel come up
--- wide on launch but narrow after a kill.
+-- Landing width, from content, capped by the screen. Single source for launch and recover paths.
 M.landing_width = function()
 	return math.min(
 		layout.landing_min_width(state.windows.opts, state.poppies_configured),
@@ -681,8 +705,6 @@ M.landing_width = function()
 	)
 end
 
--- Pick a previously-hidden poppy to restore, preferring last_poppy_name.
--- Returns nil when there is nothing to restore.
 ---@return string?
 local recover_pick_fallback = function()
 	if state.windows.last_poppy_name then
@@ -700,8 +722,7 @@ local recover_pick_fallback = function()
 end
 
 -- Tear down content, resize wrapper to landing width, re-enter landing.
--- Caller must hold state.windows.recovering = true so the WinClosed watcher
--- doesn't re-fire.
+-- Caller must hold state.windows.recovering = true so the WinClosed watcher doesn't re-fire.
 local recover_goto_landing = function()
 	view.unmount()
 	shared.close_menu_hint()
@@ -712,7 +733,6 @@ local recover_goto_landing = function()
 		api.nvim_win_close(state.windows.content_win, true)
 	end
 
-	-- Same helper the launch path uses, so the two cannot disagree.
 	local landing_width = M.landing_width()
 	local wc = api.nvim_win_get_config(state.windows.wrapper_win)
 	api.nvim_win_set_config(state.windows.wrapper_win, {
@@ -729,7 +749,7 @@ end
 M.recover = function()
 	state.set_current_poppy_name(nil)
 	vim.schedule(function()
-		-- recovering gates the WinClosed watcher; closing content_win below would otherwise re-fire it.
+		-- recovering gates the WinClosed watcher; closing content_win below would re-fire it.
 		state.windows.recovering = true
 		local ok, err = pcall(function()
 			if not shared.session_is_open() or state.windows.is_landing or state.windows.current_poppy_name then

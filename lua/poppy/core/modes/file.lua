@@ -10,9 +10,8 @@ local normalize = function(path)
 	return fn.fnamemodify(path, ":p")
 end
 
--- Returns a hidden buffer only if it still points at `file_path`. A dynamic
--- file function can resolve elsewhere between opens, and a buffer for the old
--- path is dropped rather than reattached under the new file's name.
+-- A reused buffer is only valid if it still points at `file_path`. A dynamic file function
+-- can resolve elsewhere between opens; a buffer for the old path is dropped, not reattached.
 ---@param name string
 ---@param file_path string
 ---@return integer|nil
@@ -31,33 +30,44 @@ local reusable = function(name, file_path)
 	return runtime.bufnr
 end
 
----@param poppy_name string
----@param bufnr integer
----@param parent_win integer
----@param title string
-local attach = function(poppy_name, bufnr, parent_win, title)
-	vim.bo[bufnr].buflisted = false
-	vim.bo[bufnr].bufhidden = "hide"
-	api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
-	api.nvim_win_set_buf(parent_win, bufnr)
-	state.poppies_runtime[poppy_name] = {
-		active = true,
-		hidden = false,
-		bufnr = bufnr,
-		win = parent_win,
-		title = title,
-	}
-end
+	---@param poppy_name string
+	---@param bufnr integer
+	---@param parent_win integer
+	---@param title string
+	---@param on_die? fun(poppy_name: string)
+	local attach = function(poppy_name, bufnr, parent_win, title, on_die)
+		vim.bo[bufnr].buflisted = false
+		vim.bo[bufnr].bufhidden = "hide"
+		api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
+		api.nvim_win_set_buf(parent_win, bufnr)
+		state.poppies_runtime[poppy_name] = {
+			active = true,
+			hidden = false,
+			bufnr = bufnr,
+			win = parent_win,
+			title = title,
+		}
+		-- Background file poppies need a repaint when their buffer goes away. The active case is
+		-- already handled by the plugin-level BufUnload autocmd in session/autocommands.lua; skip
+		-- on_die here to avoid a double recover.
+		if on_die and state.windows.current_poppy_name ~= poppy_name then
+			api.nvim_create_autocmd("BufUnload", {
+				group = "poppy_group",
+				buffer = bufnr,
+				once = true,
+				callback = function()
+					if state.runtime(poppy_name) and not state.windows.current_poppy_name then
+						on_die(poppy_name)
+					end
+				end,
+			})
+		end
+	end
 
--- Open the file for real in the target window. A buffer built by hand
--- (readfile + set_lines + set_name) is modifiable but Vim still treats it as
--- never-read-from-disk, so :w fails with E13 "File exists (add ! to
--- override)". Going through :edit gives a genuine file buffer and, for free,
--- filetype detection, checktime and the rest of the normal load path.
---
--- Only ever called for a fresh open. Reloading a reused buffer is done in
--- place instead, because :edit! would unload that buffer and the BufUnload
--- handler would read it as the poppy dying.
+-- :edit gives a real file buffer (filetype, checktime, normal load path). A hand-built
+-- buffer (readfile + set_lines + set_name) is modifiable but treated as never-read-from-disk;
+-- :w would fail with E13. Only called on a fresh open -- reuse reloads in place because
+-- :edit! would unload the buffer and the BufUnload handler would read it as the poppy dying.
 ---@param parent_win integer
 ---@param file_path string
 ---@return integer? bufnr
@@ -93,10 +103,7 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 	local reused = reusable(poppy_name, file_path)
 	local is_fresh = reused == nil
 
-	-- Every callsite below is on a fresh-open path: the mkdir/writefile block is
-	-- guarded by is_fresh, and open_file is only reached on the `not reused`
-	-- branch. So there is no adopted buffer here to protect or clean up. If a
-	-- fail path is ever added to the reuse branch, buffer handling belongs there.
+	-- Fail path is on a fresh-open path: no adopted buffer to clean up.
 	---@param reason string
 	---@return false
 	local fail = function(reason)
@@ -124,10 +131,9 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 
 	local bufnr
 	if reused then
-		-- A clean buffer whose file still exists is re-read, so external edits
-		-- show up. A modified one is reattached untouched, and a file that
-		-- vanished is left alone -- :w recreates it at the same path.
-		local modified = api.nvim_get_option_value("modified", { buf = reused })
+		-- Clean + file still exists: re-read so external edits show up.
+	-- Modified: reattach untouched. Vanished: leave alone, :w recreates at the same path.
+	-- (Comment spans the if/else; the line below sets `modified` for the unmodified branch.)
 		if not file_missing and not modified then
 			api.nvim_buf_set_lines(reused, 0, -1, false, fn.readfile(file_path))
 			api.nvim_set_option_value("modified", false, { buf = reused })
@@ -140,7 +146,7 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 		end
 	end
 
-	attach(poppy_name, bufnr, parent_win, poppy_opts.title)
+	attach(poppy_name, bufnr, parent_win, poppy_opts.title, on_die)
 	return true
 end
 

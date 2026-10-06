@@ -1,11 +1,8 @@
 require("poppy._types")
 
--- Autocmd registration for the session. Split out of session/init.lua so that
--- module keeps only the flow logic (open / close / switch / kill / recover).
---
--- Callbacks that need to call back into the session require it lazily, the same
--- way keymaps.lua does: session/init.lua requires this module, so a top-level
--- require here would be circular.
+-- Autocmd registration. Split from session/init.lua so that file keeps only flow logic.
+-- Callbacks that need to call back into the session require it lazily -- a top-level require
+-- would be circular (init.lua requires this module).
 
 local M = {}
 
@@ -15,6 +12,7 @@ local view = require("poppy.core.ui.view")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 local menu = require("poppy.core.session.menu")
+local dialog = require("poppy.core.session.dialog")
 
 ---@return table session
 local function session()
@@ -74,6 +72,10 @@ M.setup = function(opts)
 					if shared.is_poppy_window(cur) then
 						return
 					end
+					-- A live question blocks the session being closed out from under it.
+					if dialog.trapped() then
+						return
+					end
 					-- Cmdline exempt: user may be typing :Poppy or any command.
 					if vim.fn.win_gettype(cur) == "command" then
 						return
@@ -85,8 +87,8 @@ M.setup = function(opts)
 	end
 end
 
--- Close every float that isn't ours the first time anything is focused after an
--- open. Registered per open, and once, so the next session re-arms it.
+-- Close every non-poppy float the first time anything is focused after an open.
+-- Per open, once, so the next session re-arms it.
 ---@return nil
 M.setup_exclusive_float = function()
 	api.nvim_create_autocmd("WinEnter", {
@@ -108,8 +110,7 @@ M.setup_exclusive_float = function()
 	})
 end
 
--- Re-arm itself on each replacement content window, so it survives the user
--- closing that window by hand.
+-- Re-arms on each replacement content window, so it survives the user closing that window by hand.
 ---@param win_id integer|nil
 ---@param menu_w? integer
 ---@return nil
@@ -126,11 +127,14 @@ M.watch_content_window = function(win_id, menu_w)
 			if state.windows.recovering then
 				return
 			end
+			-- Stay out of the way while a question is up: rebuilding would kill the poppy being asked about.
+			if dialog.trapped() then
+				return
+			end
 			if not shared.session_is_open() then
 				return
 			end
-			-- The pane being replaced had its own scratch and the rebuild does
-			-- not reuse it, so drop it rather than leave it in the buffer list.
+			-- The pane being replaced had its own scratch; the rebuild doesn't reuse it.
 			shared.drop_scratch_buffer(state.windows.content_buf)
 			local c_win, c_buf = view.content.create(state.windows.wrapper_win, w)
 			state.windows.content_win = c_win

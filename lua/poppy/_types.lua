@@ -70,8 +70,44 @@
 ---@field runtime_state PoppyRuntimeState? nil ⇔ never opened or just closed; non-nil ⇔ currently open with the inner runtime table.
 
 ---@class PoppyHintOpts
----@field kind? "landing"|"menu"
 ---@field row? integer
+---@field row_offset? integer Nudges the panel down from `row`; placement only.
 ---@field col? integer
 ---@field width? integer
----@field height? integer
+---@field height? integer Legend lines to render; the separator and trailing blank are added on top.
+---@field hints? {string, string}[] Legend rows, used only to derive `height` when that is absent.
+
+-- Menu backend vocabulary. A "menu" is a spec the backend renders into panels; the
+-- poppy list is one instance of it and a dialog will be another. Nothing here is
+-- poppy-specific -- `label` is display text, not a poppy's title, and it only
+-- becomes a title where the spec is built from PoppyResolvedConfig.
+---@alias PoppyMenuWidth "declared"|"content"
+
+---@class MenuItem
+---@field label string Display text for the row, already fitted to the panel width.
+---@field marks string[] Sign names stacked in this row's signcolumn, highest priority first.
+---@field hl string|nil Line highlight group, or nil for the default.
+
+---@class MenuItems
+---@field idx_width integer Width of the index gutter, in characters.
+---@field rows MenuItem[]
+
+---@class PoppyMenuKeymap
+---@field field string PoppyKeys field naming the key, e.g. "select".
+---@field desc string Short description, used for the mapping's desc and the legend label.
+---@field fn function
+
+---@class PoppyMenuSpec
+---@field id string
+---@field width PoppyMenuWidth "declared" honours menu_width; "content" sizes to content.
+---@field focusable boolean May the body panel take focus.
+---@field trap boolean Block every exit route while up. Dialogs only.
+---@field rows MenuItem[]
+---@field hints {string, string}[] Legend rows: PoppyKeys field name, label.
+---@field keymaps PoppyMenuKeymap[]
+
+---@class PoppyMenuTarget
+---@field menu_buf integer Body buffer the rows are painted into.
+---@field hints_buf integer? Legend buffer; skipped when nil.
+---@field list_width integer Width the labels were fitted against.
+---@field hints_width integer Width the legend rule spans.

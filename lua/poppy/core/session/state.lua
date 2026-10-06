@@ -11,8 +11,10 @@ local M = {}
 ---@field menu_hint_buf integer|nil
 ---@field hints_win integer|nil
 ---@field hints_buf integer|nil
----@field list_win integer|nil
----@field list_buf integer|nil
+---@field menu_win integer|nil
+---@field menu_buf integer|nil
+---@field menu_header_win integer|nil A menu's question panel. Not the header panel.
+---@field menu_header_buf integer|nil
 ---@field header_win integer|nil
 ---@field header_buf integer|nil
 ---@field current_poppy_name string|nil
@@ -20,7 +22,9 @@ local M = {}
 ---@field is_landing boolean
 ---@field hidden boolean
 ---@field opts PoppyMergedConfig?
----@field recovering boolean True while a recovery routine is mid-flight; WinClosed watcher bails when set so it doesn't recreate content mid-cleanup.
+---@field dialog {name: string, resume: fun(), buf: integer?}|nil A confirmation is up.
+--- While set, teardown routes are inert and any forced close of the dialog's panels resolves the question.
+---@field recovering boolean True while a recovery routine is mid-flight; WinClosed watcher bails when set.
 
 ---@return PoppyState
 M.default_state = function()
@@ -33,8 +37,10 @@ M.default_state = function()
 		menu_hint_buf = nil,
 		hints_win = nil,
 		hints_buf = nil,
-		list_win = nil,
-		list_buf = nil,
+		menu_win = nil,
+		menu_buf = nil,
+		menu_header_win = nil,
+		menu_header_buf = nil,
 		header_win = nil,
 		header_buf = nil,
 		current_poppy_name = nil,
@@ -43,22 +49,21 @@ M.default_state = function()
 		hidden = false,
 		opts = nil,
 		recovering = false,
+		dialog = nil,
 	}
 end
 
 M.windows = M.default_state()
 
--- Immutable after M.setup. Array index = display row. Set once at setup;
--- removed only by shared.drop_poppy when a poppy is unrecoverably broken.
+-- Immutable after M.setup. Array index = display row. Removed only by shared.drop_poppy.
 ---@type {name: string, config: PoppyResolvedConfig}[]
 M.poppies_configured = {}
 
--- Mutable map: name -> runtime_state. nil lookup = "never opened or just closed".
--- Set by mode.run on open; cleared by clear_runtime and drop_poppy.
----@type table<string, PoppyRuntimeState?>
+-- Mutable map. nil lookup = never opened or just closed.
+--@type table<string, PoppyRuntimeState?>
 M.poppies_runtime = {}
 
--- Linear scan over the small configured set; encapsulation for callers.
+-- Linear scan over the small configured set; encapsulated for callers.
 ---@param name string
 ---@return {name: string, config: PoppyResolvedConfig}?
 M.poppy_configured = function(name)

@@ -20,9 +20,7 @@ local term_get_or_create_buffer = function(poppy_name)
 end
 
 ---@param poppy_opts PoppyResolvedConfig
--- Defense-in-depth: setup already validated this. Re-evaluates the function
--- only if the cached value is a function (e.g. someone mutated state manually).
--- Returns nil when the resolved value is unusable; the caller drops the poppy.
+-- Defense-in-depth: setup already validated. Returns nil when the value is unusable; the caller drops the poppy.
 ---@return string|string[]|nil
 local term_resolve_command = function(poppy_opts)
 	local raw
@@ -89,11 +87,9 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 		return false
 	end
 
-	-- Pre-check the binary on $PATH synchronously, before creating a buffer.
-	-- jobstart/termopen return a job id even for missing binaries (fork
-	-- succeeds, exec fails async inside the shell). Doing this here means the
-	-- drop happens at open time, not after the user has started typing into a
-	-- dead terminal.
+	-- Pre-check $PATH synchronously: jobstart/termopen return a job id even for missing
+	-- binaries (fork succeeds, exec fails async), so without this the drop would only
+	-- happen after the user typed into a dead terminal.
 	local command = term_resolve_command(poppy_opts)
 	if type(command) == "function" then
 		command = command()
@@ -125,8 +121,8 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 		return true
 	end
 
-	-- jobstart({ term = true }) attaches the terminal to the active buffer;
-	-- nvim_buf_call scopes the active buffer to bufnr for that call.
+	-- nvim_buf_call scopes the active buffer to bufnr for the jobstart call, so the terminal
+	-- attaches to it even though parent_win is showing a different one.
 	local spawn_ok = false
 	api.nvim_buf_call(bufnr, function()
 		api.nvim_set_option_value("modified", false, { buf = bufnr })
@@ -147,8 +143,7 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 	end)
 
 	if not spawn_ok then
-		-- Shouldn't happen given the pre-check, but jobstart can still
-		-- fail for other reasons (e.g. malformed argv). Defensive drop.
+		-- Shouldn't happen given the pre-check, but jobstart can still fail for other reasons (malformed argv).
 		shared.drop_poppy(poppy_name, string.format("jobstart returned no id for %s", vim.inspect(command)))
 		pcall(api.nvim_buf_delete, bufnr, { force = true })
 		return false

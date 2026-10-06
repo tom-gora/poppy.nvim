@@ -186,10 +186,9 @@ require("poppy").is_open()               -- boolean
 ```
 
 `setup` is meant to be called once, but re-sourcing your config calls it
-again. A second call tears down a live session first, exactly as
-`:Poppy close` does, so a config reload cannot leave the previous floats on
-screen. It is a full reset: in-flight poppy buffers are not preserved, so a
-modified file buffer with unsaved edits is discarded.
+again. A second call tears down any live session before re-initializing,
+so a config reload cannot leave the previous floats on screen. In-flight
+poppy buffers are not preserved.
 
 ## How it works
 

@@ -9,7 +9,7 @@ local shared = require("poppy.core.shared")
 local DEFAULT_KEYS = { "poppy_action", "select", "kill", "exit_menu" }
 local DEFAULT_ICONS = { "exec", "shell", "file" }
 
--- max_display_width=2 fits one 2-cell nerdfont glyph; reject_pct blocks '%' which would break string.format downstream.
+-- max_display_width fits one 2-cell nerdfont glyph; reject_pct blocks '%' which would break string.format downstream.
 ---@param v any
 ---@param max_display_width? integer
 ---@param reject_pct? boolean
@@ -75,15 +75,13 @@ local argv0 = function(command)
 	return nil
 end
 
----Evaluate a user-supplied function (or pass through a string/list), and validate
----the result against the type that the corresponding field requires. Returns
----`value, ok`. On `not ok` the caller should drop the poppy. Validation at setup
----time guarantees that anything in `state.poppies_configured` is invokable.
+---Evaluate a user function (or pass through a string/list) and validate the result against
+---the type the field requires. On `not ok` the caller drops the poppy.
 ---@param name string
 ---@param raw string|string[]|function|nil
 ---@return string|string[]|nil value
 ---@return boolean ok
----@return string|nil err
+---@return string? err
 local resolve_and_validate_value = function(name, raw)
 	if raw == nil then
 		return nil, false, "value is nil"
@@ -191,7 +189,7 @@ M.merge = function(user_opts)
 		user = {}
 	end
 
-	-- Leading {} keeps default_opts and user untouched.
+	-- Leading {} keeps default_opts and user untouched (deep_extend mutates its first arg).
 	local merged = vim.tbl_deep_extend("force", {}, default_opts, user)
 
 	local known_top = {

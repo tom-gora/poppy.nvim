@@ -7,6 +7,7 @@ local state = require("poppy.core.session.state")
 local layout = require("poppy.core.ui.layout")
 local style = require("poppy.core.ui.style")
 local render = require("poppy.core.ui.render")
+local menu_ui = require("poppy.core.session.menu")
 
 local shared = require("poppy.core.shared")
 
@@ -76,7 +77,7 @@ M.content.create = function(wrapper_win, list_panel_width)
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
-		width = math.min(wrapper_conf.width - list_panel_width - 2),
+		width = math.max(1, math.min(wrapper_conf.width - list_panel_width - 2, wrapper_conf.width - 2)),
 		height = wrapper_conf.height - 2,
 		anchor = "NW",
 		col = 0,
@@ -111,10 +112,12 @@ end
 
 local close_all_panels = function()
 	close_panel(state.windows.hints_win)
-	close_panel(state.windows.list_win)
+	close_panel(state.windows.menu_win)
+	close_panel(state.windows.menu_header_win)
 	close_panel(state.windows.header_win)
 	state.windows.hints_win = nil
-	state.windows.list_win = nil
+	state.windows.menu_win = nil
+	state.windows.menu_header_win = nil
 	state.windows.header_win = nil
 end
 
@@ -166,10 +169,7 @@ local header_height = function()
 	return layout.get_header_height(state.windows.opts)
 end
 
--- Widest hint line the sidebar can ever need, measured from the renderer's own
--- fmt_hint. Long titles are trim_title's problem (they get an ellipsis), but the
--- legend is never cropped -- so this is what a narrow declared width is raised
--- to. With default keys it is 20; the +1 is the hints separator's lead space.
+-- Widest hint line the sidebar can ever need. The +1 is the hints separator's lead space.
 local legend_floor = function()
 	local keys = shared.keys()
 	if not keys then
@@ -183,18 +183,12 @@ local legend_floor = function()
 	)
 end
 
--- Out-of-bounds menu_width values already warned about, so a repaint does not
--- re-notify on every mount.
+-- Out-of-bounds menu_width values already warned about, so a repaint does not re-notify on every mount.
 local warned_widths = {}
 
--- A declared menu_width is used exactly as given. It is only pulled into
--- [MIN, MAX] when it falls outside, and that notifies rather than silently
--- substituting. The wrapper then bounds it further, so the content panel always
--- has room: a wrapper narrower than the sidebar used to make content.create's
--- subtraction negative and nvim_open_win rejected it.
---
--- Clamping here rather than at a call site keeps the three consumers
--- -- mount_panels, set_visible, refresh_poppies -- agreeing on one width.
+-- Clamp a declared menu_width to [MIN, MAX], warn once per offending value, and shrink it
+-- further if `wrapper_width` is too narrow to hold sidebar + content floor together.
+-- Centralised here so mount_panels, set_visible, and refresh_poppies agree on one width.
 ---@param wrapper_width? integer
 ---@return integer
 local menu_width = function(wrapper_width)
@@ -203,14 +197,11 @@ local menu_width = function(wrapper_width)
 		layout.DEFAULT_MENU_WIDTH,
 		"menu_width"
 	)
-	-- Floor first: 0 or a negative is a valid number, so evaluate_dimension lets
-	-- it through, and nvim_open_win rejects it.
+	-- Floor at 1: 0 or negative passes evaluate_dimension, and nvim_open_win rejects it.
 	local w = math.max(1, declared)
 
 	if w < layout.MIN_MENU_WIDTH or w > layout.MAX_MENU_WIDTH then
 		local clamped = math.min(math.max(w, layout.MIN_MENU_WIDTH), layout.MAX_MENU_WIDTH)
-		-- menu_width() runs on every mount and repaint, so warn once per
-		-- offending value rather than on each call.
 		if not warned_widths[declared] then
 			warned_widths[declared] = true
 			shared.notify_warn(
@@ -224,9 +215,7 @@ local menu_width = function(wrapper_width)
 		w = clamped
 	end
 
-	-- The legend is fixed text needing ~21 cells, well under the ceiling, so it
-	-- does not override a declared width in [MIN, MAX]. This only engages if a
-	-- remapped key makes it impossible to honour even at MAX.
+	-- Legend only overrides a declared width if a remapped key makes it impossible to honour even at MAX.
 	local legend = legend_floor()
 	if legend > w and legend > layout.MAX_MENU_WIDTH then
 		w = legend
@@ -235,101 +224,131 @@ local menu_width = function(wrapper_width)
 	if not wrapper_width then
 		return w
 	end
-	-- The sidebar is what gives way on a narrow wrapper, so that the content
-	-- pane keeps at least MIN_CONTENT_WIDTH cells. That floor can only be met
-	-- once the wrapper is at least MIN_CONTENT_WIDTH + 3 wide (floor + the 1-cell
-	-- sidebar minimum + the 2 content.create subtracts for the border); below
-	-- that the sidebar is clamped to its 1-cell floor and stops being readable.
-	--
-	-- TODO: future feat after doing some design and thinking over: BETTER VERT MENU VARIANT. Include as noted in future reviews.
+	-- On a narrow wrapper, the sidebar gives way to keep MIN_CONTENT_WIDTH for the content pane.
 	local reserved = layout.MIN_CONTENT_WIDTH + 2
 	return math.min(w, math.max(1, wrapper_width - reserved))
 end
 
--- Smallest wrapper that can still honour the sidebar *and* the content floor:
--- the sidebar as declared (menu_width() with no wrapper bound, so it is the
--- clamped-but-not-squeezed width) plus the floor plus content.create's border.
--- Passed into compute_wrapper_dimensions so a narrow screen widens the wrapper
--- instead of crushing the sidebar to a 1-cell sliver.
---
--- TODO: future feat after doing some design and thinking over: BETTER VERT MENU VARIANT. Include as noted in future reviews.
+-- Smallest wrapper that honours both sidebar (clamped, not squeezed) and content floor + border.
+-- Passed to compute_wrapper_dimensions so a narrow screen widens the wrapper instead of crushing the sidebar.
 M.min_wrapper_width = function()
 	return menu_width() + layout.MIN_CONTENT_WIDTH + 2
 end
 
-local SIDEBAR = {
-	width_source = "menu",
-	list_focusable = false,
-	hints_kind = "menu",
-	hints_lines_source = "menu",
-	hints_opts = function(wc, mw)
-		return { width = mw, col = wc.width, row = wc.height - 1, height = render.HINT_LINES.menu, kind = "menu" }
+-- Geometry only. Which presentation is showing, focusability, and the legend live in the menu
+-- backend; this layer adds only offsets and the header split.
+local GEOMETRY = {
+	sidebar = function(wc, mw, h)
+		return { width = mw, col = wc.width, row = wc.height - 1, row_offset = 1, height = h }
 	end,
-	header = function(wc, mw)
+	landing = function(wc, mw, h)
+		return { width = wc.width, col = wc.width, row = wc.height, height = h }
+	end,
+	sidebar_header = function(wc, mw)
 		return mw, wc.width - mw
 	end,
-	write_static_width_source = "menu",
-}
-
-local LANDING = {
-	width_source = "wrapper",
-	list_focusable = true,
-	hints_kind = "landing",
-	hints_lines_source = "landing_plus_2",
-	hints_opts = function()
-		return { kind = "landing" }
-	end,
-	header = function()
+	landing_header = function()
 		return nil, nil
 	end,
-	write_static_width_source = "wrapper",
 }
 
+-- Top-down panel stack: a panel present contributes its height to everything below it, an
+-- absent one contributes nothing. That is what lets `title_header = false` drop the title
+-- bar and a dialog's menu_header sit directly on top of the body with no per-case arithmetic.
 local mount_panels = function(wrapper_win)
 	local wc = api.nvim_win_get_config(wrapper_win)
 	local hh = header_height()
 	local mw = menu_width(wc.width)
-	local is_landing = state.windows.is_landing
-	local cfg = is_landing and LANDING or SIDEBAR
+	local cfg = menu_ui.current_cfg()
+	local is_sidebar = cfg.width_source == "menu"
+	local hint_geom = is_sidebar and GEOMETRY.sidebar or GEOMETRY.landing
 
-	local list_w = (cfg.width_source == "menu") and mw or wc.width
-	local hints_hl = (cfg.hints_lines_source == "menu") and render.HINT_LINES.menu or render.HINT_LINES.landing + 2
+	local panel_w = is_sidebar and mw or wc.width
 
-	-- Landing's hints_hl already has +2 separator padding; sidebar's doesn't.
-	local list_hint = is_landing and hints_hl or (hints_hl + 2)
+	local menu = menu_ui.current_spec()
+	local legend_h = menu_ui.legend_height(menu.hints)
+	local q_lines, q_h = menu_ui.menu_header_lines(menu, panel_w)
 
-	ensure_panel("list_buf", "list_win", function()
-		return render.list.create(wrapper_win, list_w, cfg.list_focusable, list_hint, hh)
+	local above_body = 0
+	local STACK = {
+		{ key = "header", height = hh },
+		{ key = "menu_header_buf", height = q_h },
+	}
+	for _, panel in ipairs(STACK) do
+		panel.top = above_body
+		above_body = above_body + panel.height
+	end
+	---Rows to offset a panel by: everything stacked above it.
+	---@param key string
+	---@return integer
+	local function top_of(key)
+		for _, panel in ipairs(STACK) do
+			if panel.key == key then
+				return panel.top
+			end
+		end
+		return 0
+	end
+
+	ensure_panel("menu_buf", "menu_win", function()
+		return render.body.create(wrapper_win, panel_w, cfg.focusable, legend_h, above_body)
 	end, function(buf)
-		return render.list.recreate(wrapper_win, buf, list_w, cfg.list_focusable, list_hint, hh)
+		return render.body.recreate(wrapper_win, buf, panel_w, cfg.focusable, legend_h, above_body)
 	end)
 
 	ensure_panel("hints_buf", "hints_win", function()
-		return render.hints.create(wrapper_win, cfg.hints_opts(wc, mw))
+		return render.hints.create(wrapper_win, hint_geom(wc, mw, #menu.hints))
 	end, function(buf)
-		return render.hints.recreate(wrapper_win, buf, cfg.hints_opts(wc, mw))
+		return render.hints.recreate(wrapper_win, buf, hint_geom(wc, mw, #menu.hints))
 	end)
 
-	local header_w, header_col = cfg.header(wc, mw)
+	-- focusable = false on the question panel: cursor stays in the answers buffer.
+	-- wrap + linebreak stay on as a safety net for narrower-than-wrapped widths.
+	if q_h == 0 and state.windows.menu_header_buf then
+		-- Stale question panel from a prior dialog or re-render.
+		local stale_win, stale_buf = state.windows.menu_header_win, state.windows.menu_header_buf
+		close_panel(stale_win)
+		if api.nvim_buf_is_valid(stale_buf) then
+			api.nvim_buf_delete(stale_buf, { force = true })
+		end
+		state.windows.menu_header_win = nil
+		state.windows.menu_header_buf = nil
+	end
+
+	if q_h > 0 then
+		local q_row = top_of("menu_header_buf")
+		ensure_panel("menu_header_buf", "menu_header_win", function()
+			local win, buf = render.body.create_plain(wrapper_win, panel_w, q_h, q_row)
+			vim.wo[win].wrap = true
+			vim.wo[win].linebreak = true
+			shared.with_modifiable(buf, function()
+				api.nvim_buf_set_lines(buf, 0, -1, false, q_lines)
+			end)
+			return win, buf
+		end, function(buf)
+			return render.body.recreate_plain(wrapper_win, buf, panel_w, q_h, q_row)
+		end)
+	end
+
+	local header_fn = is_sidebar and GEOMETRY.sidebar_header or GEOMETRY.landing_header
+	local header_w, header_col = header_fn(wc, mw)
 	ensure_panel("header_buf", "header_win", function()
 		return render.header.create(wrapper_win, header_w, header_col)
 	end, function(buf)
 		return render.header.recreate(wrapper_win, buf, header_w, header_col)
 	end, hh == 0)
 
-	if valid_buf(state.windows.hints_buf) then
-		local write_w = (cfg.write_static_width_source == "menu") and mw or wc.width
-		render.hints.write_static(state.windows.hints_buf, shared.keys(), cfg.hints_kind, write_w)
-	end
-
-	-- Populate the list at mount so first show isn't stale (kill-then-show under autohide, etc.).
-	if valid_buf(state.windows.list_buf) then
-		render.list.update(
-			state.windows.list_buf,
-			state.poppies_configured,
-			shared.opts_field("icons"),
-			list_w
-		)
+	-- Populate at mount so the first show isn't stale (kill-then-show under autohide).
+	if valid_buf(state.windows.menu_buf) then
+		render.body.paint_items(state.windows.menu_buf, render.rowset(menu, panel_w))
+		if valid_buf(state.windows.hints_buf) then
+			render.hints.write_spec(state.windows.hints_buf, shared.keys(), menu.hints, panel_w)
+		end
+		-- Bind only on focusable bodies; an unfocusable one can't be entered, so bindings
+		-- would be unreachable but get_keymap would still report them as claimed.
+		if cfg.focusable then
+			menu_ui.bind_spec(state.windows.menu_buf, menu)
+		end
 	end
 
 	state.windows.wrapper_win = wrapper_win
@@ -359,7 +378,6 @@ M.set_visible = function(visible, content_win)
 	if not api.nvim_win_is_valid(wrapper_win) then
 		return
 	end
-	-- Already in the requested state; nothing to do.
 	if state.windows.hidden == (not visible) then
 		return
 	end
@@ -368,7 +386,9 @@ M.set_visible = function(visible, content_win)
 	if visible then
 		mount_panels(wrapper_win)
 		if content_win and api.nvim_win_is_valid(content_win) then
-			resize_content(content_win, wc.width - menu_width(wc.width) - 2, wc.height - 2)
+			local mw = menu_width(wc.width)
+			local cw = math.max(1, math.min(wc.width - mw - 2, wc.width - 2))
+			resize_content(content_win, cw, wc.height - 2)
 		end
 	else
 		close_all_panels()
@@ -382,24 +402,24 @@ end
 ---@param focused boolean
 ---@return void
 M.set_focused = function(focused)
-	local list_win = state.windows.list_win
-	if not list_win or not api.nvim_win_is_valid(list_win) then
+	local menu_win = state.windows.menu_win
+	if not menu_win or not api.nvim_win_is_valid(menu_win) then
 		return
 	end
-	local conf = api.nvim_win_get_config(list_win)
+	local conf = api.nvim_win_get_config(menu_win)
 	if conf.focusable ~= focused then
 		conf.focusable = focused
-		api.nvim_win_set_config(list_win, conf)
+		api.nvim_win_set_config(menu_win, conf)
 	end
 end
 
 ---@return boolean
 M.is_menu_focused = function()
-	local list_win = state.windows.list_win
-	if not list_win or not api.nvim_win_is_valid(list_win) then
+	local menu_win = state.windows.menu_win
+	if not menu_win or not api.nvim_win_is_valid(menu_win) then
 		return false
 	end
-	return api.nvim_get_current_win() == list_win
+	return api.nvim_get_current_win() == menu_win
 end
 
 ---@return integer|nil
@@ -408,13 +428,18 @@ M.get_hints_buf = function()
 end
 
 ---@return integer|nil
-M.get_list_buf = function()
-	return state.windows.list_buf
+M.get_menu_header_buf = function()
+	return state.windows.menu_header_buf
 end
 
 ---@return integer|nil
-M.get_list_win = function()
-	return state.windows.list_win
+M.get_menu_buf = function()
+	return state.windows.menu_buf
+end
+
+---@return integer|nil
+M.get_menu_win = function()
+	return state.windows.menu_win
 end
 
 ---@return integer|nil
@@ -434,12 +459,11 @@ M.refresh_poppies = function()
 	else
 		width = menu_width(state.windows.wrapper_win and api.nvim_win_get_width(state.windows.wrapper_win))
 	end
-	render.list.update(
-		state.windows.list_buf,
-		state.poppies_configured,
-		shared.opts_field("icons"),
-		width
-	)
+	if not valid_buf(state.windows.menu_buf) then
+		return
+	end
+	local menu = menu_ui.current_spec()
+	render.body.paint_items(state.windows.menu_buf, render.rowset(menu, width))
 end
 
 M.setup_style = style.setup

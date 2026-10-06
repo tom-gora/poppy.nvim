@@ -2,23 +2,17 @@ require("poppy._types")
 
 local M = {}
 
--- 48 keeps us under Neovim's default 50 (completion pum, hovers, notifications) while staying above other plugin pickers.
+-- 48 keeps us under Neovim's default 50 (completion pum, hovers, notifications) and above other plugin pickers.
 M.POPPY_Z_INDEX = 48
 M.DEFAULT_MENU_WIDTH = 25
 
--- The sidebar honours a declared menu_width exactly. These are only the bounds
--- it is pulled into when the declared value (or the legend) falls outside them.
+-- Bounds the sidebar is pulled into when the declared menu_width falls outside them.
 M.MIN_MENU_WIDTH = 20
 M.MAX_MENU_WIDTH = 35
 
--- Floor on the content pane's width. On a narrow wrapper the sidebar and the
--- content pane compete for the same cells, and the sidebar wins by default: at
--- win_width = 0.2 on a 92-column screen the pane came out 1 cell wide, so the
--- popup was unreadable while the content pane had no text in it to show. The
--- sidebar is what gives way -- it truncates titles and clips the legend.
---
--- content.create subtracts the panel width plus 2 for the border, so reserving
--- this plus those 2 cells is what guarantees the floor.
+-- Floor on the content pane. On a narrow wrapper, sidebar and content compete for the same
+-- cells and the sidebar wins by default (1-cell-wide, unreadable). Reserving this plus the
+-- 2 cells content.create subtracts for the border guarantees the floor.
 M.MIN_CONTENT_WIDTH = 35
 
 local HEADER_HEIGHT = 3
@@ -26,27 +20,13 @@ local HEADER_HEIGHT = 3
 local fn = vim.fn
 local shared = require("poppy.core.shared")
 
--- The landing is sized to its content and never crops; the screen is the only
--- cap. Unlike the sidebar (which follows a declared menu_width and truncates
--- long titles), the landing's width comes from whichever section is widest.
---
--- Each section follows its own layout rule and is measured accordingly:
---   header  title centred in the panel      -- needs panel >= title width
---   hints   left-aligned at INDENT          -- needs panel >= hint width
---   list    left-aligned after the signcolumn -- needs panel >= row extent
--- The list rows are what bind in practice; the header and hints only become
--- binding if a key remap makes a hint longer than every row.
---
--- Each extent already includes its own left inset, so PANEL_PAD is only added
--- once, on the trailing side. That is what keeps the longest row's text the
--- same distance from the right edge as the separators are from the left.
---
--- Measured from the renderers rather than re-derived here -- the previous
--- version guessed the row format and measured the hints as one joined string,
--- which is how a legend could end up croppable.
+-- Landing: sized to its content, never cropped, screen-capped. Each section (header, hints,
+-- list) is measured from the renderer with its own layout rule. PANEL_PAD added once on the
+-- trailing side because each extent already includes its own left inset. Measured from the
+-- renderers so the legend can never end up croppable.
 local HEADER_TITLE = "P ◉ PPY.NVIM"
 
--- Trailing breathing room, matching the separators' inset from the left edge.
+-- Trailing breathing room matching the separators' left-edge inset.
 M.PANEL_PAD = 1
 
 ---@param opts? PoppyMergedConfig
@@ -58,8 +38,8 @@ M.landing_min_width = function(opts, poppies)
 	local idx_width = #tostring(math.max(#poppies, 1))
 	local widest_row = 0
 	for _, item in ipairs(poppies) do
-		local title = item.config.title or item.name
-		widest_row = math.max(widest_row, render.measure_list_row(idx_width, title))
+		local label = item.config.title or item.name
+		widest_row = math.max(widest_row, render.measure_item(idx_width, label))
 	end
 
 	local keys = (opts and opts.keys) or { poppy_action = "<C-_>", select = "<CR>" }
@@ -68,10 +48,8 @@ M.landing_min_width = function(opts, poppies)
 		render.measure_hint_line(keys.poppy_action, "Toggle Off")
 	)
 
-	-- Every extent above already includes its own left inset (the list row's
-	-- sign column, the hint's indent), so PANEL_PAD is only added on the trailing
-	-- side. The wrapper has no border -- only the content window does -- so there
-	-- is nothing else to account for.
+	-- Each extent above already includes its own left inset, so PANEL_PAD is added once on the
+	-- trailing side. The wrapper has no border (only the content window does), so nothing else to account for.
 	local content = math.max(widest_row, widest_hint) + M.PANEL_PAD
 	local chrome = fn.strdisplaywidth(HEADER_TITLE) + (M.PANEL_PAD * 2)
 	return math.max(content, chrome)
@@ -102,8 +80,7 @@ M.normalize_dimension = function(value, default)
 	return default
 end
 
--- A dimension function is user code; a throw or a non-number return must not
--- abort the open. Falls back to the ratio default with a warn.
+-- A user function; a throw or a non-number return must not abort the open. Fall back to the default with a warn.
 ---@param value number|function
 ---@param default number
 ---@param name string
@@ -166,16 +143,12 @@ M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width
 	local raw_w = evaluate_dimension(opts.win_width or 0.8, 0.8, "win_width")
 	local raw_h = evaluate_dimension(opts.win_height or 0.75, 0.75, "win_height")
 
-	-- A replacement, not a floor. Taking the max of the two let win_width win
-	-- whenever its ratio exceeded the content, which is why the landing came up
-	-- absurdly wide on launch but correctly narrow after a kill.
+	-- A replacement, not a floor: max(content, win_width) would let win_width win whenever its
+	-- ratio exceeded the content, making the landing absurdly wide on launch.
 	local width = content_width and math.min(content_width, vim_cols) or resolve_dimension(raw_w, vim_cols, "win_width")
 
-	-- The ratio is a preference, not a promise: on a screen too narrow to hold
-	-- both the sidebar and the content floor, the wrapper grows rather than
-	-- squeezing either. Still bounded by the screen, so on a very narrow
-	-- terminal the floor simply cannot be met and menu_width() falls back to
-	-- clamping the sidebar instead.
+	-- The ratio is a preference, not a promise. On a screen too narrow for sidebar + content
+	-- floor, the wrapper grows rather than squeezing either; still bounded by the screen.
 	if min_width and not content_width and width < min_width then
 		width = math.min(min_width, vim_cols)
 	end
