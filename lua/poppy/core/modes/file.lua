@@ -113,20 +113,30 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 
 	local file_missing = fn.filereadable(file_path) ~= 1
 	if file_missing and is_fresh then
-		local parent = vim.fs.dirname(file_path)
+		local ok, err = create_file_with_parents(file_path)
+		if not ok then
+			shared.notify_warn("poppy '%s' could not create %s: %s", poppy_name, file_path, tostring(err))
+			return fail("create failed at open")
+		end
+		file_missing = false
+	end
+
+	---@param path string Absolute path to create.
+	---@return boolean ok
+	---@return string? err
+	local function create_file_with_parents(path)
+		local parent = vim.fs.dirname(path)
 		if parent ~= "" then
 			local mk_ok, mk_err = pcall(fn.mkdir, parent, "p")
 			if not mk_ok then
-				shared.notify_warn("poppy '%s' could not create %s: %s", poppy_name, parent, tostring(mk_err))
-				return fail("mkdir failed at open")
+				return false, "could not create " .. parent .. ": " .. tostring(mk_err)
 			end
 		end
-		local wr_ok, wr_err = pcall(fn.writefile, {}, file_path)
+		local wr_ok, wr_err = pcall(fn.writefile, {}, path)
 		if not wr_ok then
-			shared.notify_warn("poppy '%s' could not write %s: %s", poppy_name, file_path, tostring(wr_err))
-			return fail("writefile failed at open")
+			return false, tostring(wr_err)
 		end
-		file_missing = false
+		return true
 	end
 
 	local bufnr
@@ -147,6 +157,25 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 	end
 
 	attach(poppy_name, bufnr, parent_win, poppy_opts.title, on_die)
+	return true
+end
+
+---Create an empty file at `path`, including any missing parent directories.
+---@param path string Absolute path.
+---@return boolean ok
+---@return string? err
+M.create_file_with_parents = function(path)
+	local parent = vim.fs.dirname(path)
+	if parent ~= "" then
+		local mk_ok, mk_err = pcall(fn.mkdir, parent, "p")
+		if not mk_ok then
+			return false, "could not create " .. parent .. ": " .. tostring(mk_err)
+		end
+	end
+	local wr_ok, wr_err = pcall(fn.writefile, {}, path)
+	if not wr_ok then
+		return false, tostring(wr_err)
+	end
 	return true
 end
 

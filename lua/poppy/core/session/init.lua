@@ -345,6 +345,35 @@ local is_known_poppy = function(name)
 	return false
 end
 
+-- Scan configured poppies for file-mode ones whose files don't exist on disk.
+---@return string[]
+local function collect_missing_file_poppies()
+	local missing = {}
+	for _, p in ipairs(state.poppies_configured) do
+		if p.config and p.config.mode == "file" and dialog.needs_file_decision(p.name) then
+			missing[#missing + 1] = p.name
+		end
+	end
+	return missing
+end
+
+-- If any file-mode poppy's file is missing, mount the dialog to resolve them all
+-- before any UI renders. Re-invokes `on_complete` after the queue drains so the
+-- original caller's intent (e.g. open the manager) is fulfilled automatically.
+---@param on_complete fun()
+---@return boolean handled true if no dialog was needed (caller can proceed); false if dialog is now up.
+local function drain_missing_file_queue(on_complete)
+	if dialog.trapped() then
+		return false
+	end
+	local missing = collect_missing_file_poppies()
+	if #missing == 0 then
+		return true
+	end
+	dialog.open_missing_file(missing, on_complete)
+	return false
+end
+
 ---@param poppy_name? string Name to open; nil opens the manager on the landing view.
 --- A name that was never configured is rejected with a warning: nothing opens,
 --- and an already-open session is left untouched.
@@ -358,7 +387,16 @@ M.open = function(poppy_name)
 	if not is_known_poppy(poppy_name) then
 		return nil
 	end
+	-- When the session is already open, the on_complete re-invoke from a previous
+	-- missing-file dialog lands here. Drain any remaining missing files and re-mount
+	-- the body so the poppies list reflects the post-resolution state (the dialog's
+	-- question panel reserved rows in the body that need to be released).
 	if shared.session_is_open() then
+		if not drain_missing_file_queue(function() M.open(poppy_name) end) then
+			return state.windows.wrapper_win
+		end
+		view.unmount()
+		view.mount(state.windows.wrapper_win)
 		if poppy_name then
 			M.switch_by_name(poppy_name)
 		end
@@ -379,6 +417,13 @@ M.open = function(poppy_name)
 	state.windows.wrapper_win = win
 	state.set_current_poppy_name(nil)
 	state.windows.is_landing = should_land
+
+	-- Resolve any missing-file poppies after the wrapper exists but before content
+	-- paints. The drain also runs on the re-invoke path above, so a partial drain
+	-- is followed up naturally when on_complete calls M.open again.
+	if not drain_missing_file_queue(function() M.open(poppy_name) end) then
+		return state.windows.wrapper_win
+	end
 
 	if has_content then
 		M.transition_to_content()

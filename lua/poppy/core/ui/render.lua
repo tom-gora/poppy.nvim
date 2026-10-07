@@ -176,9 +176,22 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local hint_offset = hint_height or 5
 	local height = math.max(1, wrapper_conf.height - hint_offset)
-	local row = wrapper_conf.height - hint_offset
-	if row_override then
+	-- When the title header is absent, anchor the body to the top of the wrapper so the
+	-- poppies list sits at the top (legend still at the bottom). When the header is present,
+	-- the body anchors below it. `row_override` is the dialog question panel: it sits
+	-- above the body (SE anchor, just above the legend) regardless of header state.
+	local header_h = layout.get_header_height(state.windows.opts)
+	local anchor, row
+	if row_override and row_override > 0 then
+		anchor = "SE"
+		row = wrapper_conf.height - hint_offset
 		height = math.max(1, height - row_override)
+	elseif header_h == 0 then
+		anchor = "NW"
+		row = 0
+	else
+		anchor = "SE"
+		row = wrapper_conf.height - hint_offset
 	end
 
 	---@type vim.api.keyset.win_config
@@ -186,7 +199,7 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 		relative = "win",
 		width = menu_width,
 		height = height,
-		anchor = "SE",
+		anchor = anchor,
 		col = wrapper_conf.width,
 		row = row,
 		style = "minimal",
