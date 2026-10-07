@@ -22,8 +22,8 @@ local M = {}
 ---@field is_landing boolean
 ---@field hidden boolean
 ---@field opts PoppyMergedConfig?
----@field dialog {name: string, resume: fun(), buf: integer?}|nil A confirmation is up.
---- While set, teardown routes are inert and any forced close of the dialog's panels resolves the question.
+---@field dialog {name: string, resume: fun(), buf: integer?}|nil A confirmation is up;
+--- teardown routes are inert while set, and any forced close of the dialog's panels resolves the question.
 ---@field recovering boolean True while a recovery routine is mid-flight; WinClosed watcher bails when set.
 
 ---@return PoppyState
@@ -55,15 +55,12 @@ end
 
 M.windows = M.default_state()
 
--- Immutable after M.setup. Array index = display row. Removed only by shared.drop_poppy.
 ---@type {name: string, config: PoppyResolvedConfig}[]
 M.poppies_configured = {}
 
--- Mutable map. nil lookup = never opened or just closed.
 --@type table<string, PoppyRuntimeState?>
 M.poppies_runtime = {}
 
--- Linear scan over the small configured set; encapsulated for callers.
 ---@param name string
 ---@return {name: string, config: PoppyResolvedConfig}?
 M.poppy_configured = function(name)
@@ -75,7 +72,6 @@ M.poppy_configured = function(name)
 	return nil
 end
 
--- Display-row index of a configured poppy, or nil.
 ---@param name string
 ---@return integer?
 M.poppy_index = function(name)

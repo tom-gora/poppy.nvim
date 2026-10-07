@@ -24,6 +24,7 @@
 ---@field icons? PoppyIcons # Icons per poppy type: exec, shell, file. Default: { exec = "🛠", shell = "$", file = "🗋" }
 ---@field menu_autohide? boolean # If true, hide sidebar style menu after selecting a poppy. Default: false
 ---@field title_header? boolean # Show "POPPY" header panel above list. Default: true
+---@field hints_footer? boolean # Show keybind legend below list. Default: true
 ---@field autoclose? boolean # Close the manager when focus leaves all poppy windows. Default: true
 ---@field exclusive_float? boolean # When poppy opens close all other floating windows
 ---@field menu_width? number|function # Width of side panels. Function re-evaluated on each mount and sidebar toggle. Default: 25
@@ -37,6 +38,7 @@
 ---@field icons PoppyIcons
 ---@field menu_autohide boolean
 ---@field title_header boolean
+---@field hints_footer boolean
 ---@field autoclose boolean
 ---@field exclusive_float boolean
 ---@field menu_width number|function

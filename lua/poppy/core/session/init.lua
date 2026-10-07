@@ -14,7 +14,7 @@ local menu = require("poppy.core.session.menu")
 local dialog = require("poppy.core.session.dialog")
 local autocommands = require("poppy.core.session.autocommands")
 
--- Static dispatch keeps the mode modules visible to the LSP; a dynamic require("...modes."..mode) hides them.
+-- Static dispatch keeps the mode modules visible to the LSP; a dynamic require would hide them.
 local MODES = {
 	term = require("poppy.core.modes.term"),
 	file = require("poppy.core.modes.file"),
@@ -111,10 +111,9 @@ local setup_command = function(opts, callbacks)
 	})
 end
 
--- setup() is documented as call-once, but re-sourcing a config re-calls it. Tearing down
--- through the public close() before init_or_reset_state() keeps one teardown path and
--- dereferences live windows. The opts check is what keeps a first call silent: M.close
--- would otherwise trip ensure_setup's "setup() must be called first".
+-- Tearing down through the public close() before init_or_reset_state() keeps one teardown
+-- path. The opts check is what keeps a first call silent: M.close would otherwise trip
+-- ensure_setup's "setup() must be called first".
 ---@return nil
 local teardown_live_session = function()
 	if state.windows.opts and shared.session_is_open() then
@@ -215,8 +214,7 @@ end
 M.get_current_poppy_name = shared.session_get_current_poppy_name
 M.is_open = shared.session_is_open
 
--- Destroys every live poppy buffer. Keeps poppies_configured intact: that's the user's
--- declared config, not runtime state.
+-- Keeps poppies_configured intact: that's the user's declared config, not runtime state.
 local clear_poppies = function()
 	for _, configured in ipairs(state.poppies_configured) do
 		local rt = state.runtime(configured.name)
@@ -239,7 +237,6 @@ local cleanup = function(drop_poppies)
 	end
 
 	local ok, err = pcall(function()
-		-- Restore the global 'guicursor' first; the list window may have overridden it.
 		style.restore_cursor_mode()
 
 		if state.windows.current_poppy_name then
@@ -261,10 +258,9 @@ local cleanup = function(drop_poppies)
 
 		state.windows.recovering = false
 
-		-- in_use skips any live poppy's bufnr from deletion: file poppies reuse content_buf
-		-- as the live file buffer (can hold unsaved edits). Panel scratch buffers (wrapper,
-		-- hints, menu, header) are not in `in_use` and must be deleted even when a live
-		-- poppy remains; the toggle path skips `clear_poppies` so without this they'd leak.
+		-- File poppies reuse content_buf as the live file buffer (can hold unsaved edits).
+		-- Panel scratch buffers are not in `in_use` and must be deleted even when a live poppy
+		-- remains; the toggle path skips `clear_poppies` so without this they'd leak.
 		local in_use = {}
 		for _, rt in pairs(state.poppies_runtime) do
 			if rt and rt.bufnr then
@@ -331,7 +327,6 @@ local open_wrapper = function(width_override)
 	return win
 end
 
--- One place decides whether a name is real so entry points can reject before touching state.
 ---@param name? string nil is always fine
 ---@return boolean
 local is_known_poppy = function(name)
@@ -345,23 +340,20 @@ local is_known_poppy = function(name)
 	return false
 end
 
--- Scan configured poppies for file-mode ones whose files don't exist on disk.
 ---@return string[]
 local function collect_missing_file_poppies()
 	local missing = {}
 	for _, p in ipairs(state.poppies_configured) do
-		if p.config and p.config.mode == "file" and dialog.needs_file_decision(p.name) then
+		if dialog.needs_file_decision(p.name) then
 			missing[#missing + 1] = p.name
 		end
 	end
 	return missing
 end
 
--- If any file-mode poppy's file is missing, mount the dialog to resolve them all
--- before any UI renders. Re-invokes `on_complete` after the queue drains so the
--- original caller's intent (e.g. open the manager) is fulfilled automatically.
+-- Returns true if nothing was missing (caller proceeds) or false if a dialog is now up.
 ---@param on_complete fun()
----@return boolean handled true if no dialog was needed (caller can proceed); false if dialog is now up.
+---@return boolean
 local function drain_missing_file_queue(on_complete)
 	if dialog.trapped() then
 		return false
@@ -383,23 +375,18 @@ M.open = function(poppy_name)
 		return nil
 	end
 	-- Checked here rather than only in switch_by_name: by the time M.open delegates, it has
-	-- already transitioned to content mode, which would leave a session with no current poppy.
+	-- already transitioned to content mode, leaving a session with no current poppy.
 	if not is_known_poppy(poppy_name) then
 		return nil
 	end
-	-- When the session is already open, the on_complete re-invoke from a previous
-	-- missing-file dialog lands here. Drain any remaining missing files and re-mount
-	-- the body so the poppies list reflects the post-resolution state (the dialog's
-	-- question panel reserved rows in the body that need to be released).
+	-- The missing-file dialog's on_complete re-invokes M.open() with no name. Tear down and
+	-- reopen from scratch so the user lands on a fresh poppies list.
 	if shared.session_is_open() then
-		if not drain_missing_file_queue(function() M.open(poppy_name) end) then
+		if not drain_missing_file_queue(function() M.open() end) then
 			return state.windows.wrapper_win
 		end
-		view.unmount()
-		view.mount(state.windows.wrapper_win)
-		if poppy_name then
-			M.switch_by_name(poppy_name)
-		end
+		M.close()
+		M.toggle()
 		return state.windows.wrapper_win
 	end
 
@@ -418,9 +405,7 @@ M.open = function(poppy_name)
 	state.set_current_poppy_name(nil)
 	state.windows.is_landing = should_land
 
-	-- Resolve any missing-file poppies after the wrapper exists but before content
-	-- paints. The drain also runs on the re-invoke path above, so a partial drain
-	-- is followed up naturally when on_complete calls M.open again.
+	-- on_complete re-invokes M.open to continue the original caller's flow after the queue resolves.
 	if not drain_missing_file_queue(function() M.open(poppy_name) end) then
 		return state.windows.wrapper_win
 	end
@@ -540,8 +525,8 @@ M.switch_by_name = function(poppy_name)
 		return
 	end
 
-	-- A dead content pane is recoverable: rebuild rather than bail. Normal after a poppy's
-	-- buffer is deleted (the pane goes with the buffer). Skipped on landing: do_switch creates it.
+	-- A dead content pane is recoverable: rebuild rather than bail. Skipped on landing:
+	-- do_switch creates it.
 	local function rebuild_content_pane()
 		if not shared.session_is_open() then
 			return false
@@ -567,13 +552,13 @@ M.switch_by_name = function(poppy_name)
 		return
 	end
 
-	-- Something threw partway. Session is half-switched: current_poppy_name names a poppy whose
-	-- sidebar row, focus, and hints were never settled.
+	-- Session is half-switched: current_poppy_name names a poppy whose sidebar row, focus,
+	-- and hints were never settled.
 	shared.notify_error("switch to '%s' failed: %s", tostring(poppy_name), tostring(err))
 	state.set_current_poppy_name(nil)
 
-	-- One retry, no more. recover() switches to a fallback; if that throws the same error it
-	-- would re-enter recover() and walk fallbacks forever.
+	-- One retry, no more. recover() switches to a fallback; if that throws the same error
+	-- it would re-enter recover() and walk fallbacks forever.
 	if retrying_after_failure then
 		shared.notify_error("switch failed again; not retrying")
 		return
@@ -629,9 +614,7 @@ local _kill_now = function(name)
 	return was_active
 end
 
----Run `resume` either now or after a confirmation dialog if the buffer has unsaved edits.
----Never deletes anything itself: resume is the only caller of _kill_now, so a "Go back" answer
----(buffer still modified) cannot re-trigger the question.
+---resume is the only caller of _kill_now, so a "Go back" answer cannot re-trigger the question.
 ---@param name string
 ---@param resume fun()
 ---@return nil
@@ -745,7 +728,6 @@ M.enter_landing = function()
 	require("poppy.core.session.menu").focus_body()
 end
 
--- Landing width, from content, capped by the screen. Single source for launch and recover paths.
 M.landing_width = function()
 	return math.min(
 		layout.landing_min_width(state.windows.opts, state.poppies_configured),
@@ -769,7 +751,6 @@ local recover_pick_fallback = function()
 	return nil
 end
 
--- Tear down content, resize wrapper to landing width, re-enter landing.
 -- Caller must hold state.windows.recovering = true so the WinClosed watcher doesn't re-fire.
 local recover_goto_landing = function()
 	view.unmount()
@@ -797,7 +778,7 @@ end
 M.recover = function()
 	state.set_current_poppy_name(nil)
 	vim.schedule(function()
-		-- recovering gates the WinClosed watcher; closing content_win below would re-fire it.
+		-- recovering gates the WinClosed watcher.
 		state.windows.recovering = true
 		local ok, err = pcall(function()
 			if not shared.session_is_open() or state.windows.is_landing or state.windows.current_poppy_name then

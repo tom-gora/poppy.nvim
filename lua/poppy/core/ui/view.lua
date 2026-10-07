@@ -183,11 +183,9 @@ local legend_floor = function()
 	)
 end
 
--- Out-of-bounds menu_width values already warned about, so a repaint does not re-notify on every mount.
+-- Already warned about, so a repaint does not re-notify on every mount.
 local warned_widths = {}
 
--- Clamp a declared menu_width to [MIN, MAX], warn once per offending value, and shrink it
--- further if `wrapper_width` is too narrow to hold sidebar + content floor together.
 -- Centralised here so mount_panels, set_visible, and refresh_poppies agree on one width.
 ---@param wrapper_width? integer
 ---@return integer
@@ -215,7 +213,7 @@ local menu_width = function(wrapper_width)
 		w = clamped
 	end
 
-	-- Legend only overrides a declared width if a remapped key makes it impossible to honour even at MAX.
+	-- Only overrides a declared width if a remapped key makes it impossible to honour even at MAX.
 	local legend = legend_floor()
 	if legend > w and legend > layout.MAX_MENU_WIDTH then
 		w = legend
@@ -224,12 +222,11 @@ local menu_width = function(wrapper_width)
 	if not wrapper_width then
 		return w
 	end
-	-- On a narrow wrapper, the sidebar gives way to keep MIN_CONTENT_WIDTH for the content pane.
+	-- Sidebar gives way to keep MIN_CONTENT_WIDTH for the content pane.
 	local reserved = layout.MIN_CONTENT_WIDTH + 2
 	return math.min(w, math.max(1, wrapper_width - reserved))
 end
 
--- Smallest wrapper that honours both sidebar (clamped, not squeezed) and content floor + border.
 -- Passed to compute_wrapper_dimensions so a narrow screen widens the wrapper instead of crushing the sidebar.
 M.min_wrapper_width = function()
 	return menu_width() + layout.MIN_CONTENT_WIDTH + 2
@@ -252,9 +249,9 @@ local GEOMETRY = {
 	end,
 }
 
--- Top-down panel stack: a panel present contributes its height to everything below it, an
--- absent one contributes nothing. That is what lets `title_header = false` drop the title
--- bar and a dialog's menu_header sit directly on top of the body with no per-case arithmetic.
+-- A panel present contributes its height to everything below it; an absent one contributes nothing.
+-- That is what lets `title_header = false` drop the title bar and a dialog's menu_header sit
+-- directly on top of the body with no per-case arithmetic.
 local mount_panels = function(wrapper_win)
 	local wc = api.nvim_win_get_config(wrapper_win)
 	local hh = header_height()
@@ -267,6 +264,8 @@ local mount_panels = function(wrapper_win)
 
 	local menu = menu_ui.current_spec()
 	local legend_h = menu_ui.legend_height(menu.hints)
+	local hints_on = shared.opts_field("hints_footer") ~= false
+	local effective_legend_h = hints_on and legend_h or 0
 	local q_lines, q_h = menu_ui.menu_header_lines(menu, panel_w)
 
 	local above_body = 0
@@ -291,16 +290,16 @@ local mount_panels = function(wrapper_win)
 	end
 
 	ensure_panel("menu_buf", "menu_win", function()
-		return render.body.create(wrapper_win, panel_w, cfg.focusable, legend_h, above_body)
+		return render.body.create(wrapper_win, panel_w, cfg.focusable, effective_legend_h, above_body)
 	end, function(buf)
-		return render.body.recreate(wrapper_win, buf, panel_w, cfg.focusable, legend_h, above_body)
+		return render.body.recreate(wrapper_win, buf, panel_w, cfg.focusable, effective_legend_h, above_body)
 	end)
 
 	ensure_panel("hints_buf", "hints_win", function()
 		return render.hints.create(wrapper_win, hint_geom(wc, mw, #menu.hints))
 	end, function(buf)
 		return render.hints.recreate(wrapper_win, buf, hint_geom(wc, mw, #menu.hints))
-	end)
+	end, not hints_on)
 
 	-- focusable = false on the question panel: cursor stays in the answers buffer.
 	-- wrap + linebreak stay on as a safety net for narrower-than-wrapped widths.
@@ -338,14 +337,13 @@ local mount_panels = function(wrapper_win)
 		return render.header.recreate(wrapper_win, buf, header_w, header_col)
 	end, hh == 0)
 
-	-- Populate at mount so the first show isn't stale (kill-then-show under autohide).
+	-- First-show under autohide would otherwise be stale (kill-then-show).
 	if valid_buf(state.windows.menu_buf) then
 		render.body.paint_items(state.windows.menu_buf, render.rowset(menu, panel_w))
 		if valid_buf(state.windows.hints_buf) then
 			render.hints.write_spec(state.windows.hints_buf, shared.keys(), menu.hints, panel_w)
 		end
-		-- Bind only on focusable bodies; an unfocusable one can't be entered, so bindings
-		-- would be unreachable but get_keymap would still report them as claimed.
+		-- Bind only on focusable bodies; get_keymap would still report bindings as claimed on an unfocusable one.
 		if cfg.focusable then
 			menu_ui.bind_spec(state.windows.menu_buf, menu)
 		end

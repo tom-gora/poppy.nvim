@@ -6,29 +6,21 @@ local api = vim.api
 local fn = vim.fn
 local state = require("poppy.core.session.state")
 
--- ─── Cursor as the list's row marker ───────────────────────────────────────
--- The list reserves a leading cell on every row and the real cursor sits in it,
--- so the cursor is the row indicator rather than a drawn glyph.
---
--- 'guicursor' is the only lever for stopping it blinking, and it is *global*: it cannot be set
--- per window (nvim rejects { win = ... }, and { scope = "local" } silently writes through to the
--- global). So while the list holds focus we swap it to a static block and put the user's value
--- back on the way out. A missed restore would leave a static block cursor in every window.
+-- Static block: the real cursor sits in a leading cell on every row and acts as the row marker.
+-- 'guicursor' is global only; nvim rejects { win = ... }, and { scope = "local" } silently writes
+-- through to the global. A missed restore would leave a static block cursor in every window.
 local LIST_CURSOR = "a:block-blinkon0"
 
--- Module-level and never reinitialised. M.setup() re-runs on every ColorScheme and setup()
--- call; clearing `overridden` while still owning the global would discard the user's saved value.
+-- Module-level: M.setup() re-runs on every ColorScheme and setup() call. Clearing `overridden`
+-- while still owning the global would discard the user's saved value.
 local cursor_mode = {
-	-- The user's own value, captured once before we first touch it.
-	saved = nil,
-	-- Whether we currently have a value stashed, independent of what it is.
-	overridden = false,
-	-- The list window we last entered, so a WinLeave for some other window doesn't restore.
-	menu_win = nil,
+	saved = nil, -- captured once before we first touch it
+	overridden = false, -- whether we currently have a value stashed, independent of what it is
+	menu_win = nil, -- last list window we entered, so an unrelated WinLeave doesn't restore
 }
 
 -- The list window is recreated on every mount (its id changes; only the buffer id is stable).
--- WinEnter/WinLeave callbacks pass a *buffer* id, not a window id -- identity has to come from state.
+-- WinEnter/WinLeave callbacks pass a *buffer* id, not a window id -- identity comes from state.
 ---@return integer|nil
 local current_menu_win = function()
 	local win = state.windows.menu_win
@@ -38,8 +30,6 @@ local current_menu_win = function()
 	return nil
 end
 
----Put the user's own 'guicursor' back. Safe to call at any time and more than once: no-op unless
----we are the ones who overrode it.
 ---@return nil
 local restore_cursor_mode = function()
 	if not cursor_mode.overridden then
@@ -79,12 +69,11 @@ local apply_list_guicursor = function(win)
 	end)
 end
 
--- Exposed so session cleanup can restore explicitly: teardown can close windows without a
--- clean WinLeave, and a clobbered global 'guicursor' outliving the session is unacceptable.
+-- Teardown can close windows without a clean WinLeave; a clobbered global 'guicursor' outliving
+-- the session is unacceptable.
 M.restore_cursor_mode = restore_cursor_mode
 
--- Registered from M.setup so a second setup() clears and rebuilds rather than stacking. cursor_mode
--- is module-level and survives a rebuild, so a mid-override re-register cannot lose the saved value.
+-- M.setup clears its own augroup, so an autocmd living there would be torn down mid-dispatch.
 local setup_cursor_autocmds = function()
 	api.nvim_create_augroup("poppy_body_cursor_mode", { clear = true })
 	api.nvim_create_autocmd("WinEnter", {
@@ -98,13 +87,11 @@ local setup_cursor_autocmds = function()
 	})
 	api.nvim_create_autocmd("WinLeave", {
 		group = "poppy_body_cursor_mode",
-		callback = function()
-			-- Restore on every leave once we hold an override, without checking the window id.
-			-- Any window-id test is unreliable here: WinLeave fires while the outgoing window is
-			-- still current, so "is the list still current" is true even as focus leaves it; the
-			-- paired WinEnter re-applies the override if focus returns. Over-restoring is self-correcting.
-			restore_cursor_mode()
-		end,
+		-- Restore on every leave once we hold an override, without checking the window id: WinLeave
+		-- fires while the outgoing window is still current, so "is the list still current" is true
+		-- even as focus leaves it. The paired WinEnter re-applies the override if focus returns.
+		-- Over-restoring is self-correcting.
+		callback = restore_cursor_mode,
 	})
 	api.nvim_create_autocmd("VimLeavePre", {
 		group = "poppy_body_cursor_mode",
@@ -112,8 +99,6 @@ local setup_cursor_autocmds = function()
 	})
 end
 
--- Darken the sidebar/landing panel surface slightly so the float reads as its own surface
--- against NormalFloat. Only the panel surface is touched; fg and text colours are left to the theme.
 local PANEL_BG_DARKEN_FACTOR = -0.3
 
 ---@param color integer
@@ -131,9 +116,10 @@ local adjust_brightness = function(color, factor)
 	return r * 65536 + g * 256 + b
 end
 
--- pcall so an unrecognized hl in a misconfigured theme doesn't abort. Re-run on every setup so signs track the just-set groups.
+-- pcall so an unrecognized hl in a misconfigured theme doesn't abort. Re-run on every setup so
+-- signs track the just-set groups.
 local define_poppy_signs = function()
-	-- Three states, all from the signcolumn: active = red dot, hidden = small dot, never opened = nothing.
+	-- Active = red dot, hidden = small dot, never opened = nothing.
 	local signs = {
 		{ name = "PoppyDotActive", text = "◉", texthl = "PoppyRed" },
 		{ name = "PoppyDotFileH", text = "•", texthl = "PoppyFileHidden" },
@@ -146,8 +132,7 @@ local define_poppy_signs = function()
 	end
 end
 
--- Dialog answer glyphs, padded to 2 cells like the category icons: two stacked signs must keep
--- the signcolumn at SIGN_COL, which measure_item budgets against.
+-- Padded to 2 cells like the category icons: two stacked signs must keep the signcolumn at SIGN_COL.
 local CONFIRM_SIGNS = {
 	{ name = "PoppyConfirmYes", text = "\u{2714}" },
 	{ name = "PoppyConfirmNo", text = "\u{2717}" },
@@ -204,8 +189,6 @@ end
 ---@return void
 M.setup = function()
 	-- A colorscheme change can land while the list holds focus, leaving our override installed.
-	-- Handled here rather than as a fourth autocmd: this function re-runs on ColorScheme and
-	-- clears its own augroup, so an autocmd living there would be torn down mid-dispatch.
 	restore_cursor_mode()
 
 	local nf = api.nvim_get_hl(0, { name = "NormalFloat" })
@@ -243,7 +226,7 @@ M.setup = function()
 	local cline = api.nvim_get_hl(0, { name = "CursorLine" })
 	api.nvim_set_hl(0, "PoppyCursorLine", { fg = cline.fg, bg = cline.bg })
 
-	-- Rows use the raw category colour. State is carried by the signcolumn, not by the text.
+	-- Rows use the raw category colour; state is carried by the signcolumn, not by the text.
 	local CATEGORY = { { "File", type_hl }, { "Exec", string_hl }, { "Shell", func_hl } }
 
 	for _, entry in ipairs(CATEGORY) do
@@ -272,14 +255,12 @@ M.setup = function()
 	define_confirm_signs()
 
 	api.nvim_create_augroup("poppy_style", { clear = true })
-	---@type vim.api.keyset.create_autocmd
-	local colorscheme_autocmd = {
+	api.nvim_create_autocmd("ColorScheme", {
 		group = "poppy_style",
 		callback = function()
 			M.setup()
 		end,
-	}
-	api.nvim_create_autocmd("ColorScheme", colorscheme_autocmd)
+	})
 
 	setup_cursor_autocmds()
 end
@@ -294,8 +275,7 @@ M.apply_panel_style = function(win)
 	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
 end
 
--- List imitates a selector: real cursor in the leading cell, cursorline background. SignColumn
--- is pinned to the panel background so cursorline never bleeds into it -- state lives there.
+-- SignColumn pinned to the panel background so cursorline never bleeds into it -- state lives there.
 ---@param win integer
 M.apply_body_style = function(win)
 	vim.schedule(function()

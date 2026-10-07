@@ -1,8 +1,7 @@
 require("poppy._types")
 
--- Autocmd registration. Split from session/init.lua so that file keeps only flow logic.
--- Callbacks that need to call back into the session require it lazily -- a top-level require
--- would be circular (init.lua requires this module).
+-- Split from session/init.lua so that file keeps only flow logic. Callbacks that need to call
+-- back into the session require it lazily -- a top-level require would be circular.
 
 local M = {}
 
@@ -87,7 +86,6 @@ M.setup = function(opts)
 	end
 end
 
--- Close every non-poppy float the first time anything is focused after an open.
 -- Per open, once, so the next session re-arms it.
 ---@return nil
 M.setup_exclusive_float = function()
@@ -110,7 +108,7 @@ M.setup_exclusive_float = function()
 	})
 end
 
--- Re-arms on each replacement content window, so it survives the user closing that window by hand.
+---Re-arms on each replacement content window.
 ---@param win_id integer|nil
 ---@param menu_w? integer
 ---@return nil
@@ -127,14 +125,13 @@ M.watch_content_window = function(win_id, menu_w)
 			if state.windows.recovering then
 				return
 			end
-			-- Stay out of the way while a question is up: rebuilding would kill the poppy being asked about.
+			-- Stay out of the way while a question is up.
 			if dialog.trapped() then
 				return
 			end
 			if not shared.session_is_open() then
 				return
 			end
-			-- The pane being replaced had its own scratch; the rebuild doesn't reuse it.
 			shared.drop_scratch_buffer(state.windows.content_buf)
 			local c_win, c_buf = view.content.create(state.windows.wrapper_win, w)
 			state.windows.content_win = c_win

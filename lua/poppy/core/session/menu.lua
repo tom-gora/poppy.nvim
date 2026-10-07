@@ -1,8 +1,8 @@
 require("poppy._types")
 
--- The menu subsystem. Owns which menu is showing (the poppy list or a dialog override), what the
--- body and legend render, and which keys are bound. ui/ view.lua reads the spec and legend height
--- and calls into render.lua; we delegate focus and keymap wiring.
+-- Owns which menu is showing (the poppy list or a dialog override), what the body and legend
+-- render, and which keys are bound. ui/view.lua reads the spec and legend height and calls into
+-- render.lua; we delegate focus and keymap wiring.
 
 local M = {}
 
@@ -40,8 +40,8 @@ end
 
 M.normalize = normalize
 
----Bind exactly the keymaps a spec declares. A dialog binds select and nothing else, so the
----other three are simply absent rather than bound to a no-op -- keeps get_keymap honest.
+---A dialog binds select and nothing else, so the other three are simply absent rather than
+---bound to a no-op -- keeps get_keymap honest.
 ---@param buf integer
 ---@param keymaps {string, string, function}[]
 ---@return integer bound
@@ -50,9 +50,8 @@ M.bind = function(buf, keymaps)
 	if not keys then
 		return 0
 	end
-	-- Clear the previous spec's bindings first. vim.keymap.set replaces only on matching lhs,
-	-- so re-binding a narrower spec would leave the previous keys live (and get_keymap would
-	-- still report them as claimed). Buffer-local; the global poppy_action is untouched.
+	-- vim.keymap.set replaces only on matching lhs; re-binding a narrower spec would leave the
+	-- previous keys live and get_keymap would still report them as claimed.
 	for _, field in ipairs({ "poppy_action", "select", "kill", "exit_menu" }) do
 		local lhs = keys[field]
 		if lhs and lhs ~= "" then
@@ -74,8 +73,7 @@ M.bind = function(buf, keymaps)
 	return bound
 end
 
----Bind from a normalised spec. Separate from M.bind so a caller can repaint without
----rebinding, which matters for a popup that updates while the user looks at it.
+---Separate from M.bind so a caller can repaint without rebinding.
 ---@param buf integer
 ---@param menu PoppyMenuSpec
 ---@return integer bound
@@ -83,7 +81,7 @@ M.bind_spec = function(buf, menu)
 	return M.bind(buf, menu.keymaps)
 end
 
----Move the body cursor onto a row. The panel's own CursorMoved guard pins the column; this only chooses the row.
+---The panel's CursorMoved guard pins the column; this only chooses the row.
 ---@param win integer|nil
 ---@param row integer
 ---@return boolean moved
@@ -111,8 +109,7 @@ M.HINTS = {
 	},
 }
 
----The two presentations. `width_source` decides both body and legend width (same panel); view
----adds only geometry (offsets, header split).
+---`width_source` decides both body and legend width (same panel); view adds geometry.
 M.LANDING = { width_source = "wrapper", focusable = true, hints = M.HINTS.landing }
 M.SIDEBAR = { width_source = "menu", focusable = false, hints = M.HINTS.body }
 
@@ -121,8 +118,7 @@ M.current_cfg = function()
 	return state.windows.is_landing and M.LANDING or M.SIDEBAR
 end
 
----Wrap the question text to the menu's width. Returns lines + count so the panel can be sized
----to its content in one pass. Reserves the sign column so the question's left edge lines up.
+---One pass: reserves the sign column so the question's left edge lines up.
 ---@param menu PoppyMenuSpec
 ---@param panel_width integer
 ---@return string[] lines
@@ -145,8 +141,7 @@ M.legend_height = function(hints)
 	return #hints + 2
 end
 
----Build the spec for the poppy list. Self-sufficient: anything that binds it gets working
----mappings. Session required lazily inside each closure to keep the cycle open.
+---Session required lazily inside each closure to keep the cycle open.
 ---@param cfg table One of M.LANDING / M.SIDEBAR.
 ---@return PoppyMenuSpec
 M.spec_poppy_list = function(cfg)
@@ -198,10 +193,8 @@ M.clear_override = function()
 	M.spec_override = nil
 end
 
----Focus the body panel and park its cursor on the current poppy's row.
 ---Bind here rather than at mount: focusability is dynamic (sidebar mounts `focusable = false`
----and only becomes focusable on toggle). A body that can't be entered must not advertise
----mappings; one that just became enterable needs them immediately.
+---and only becomes focusable on toggle).
 ---@return boolean focused
 M.focus_body = function()
 	M.bind_spec(state.windows.menu_buf, M.current_spec())
@@ -221,9 +214,8 @@ M.focus_body = function()
 end
 
 -------------------------------------------------------------------------------
--- Keymap glue: focus/visibility routing for poppy_action. Lives here because the menu owns
--- the body's focusable flag, so the router must know about it. view imported lazily to
--- keep the cycle open.
+-- poppy_action focus/visibility routing lives here because the menu owns the body's
+-- focusable flag. view imported lazily to keep the cycle open.
 -------------------------------------------------------------------------------
 
 M.toggle_menu = function()

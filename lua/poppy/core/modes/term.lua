@@ -19,8 +19,8 @@ local term_get_or_create_buffer = function(poppy_name)
 	return bufnr, false
 end
 
+---Setup already validated; nil means the caller should drop the poppy.
 ---@param poppy_opts PoppyResolvedConfig
--- Defense-in-depth: setup already validated. Returns nil when the value is unusable; the caller drops the poppy.
 ---@return string|string[]|nil
 local term_resolve_command = function(poppy_opts)
 	local raw
@@ -45,9 +45,8 @@ local term_resolve_command = function(poppy_opts)
 	return raw
 end
 
----Returns the argv[0] of a command (string or table form) for executable() lookup.
 ---@param command string|string[]|function|nil
----@return string|nil
+---@return string|nil argv[0] of a command (string or table form) for executable() lookup.
 local argv0 = function(command)
 	if type(command) == "string" then
 		return (command:gsub("%s.*", "")) -- first whitespace-delimited token
@@ -80,16 +79,15 @@ end
 ---@param poppy_name string
 ---@param poppy_opts PoppyResolvedConfig
 ---@param parent_win integer
----@param on_die? fun(poppy_name: string)  -- called when the spawned job exits; mode does not decide what happens next
+---@param on_die? fun(poppy_name: string) Called when the spawned job exits; mode does not decide what happens next.
 ---@return boolean ok
 M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 	if not poppy_opts or not parent_win then
 		return false
 	end
 
-	-- Pre-check $PATH synchronously: jobstart/termopen return a job id even for missing
-	-- binaries (fork succeeds, exec fails async), so without this the drop would only
-	-- happen after the user typed into a dead terminal.
+	-- Pre-check $PATH synchronously: jobstart/termopen return a job id even for missing binaries
+	-- (fork succeeds, exec fails async), so without this the drop only happens after typing.
 	local command = term_resolve_command(poppy_opts)
 	if type(command) == "function" then
 		command = command()
@@ -121,8 +119,7 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 		return true
 	end
 
-	-- nvim_buf_call scopes the active buffer to bufnr for the jobstart call, so the terminal
-	-- attaches to it even though parent_win is showing a different one.
+	-- Scopes the active buffer to bufnr so the terminal attaches even though parent_win shows another.
 	local spawn_ok = false
 	api.nvim_buf_call(bufnr, function()
 		api.nvim_set_option_value("modified", false, { buf = bufnr })
@@ -143,7 +140,7 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 	end)
 
 	if not spawn_ok then
-		-- Shouldn't happen given the pre-check, but jobstart can still fail for other reasons (malformed argv).
+		-- jobstart can still fail for other reasons (malformed argv).
 		shared.drop_poppy(poppy_name, string.format("jobstart returned no id for %s", vim.inspect(command)))
 		pcall(api.nvim_buf_delete, bufnr, { force = true })
 		return false

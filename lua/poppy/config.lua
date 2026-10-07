@@ -9,10 +9,9 @@ local shared = require("poppy.core.shared")
 local DEFAULT_KEYS = { "poppy_action", "select", "kill", "exit_menu" }
 local DEFAULT_ICONS = { "exec", "shell", "file" }
 
--- max_display_width fits one 2-cell nerdfont glyph; reject_pct blocks '%' which would break string.format downstream.
 ---@param v any
----@param max_display_width? integer
----@param reject_pct? boolean
+---@param max_display_width? integer Fits one 2-cell nerdfont glyph.
+---@param reject_pct? boolean Blocks '%' which would break string.format downstream.
 ---@return boolean ok
 ---@return string? reason
 local validate_string_field = function(v, max_display_width, reject_pct)
@@ -42,7 +41,10 @@ local sanitize_string_fields = function(defaults, user, keys, max_display_width,
 		if not ok and v ~= nil then
 			shared.notify_warn(
 				"ignoring invalid %s.%s (%s); falling back to default '%s'",
-				"config", k, reason, tostring(defaults[k])
+				"config",
+				k,
+				reason,
+				tostring(defaults[k])
 			)
 		end
 		out[k] = ok and v or defaults[k]
@@ -55,6 +57,7 @@ local default_opts = {
 	icons = { exec = "🛠", shell = "$", file = "🗋" },
 	menu_autohide = false,
 	title_header = true,
+	hints_footer = true,
 	autoclose = true,
 	exclusive_float = true,
 	menu_width = layout.DEFAULT_MENU_WIDTH,
@@ -63,7 +66,6 @@ local default_opts = {
 	win_location = "center",
 }
 
--- First whitespace-delimited token of a string command, or first element of a list command.
 ---@param command string|string[]|function|nil
 ---@return string|nil
 local argv0 = function(command)
@@ -75,8 +77,7 @@ local argv0 = function(command)
 	return nil
 end
 
----Evaluate a user function (or pass through a string/list) and validate the result against
----the type the field requires. On `not ok` the caller drops the poppy.
+---On `not ok` the caller drops the poppy.
 ---@param name string
 ---@param raw string|string[]|function|nil
 ---@return string|string[]|nil value
@@ -99,11 +100,7 @@ local resolve_and_validate_value = function(name, raw)
 		return nil, false, "value is empty"
 	end
 	if type(value) ~= "string" and type(value) ~= "table" then
-		shared.notify_warn(
-			"poppy '%s' resolved to %s, expected string or list of strings",
-			tostring(name),
-			type(value)
-		)
+		shared.notify_warn("poppy '%s' resolved to %s, expected string or list of strings", tostring(name), type(value))
 		return nil, false, "type mismatch"
 	end
 	return value, true, nil
@@ -183,7 +180,6 @@ end
 M.merge = function(user_opts)
 	local user = user_opts or {}
 
-	-- vim.tbl_deep_extend errors on non-table; catch up front.
 	if type(user) ~= "table" then
 		shared.notify_warn("setup() expected a table of options, got %s. Using defaults.", type(user))
 		user = {}
@@ -198,6 +194,7 @@ M.merge = function(user_opts)
 		"poppies",
 		"menu_autohide",
 		"title_header",
+		"hints_footer",
 		"autoclose",
 		"exclusive_float",
 		"menu_width",
@@ -211,19 +208,18 @@ M.merge = function(user_opts)
 	end
 	for k in pairs(user) do
 		if not known_set[k] then
-			shared.notify_warn(
-				"unknown config key '%s'. (Known keys: %s.)",
-				tostring(k), table.concat(known_top, ", ")
-			)
+			shared.notify_warn("unknown config key '%s'. (Known keys: %s.)", tostring(k), table.concat(known_top, ", "))
 		end
 	end
 
-	local bool_keys = { "menu_autohide", "title_header", "autoclose", "exclusive_float" }
+	local bool_keys = { "menu_autohide", "title_header", "hints_footer", "autoclose", "exclusive_float" }
 	for _, k in ipairs(bool_keys) do
 		if merged[k] ~= nil and type(merged[k]) ~= "boolean" then
 			shared.notify_warn(
 				"config key '%s' expected boolean, got %s. Falling back to default %s.",
-				k, type(merged[k]), tostring(default_opts[k])
+				k,
+				type(merged[k]),
+				tostring(default_opts[k])
 			)
 			merged[k] = default_opts[k]
 		end
@@ -234,7 +230,9 @@ M.merge = function(user_opts)
 		if merged[k] ~= nil and type(merged[k]) ~= "number" and type(merged[k]) ~= "function" then
 			shared.notify_warn(
 				"config key '%s' expected number or function, got %s. Falling back to default %s.",
-				k, type(merged[k]), tostring(default_opts[k])
+				k,
+				type(merged[k]),
+				tostring(default_opts[k])
 			)
 			merged[k] = default_opts[k]
 		end
@@ -254,10 +252,7 @@ M.merge = function(user_opts)
 	local valid_locations = { center = true, top = true, bottom = true }
 	local win_location = merged.win_location
 	if not valid_locations[win_location] then
-		shared.notify_warn(
-			"invalid win_location '%s'. Falling back to 'center'.",
-			tostring(win_location)
-		)
+		shared.notify_warn("invalid win_location '%s'. Falling back to 'center'.", tostring(win_location))
 		win_location = default_opts.win_location
 	end
 
@@ -266,10 +261,7 @@ M.merge = function(user_opts)
 	local dropped_names = {}
 	for name, poppy in pairs(poppies) do
 		if type(poppy) ~= "table" then
-			shared.notify_warn(
-				"poppy '%s' has non-table config (%s); dropping.",
-				tostring(name), type(poppy)
-			)
+			shared.notify_warn("poppy '%s' has non-table config (%s); dropping.", tostring(name), type(poppy))
 			table.insert(dropped_names, name)
 		else
 			local resolved = resolve_poppy(name, poppy)
@@ -286,6 +278,7 @@ M.merge = function(user_opts)
 		icons = icons,
 		menu_autohide = merged.menu_autohide,
 		title_header = merged.title_header,
+		hints_footer = merged.hints_footer,
 		autoclose = merged.autoclose,
 		exclusive_float = merged.exclusive_float,
 		menu_width = merged.menu_width,

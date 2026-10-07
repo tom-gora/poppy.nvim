@@ -10,8 +10,8 @@ local normalize = function(path)
 	return fn.fnamemodify(path, ":p")
 end
 
--- A reused buffer is only valid if it still points at `file_path`. A dynamic file function
--- can resolve elsewhere between opens; a buffer for the old path is dropped, not reattached.
+-- A reused buffer is only valid if it still points at `file_path`; a dynamic file function
+-- can resolve elsewhere between opens.
 ---@param name string
 ---@param file_path string
 ---@return integer|nil
@@ -47,9 +47,7 @@ end
 			win = parent_win,
 			title = title,
 		}
-		-- Background file poppies need a repaint when their buffer goes away. The active case is
-		-- already handled by the plugin-level BufUnload autocmd in session/autocommands.lua; skip
-		-- on_die here to avoid a double recover.
+		-- Skip on_die on the active case to avoid a double recover.
 		if on_die and state.windows.current_poppy_name ~= poppy_name then
 			api.nvim_create_autocmd("BufUnload", {
 				group = "poppy_group",
@@ -64,10 +62,9 @@ end
 		end
 	end
 
--- :edit gives a real file buffer (filetype, checktime, normal load path). A hand-built
--- buffer (readfile + set_lines + set_name) is modifiable but treated as never-read-from-disk;
--- :w would fail with E13. Only called on a fresh open -- reuse reloads in place because
--- :edit! would unload the buffer and the BufUnload handler would read it as the poppy dying.
+-- :edit gives a real file buffer (filetype, checktime, normal load path); a hand-built buffer
+-- (readfile + set_lines + set_name) is modifiable but treated as never-read-from-disk and :w
+-- would fail with E13. Only called on a fresh open.
 ---@param parent_win integer
 ---@param file_path string
 ---@return integer? bufnr
@@ -85,9 +82,9 @@ end
 ---@param poppy_name string
 ---@param poppy_opts PoppyResolvedConfig
 ---@param parent_win integer
----@param on_die? fun(poppy_name: string)  -- accepted for interface symmetry with modes/term.lua; unused
+---@param on_die? fun(poppy_name: string) Background file poppy: repaint sidebar when its buffer goes away.
 ---@return boolean ok
-M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
+M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 	local raw_val
 	if type(poppy_opts.file) == "function" then
 		raw_val = poppy_opts.file()
@@ -103,7 +100,6 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 	local reused = reusable(poppy_name, file_path)
 	local is_fresh = reused == nil
 
-	-- Fail path is on a fresh-open path: no adopted buffer to clean up.
 	---@param reason string
 	---@return false
 	local fail = function(reason)
@@ -142,9 +138,8 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 	local bufnr
 	if reused then
 		-- Clean + file still exists: re-read so external edits show up.
-	-- Modified: reattach untouched. Vanished: leave alone, :w recreates at the same path.
-	-- (Comment spans the if/else; the line below sets `modified` for the unmodified branch.)
-		if not file_missing and not modified then
+		-- Modified: reattach untouched. Vanished: leave alone, :w recreates at the same path.
+		if not file_missing and not vim.bo[reused].modified then
 			api.nvim_buf_set_lines(reused, 0, -1, false, fn.readfile(file_path))
 			api.nvim_set_option_value("modified", false, { buf = reused })
 		end
@@ -160,7 +155,6 @@ M.run = function(poppy_name, poppy_opts, parent_win, _on_die)
 	return true
 end
 
----Create an empty file at `path`, including any missing parent directories.
 ---@param path string Absolute path.
 ---@return boolean ok
 ---@return string? err

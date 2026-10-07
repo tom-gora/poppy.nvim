@@ -2,17 +2,16 @@ require("poppy._types")
 
 local M = {}
 
--- 48 keeps us under Neovim's default 50 (completion pum, hovers, notifications) and above other plugin pickers.
+-- 48: under Neovim's default 50 (completion pum, hovers, notifications), above other plugin pickers.
 M.POPPY_Z_INDEX = 48
 M.DEFAULT_MENU_WIDTH = 25
 
--- Bounds the sidebar is pulled into when the declared menu_width falls outside them.
 M.MIN_MENU_WIDTH = 20
 M.MAX_MENU_WIDTH = 35
 
--- Floor on the content pane. On a narrow wrapper, sidebar and content compete for the same
--- cells and the sidebar wins by default (1-cell-wide, unreadable). Reserving this plus the
--- 2 cells content.create subtracts for the border guarantees the floor.
+-- Floor on the content pane. On a narrow wrapper, sidebar and content compete for the same cells
+-- and the sidebar wins by default. Reserving this plus the 2 cells content.create subtracts for
+-- the border guarantees the floor.
 M.MIN_CONTENT_WIDTH = 35
 
 local HEADER_HEIGHT = 3
@@ -20,10 +19,8 @@ local HEADER_HEIGHT = 3
 local fn = vim.fn
 local shared = require("poppy.core.shared")
 
--- Landing: sized to its content, never cropped, screen-capped. Each section (header, hints,
--- list) is measured from the renderer with its own layout rule. PANEL_PAD added once on the
--- trailing side because each extent already includes its own left inset. Measured from the
--- renderers so the legend can never end up croppable.
+-- Each section (header, hints, list) is measured from the renderer with its own layout rule.
+-- Measured from the renderers so the legend can never end up croppable.
 local HEADER_TITLE = "P ◉ PPY.NVIM"
 
 -- Trailing breathing room matching the separators' left-edge inset.
@@ -48,11 +45,10 @@ M.landing_min_width = function(opts, poppies)
 		render.measure_hint_line(keys.poppy_action, "Toggle Off")
 	)
 
-	-- Each extent above already includes its own left inset, so PANEL_PAD is added once on the
-	-- trailing side. The wrapper has no border (only the content window does), so nothing else to account for.
+	-- Each extent already includes its own left inset, so PANEL_PAD is added once on the trailing side.
 	local content = math.max(widest_row, widest_hint) + M.PANEL_PAD
 	local chrome = fn.strdisplaywidth(HEADER_TITLE) + (M.PANEL_PAD * 2)
-	return math.max(content, chrome)
+	return math.max(content, chrome) + 1
 end
 
 ---@param opts? PoppyMergedConfig
@@ -80,7 +76,7 @@ M.normalize_dimension = function(value, default)
 	return default
 end
 
--- A user function; a throw or a non-number return must not abort the open. Fall back to the default with a warn.
+-- A throw or non-number return must not abort the open; fall back to the default with a warn.
 ---@param value number|function
 ---@param default number
 ---@param name string
@@ -105,7 +101,6 @@ M.evaluate_dimension = function(value, default, name)
 	end
 	return result
 end
--- Local alias for the two in-module callers below.
 local evaluate_dimension = M.evaluate_dimension
 
 -- >1 = absolute cells; <=1 = ratio of `total`.
@@ -147,8 +142,7 @@ M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width
 	-- ratio exceeded the content, making the landing absurdly wide on launch.
 	local width = content_width and math.min(content_width, vim_cols) or resolve_dimension(raw_w, vim_cols, "win_width")
 
-	-- The ratio is a preference, not a promise. On a screen too narrow for sidebar + content
-	-- floor, the wrapper grows rather than squeezing either; still bounded by the screen.
+	-- Ratio is a preference, not a promise: the wrapper grows on a screen too narrow for both.
 	if min_width and not content_width and width < min_width then
 		width = math.min(min_width, vim_cols)
 	end

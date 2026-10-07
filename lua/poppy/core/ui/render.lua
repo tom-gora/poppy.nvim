@@ -21,7 +21,7 @@ local function create_buf()
 end
 
 local header_ns = api.nvim_create_namespace("poppy_header_panel")
--- Stable extmark ids so re-renders replace rather than accumulate.
+-- Stable ids so re-renders replace rather than accumulate.
 local TITLE_MARK = 1
 local DOT_MARK = 2
 local header = {}
@@ -79,7 +79,7 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 	local title_extmark = { end_col = #title_line, hl_group = "NormalPoppyUIPanel" }
 	api.nvim_buf_set_extmark(buf, header_ns, 1, 0, vim.tbl_extend("force", title_extmark, { id = TITLE_MARK }))
 
-	-- ◉ is 3-byte UTF-8, so resolve display col to byte offset before setting the extmark.
+	-- ◉ is 3-byte UTF-8; resolve display col to byte offset before setting the extmark.
 	-- title_col is a number; "5P" would concatenate to "5P" and resolve to col 2.
 	local dot_display_col = title_col + fn.strdisplaywidth("P")
 	local dot_byte_col = fn.byteidx(title_line, dot_display_col)
@@ -138,7 +138,6 @@ end
 ---@return integer? buf
 body.create = function(wrapper_win, menu_width, focusable, hint_height, row_override)
 	local buf = create_buf()
-	-- Refuse insert: body is a read-only panel.
 	api.nvim_clear_autocmds({ group = body_autocmd_group, buffer = buf })
 	api.nvim_create_autocmd("InsertEnter", {
 		group = body_autocmd_group,
@@ -147,7 +146,7 @@ body.create = function(wrapper_win, menu_width, focusable, hint_height, row_over
 			vim.cmd("stopinsert")
 		end,
 	})
-	-- Pin cursor to column 0 (the row marker). Window re-read because body is recreated on every mount.
+	-- Window re-read because body is recreated on every mount.
 	api.nvim_create_autocmd("CursorMoved", {
 		group = body_autocmd_group,
 		buffer = buf,
@@ -176,10 +175,7 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local hint_offset = hint_height or 5
 	local height = math.max(1, wrapper_conf.height - hint_offset)
-	-- When the title header is absent, anchor the body to the top of the wrapper so the
-	-- poppies list sits at the top (legend still at the bottom). When the header is present,
-	-- the body anchors below it. `row_override` is the dialog question panel: it sits
-	-- above the body (SE anchor, just above the legend) regardless of header state.
+	-- `row_override` is the dialog question panel: it sits above the body regardless of header.
 	local header_h = layout.get_header_height(state.windows.opts)
 	local anchor, row
 	if row_override and row_override > 0 then
@@ -234,9 +230,7 @@ local max_index_width = function(count)
 	return #tostring(count)
 end
 
--- Cell width reserved for signs in each body row. Two signs (state dot + category icon)
--- at signcolumn="yes:2" = 2 cells per sign = 4. Must match body.recreate's signcolumn.
--- Exported so layout.lua can size panels from the same arithmetic.
+-- Two signs (state dot + category icon) at signcolumn="yes:2" = 4. Must match body.recreate's signcolumn.
 M.SIGN_COL = 4
 
 ---@param idx_width integer
@@ -259,7 +253,6 @@ M.measure_hint_line = function(key, label)
 	return fn.strdisplaywidth(hint_line(key, label, INDENT))
 end
 
----Hard-cut `s` so the result fits `width`. If `s` already fits, returns it unchanged.
 ---Used by fit_text and wrap_text for the single-overlong-token case.
 ---@param s string
 ---@param width integer
@@ -306,9 +299,7 @@ end
 M.fit_text = fit_text
 
 ---Wrap text to `width` on word boundaries. Differs from 'wrap'/'linebreak' (display-only,
----no height back) so the caller knows the line count *before* the window exists, enabling
----a one-pass measure-and-size. A word longer than `width` is hard-cut; the remainder is
----carried forward and never silently dropped.
+---no height back) so the caller knows the line count before the window exists.
 ---@param text string
 ---@param width integer
 ---@return string[]
@@ -316,8 +307,6 @@ M.wrap_text = function(text, width)
 	width = math.max(1, width)
 	local out = {}
 
-	---Wrap a single paragraph to `width`. A word longer than `width` is hard-cut; the
-	---remainder is fed back into the word loop on subsequent iterations.
 	---@param paragraph string
 	---@return string[]
 	local function wrap_paragraph(paragraph)
@@ -326,9 +315,8 @@ M.wrap_text = function(text, width)
 		end
 		local lines = {}
 		local line = ""
-	-- Words list built up front so a hard-cut's remainder can be appended as the
-	-- next "word" and re-enter the normal break logic on the next pass.
-	local words = {}
+		-- Words list built up front so a hard-cut's remainder can be appended as the next word.
+		local words = {}
 		for word in paragraph:gmatch("%S+") do
 			words[#words + 1] = word
 		end
@@ -348,11 +336,10 @@ M.wrap_text = function(text, width)
 				if cut ~= "" then
 					lines[#lines + 1] = cut
 				end
-				-- Remainder is what didn't fit; char-indexed because cut is in chars not bytes.
+				-- Char-indexed because cut is in chars, not bytes.
 				local cut_chars = fn.strchars(cut)
 				local remainder = fn.strcharpart(word, cut_chars)
 				if remainder ~= "" then
-					-- Feed the remainder back as the next word.
 					table.insert(words, i + 1, remainder)
 				end
 				i = i + 1
@@ -458,7 +445,7 @@ local poppy_items = function(poppies, icons, menu_width)
 	return items
 end
 
----Paint an item set into a body buffer. Sign ids are row-derived, so a repaint replaces rather than accumulates.
+---Sign ids are row-derived, so a repaint replaces rather than accumulates.
 M.items_for_poppies = poppy_items
 
 ---@param buf integer
@@ -473,7 +460,7 @@ body.paint_items = function(buf, spec)
 	local placelist = {}
 
 	for display_idx, e in ipairs(spec.rows) do
-		-- Leading cell holds the cursor (pinned to col 0); every row needs it to keep the text column fixed.
+		-- Every row needs the leading cell so the text column stays fixed.
 		lines[display_idx] = "  " .. string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.label
 		for mark_idx, name in ipairs(e.marks or {}) do
 			-- Sign id = row*10 + (mark_idx-1). Stable per row, so repaints replace, not accumulate.
@@ -508,9 +495,8 @@ body.paint_items = function(buf, spec)
 	fn.sign_placelist(placelist)
 end
 
----Plain stacked panel for a menu's question text. Anchored "SE" to the wrapper's right edge
----so it sits in the sidebar; "row" is the TOP offset (bottom = row + height). Keeps the body's
----signcolumn width so the question's left edge lines up with the items below.
+---Anchored "SE" so it sits in the sidebar; "row" is the TOP offset (bottom = row + height).
+---Signcolumn matches the body so the question's left edge lines up with the items below.
 ---@param wrapper_win integer
 ---@param buf integer
 ---@param width integer
@@ -534,7 +520,6 @@ body.recreate_plain = function(wrapper_win, buf, width, height, row)
 		focusable = false,
 	}
 	local win = api.nvim_open_win(buf, false, config)
-	-- Match body's signcolumn so question and item text share a left edge.
 	vim.wo[win].signcolumn = "yes:2"
 	vim.wo[win].cursorline = false
 	style.apply_panel_style(win)
@@ -627,9 +612,7 @@ hints.recreate = function(wrapper_win, buf, opts)
 	local col = opts.col or wrapper_conf.width
 	local row = (opts.row or wrapper_conf.height) + (opts.row_offset or 0)
 	local width = opts.width or wrapper_conf.width
-	-- Legend lines only; the separator and trailing blank are added to `height` below.
-	-- Derived from the caller's hint list when not given, so there's no line-count table
-	-- keyed by legend name to keep in step with the content.
+	-- Separator and trailing blank are added to `height` below.
 	local height = opts.height or #(opts.hints or {})
 
 	---@type vim.api.keyset.win_config

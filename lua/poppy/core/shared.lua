@@ -37,6 +37,7 @@ M.hide_poppy = function(name)
 end
 
 -- Closes any previous hint first; otherwise orphans accumulate across switches.
+-- Closes any previous hint first; otherwise orphans accumulate across switches.
 M.show_menu_hint = function()
 	M.close_menu_hint()
 	local content_win = state.windows.content_win
@@ -74,8 +75,7 @@ end
 M.with_modifiable = function(buf, apply)
 	api.nvim_set_option_value("modifiable", true, { buf = buf })
 	local ok, err = xpcall(apply, debug.traceback)
-	-- pcall the restore: if apply() died because the buffer was deleted, setting the option
-	-- again raises "Invalid buffer id" and would mask the real error.
+	-- If apply() died because the buffer was deleted, setting the option again raises "Invalid buffer id".
 	pcall(api.nvim_set_option_value, "modifiable", false, { buf = buf })
 	if not ok then
 		error(err, 0)
@@ -112,10 +112,9 @@ M.category_from_resolved = function(poppy)
 	return poppy.exec and "exec" or poppy.file and "file" or "shell"
 end
 
--- The pane's own scratch (from view.content.create) is a |scratch-buffer|: kept when its window
--- closes and must be deleted explicitly. Buftype test is the safety: file mode reuses content_buf
--- as the live file buffer (buftype=""), so identity-based deletion would destroy edits. The other
--- two guards add defense-in-depth: never a buffer a live poppy owns, never one currently on screen.
+-- Buftype test is the safety: file mode reuses content_buf as the live file buffer
+-- (buftype=""), so identity-based deletion would destroy edits. The other two guards add
+-- defense-in-depth: never a buffer a live poppy owns, never one currently on screen.
 ---@param buf integer|nil
 ---@return boolean dropped
 M.drop_scratch_buffer = function(buf)
@@ -156,8 +155,6 @@ M.is_poppy_window = function(win)
 	return val == true
 end
 
--- Drop a poppy. Failure paths: missing binary, file() returning nil/empty, post-spawn jobstart
--- failure. The poppy has never been successfully opened, so poppies_runtime[name] is already nil.
 ---@param name string
 ---@param reason? string
 ---@return boolean was_active
