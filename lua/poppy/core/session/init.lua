@@ -252,9 +252,11 @@ local cleanup = function(drop_poppies)
 		view.unmount()
 
 		for _, win in ipairs({ state.windows.wrapper_win, state.windows.content_win }) do
-			if win and api.nvim_win_is_valid(win) then
-				api.nvim_win_close(win, true)
+			if not win or not api.nvim_win_is_valid(win) then
+				goto continue
 			end
+			api.nvim_win_close(win, true)
+			::continue::
 		end
 
 		state.windows.recovering = false
@@ -270,24 +272,22 @@ local cleanup = function(drop_poppies)
 			end
 		end
 
-		local buffers = { state.windows.content_buf }
-		table.insert(buffers, state.windows.wrapper_buf)
-		table.insert(buffers, view.get_hints_buf())
-		table.insert(buffers, view.get_menu_buf())
-		local qbuf = view.get_menu_header_buf()
-		if qbuf then
-			table.insert(buffers, qbuf)
-		end
-		local hbuf = view.get_header_buf()
-		if hbuf then
-			table.insert(buffers, hbuf)
-		end
-		if hint_buf and api.nvim_buf_is_valid(hint_buf) then
-			table.insert(buffers, hint_buf)
+		local function add_buffer(list, buf)
+			if buf and api.nvim_buf_is_valid(buf) then
+				list[#list + 1] = buf
+			end
 		end
 
+		local buffers = { state.windows.content_buf }
+		add_buffer(buffers, state.windows.wrapper_buf)
+		add_buffer(buffers, view.get_hints_buf())
+		add_buffer(buffers, view.get_menu_buf())
+		add_buffer(buffers, view.get_menu_header_buf())
+		add_buffer(buffers, view.get_header_buf())
+		add_buffer(buffers, hint_buf)
+
 		for _, buf in ipairs(buffers) do
-			if buf and not in_use[buf] and api.nvim_buf_is_valid(buf) then
+			if not in_use[buf] then
 				api.nvim_buf_delete(buf, { force = true })
 			end
 		end
@@ -497,15 +497,18 @@ M.switch_by_name = function(poppy_name)
 
 	-- A dead content pane is recoverable: rebuild rather than bail. Normal after a poppy's
 	-- buffer is deleted (the pane goes with the buffer). Skipped on landing: do_switch creates it.
+	local function rebuild_content_pane()
+		if not shared.session_is_open() then
+			return false
+		end
+		M.transition_to_content()
+		local cw = state.windows.content_win
+		return cw and api.nvim_win_is_valid(cw)
+	end
+
 	if not state.windows.is_landing then
-		local content_win = state.windows.content_win
-		if not content_win or not api.nvim_win_is_valid(content_win) then
-			if not shared.session_is_open() then
-				return
-			end
-			M.transition_to_content()
-			content_win = state.windows.content_win
-			if not content_win or not api.nvim_win_is_valid(content_win) then
+		if not state.windows.content_win or not api.nvim_win_is_valid(state.windows.content_win) then
+			if not rebuild_content_pane() then
 				shared.notify_error("cannot switch to '%s': no content pane", tostring(poppy_name))
 				state.set_current_poppy_name(nil)
 				return

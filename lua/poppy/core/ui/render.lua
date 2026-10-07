@@ -246,6 +246,26 @@ M.measure_hint_line = function(key, label)
 	return fn.strdisplaywidth(hint_line(key, label, INDENT))
 end
 
+---Hard-cut `s` so the result fits `width`. If `s` already fits, returns it unchanged.
+---Used by fit_text and wrap_text for the single-overlong-token case.
+---@param s string
+---@param width integer
+---@return string
+local hard_cut_to_width = function(s, width)
+	if fn.strdisplaywidth(s) <= width then
+		return s
+	end
+	local cut = math.max(0, width - 1)
+	if cut < 1 then
+		return fn.strcharpart(s, 0, math.max(0, width))
+	end
+	local kept = fn.strcharpart(s, 0, cut)
+	while kept ~= "" and fn.strdisplaywidth(kept) > cut do
+		kept = kept:sub(1, -2)
+	end
+	return kept
+end
+
 ---@param title string
 ---@param max_width integer
 ---@return string
@@ -261,23 +281,12 @@ local fit_text = function(label, max_width)
 		end
 		result = test
 	end
-	-- Single token with no whitespace: hard-cut rather than degrade to a lone ellipsis.
+	-- Single overlong token, no whitespace: hard-cut rather than degrade to a lone ellipsis.
 	if result == "" then
-		local cut = max_width - 1
-		if cut < 1 then
-			return fn.strcharpart(label, 0, math.max(0, max_width))
-		end
-		local kept = fn.strcharpart(label, 0, cut)
-		while fn.strdisplaywidth(kept) > cut and kept ~= "" do
-			kept = kept:sub(1, -2)
-		end
-		return kept .. "…"
+		return hard_cut_to_width(label, max_width) .. "…"
 	end
 	result = result:gsub("[%p]+%s*$", "")
-	if fn.strdisplaywidth(result .. "…") <= max_width then
-		result = result .. "…"
-	end
-	return result
+	return fn.strdisplaywidth(result .. "…") <= max_width and (result .. "…") or result
 end
 
 -- Exported so a menu can budget a title against the panel width with the painter's own arithmetic.
@@ -605,10 +614,9 @@ hints.recreate = function(wrapper_win, buf, opts)
 	local col = opts.col or wrapper_conf.width
 	local row = (opts.row or wrapper_conf.height) + (opts.row_offset or 0)
 	local width = opts.width or wrapper_conf.width
-	-- Legend lines, not panel height: the separator and trailing blank are added
-	-- below. Derived from the caller's own hint list when not given, so there is
-	-- no line-count table keyed by legend name to keep in step with the content.
-	-- Legend lines only; separator and trailing blank are added below.
+	-- Legend lines only; the separator and trailing blank are added to `height` below.
+	-- Derived from the caller's hint list when not given, so there's no line-count table
+	-- keyed by legend name to keep in step with the content.
 	local height = opts.height or #(opts.hints or {})
 
 	---@type vim.api.keyset.win_config
