@@ -176,18 +176,13 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	local hint_offset = hint_height or 5
 	local height = math.max(1, wrapper_conf.height - hint_offset)
 	-- `row_override` is the dialog question panel: it sits above the body regardless of header.
+	local has_question = row_override and row_override > 0
 	local header_h = layout.get_header_height(state.windows.opts)
-	local anchor, row
-	if row_override and row_override > 0 then
-		anchor = "SE"
-		row = wrapper_conf.height - hint_offset
+	local no_header = header_h == 0 and not has_question
+	local anchor = no_header and "NW" or "SE"
+	local row = no_header and 0 or (wrapper_conf.height - hint_offset)
+	if has_question then
 		height = math.max(1, height - row_override)
-	elseif header_h == 0 then
-		anchor = "NW"
-		row = 0
-	else
-		anchor = "SE"
-		row = wrapper_conf.height - hint_offset
 	end
 
 	---@type vim.api.keyset.win_config

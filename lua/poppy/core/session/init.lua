@@ -249,11 +249,9 @@ local cleanup = function(drop_poppies)
 		view.unmount()
 
 		for _, win in ipairs({ state.windows.wrapper_win, state.windows.content_win }) do
-			if not win or not api.nvim_win_is_valid(win) then
-				goto continue
+			if win and api.nvim_win_is_valid(win) then
+				api.nvim_win_close(win, true)
 			end
-			api.nvim_win_close(win, true)
-			::continue::
 		end
 
 		state.windows.recovering = false
@@ -268,22 +266,16 @@ local cleanup = function(drop_poppies)
 			end
 		end
 
-		local function add_buffer(list, buf)
-			if buf and api.nvim_buf_is_valid(buf) then
-				list[#list + 1] = buf
-			end
-		end
-
 		local buffers = { state.windows.content_buf }
-		add_buffer(buffers, state.windows.wrapper_buf)
-		add_buffer(buffers, view.get_hints_buf())
-		add_buffer(buffers, view.get_menu_buf())
-		add_buffer(buffers, view.get_menu_header_buf())
-		add_buffer(buffers, view.get_header_buf())
-		add_buffer(buffers, hint_buf)
-
-		for _, buf in ipairs(buffers) do
-			if not in_use[buf] then
+		for _, buf in ipairs({
+			state.windows.wrapper_buf,
+			view.get_hints_buf(),
+			view.get_menu_buf(),
+			view.get_menu_header_buf(),
+			view.get_header_buf(),
+			hint_buf,
+		}) do
+			if buf and api.nvim_buf_is_valid(buf) and not in_use[buf] then
 				api.nvim_buf_delete(buf, { force = true })
 			end
 		end
@@ -467,9 +459,12 @@ local do_switch = function(configured, poppy_name)
 	state.set_current_poppy_name(poppy_name)
 
 	local on_die = function(name)
-		if shared.session_is_open() and shared.session_get_current_poppy_name() == name then
+		if not shared.session_is_open() then
+			return
+		end
+		if shared.session_get_current_poppy_name() == name then
 			M.kill_active()
-		elseif shared.session_is_open() and not state.windows.is_landing then
+		elseif not state.windows.is_landing then
 			view.refresh_poppies()
 		end
 	end
@@ -536,14 +531,13 @@ M.switch_by_name = function(poppy_name)
 		return cw and api.nvim_win_is_valid(cw)
 	end
 
-	if not state.windows.is_landing then
-		if not state.windows.content_win or not api.nvim_win_is_valid(state.windows.content_win) then
-			if not rebuild_content_pane() then
-				shared.notify_error("cannot switch to '%s': no content pane", tostring(poppy_name))
-				state.set_current_poppy_name(nil)
-				return
-			end
-		end
+	if not state.windows.is_landing
+		and (not state.windows.content_win or not api.nvim_win_is_valid(state.windows.content_win))
+		and not rebuild_content_pane()
+	then
+		shared.notify_error("cannot switch to '%s': no content pane", tostring(poppy_name))
+		state.set_current_poppy_name(nil)
+		return
 	end
 
 	local ok, err = pcall(do_switch, configured, poppy_name)
@@ -723,8 +717,7 @@ M.enter_landing = function()
 	state.windows.content_win = nil
 	shared.drop_scratch_buffer(state.windows.content_buf)
 	state.windows.content_buf = nil
-	local menu_buf = view.get_menu_buf()
-	vim.bo[menu_buf].filetype = "poppy_menu"
+	vim.bo[view.get_menu_buf()].filetype = "poppy_menu"
 	require("poppy.core.session.menu").focus_body()
 end
 

@@ -198,6 +198,7 @@ end
 ---@return boolean focused
 M.focus_body = function()
 	M.bind_spec(state.windows.menu_buf, M.current_spec())
+	shared.close_menu_hint()
 	local win = state.windows.menu_win
 	if not shared.try_focus_win(win) then
 		return false

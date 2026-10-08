@@ -30,37 +30,37 @@ local reusable = function(name, file_path)
 	return runtime.bufnr
 end
 
-	---@param poppy_name string
-	---@param bufnr integer
-	---@param parent_win integer
-	---@param title string
-	---@param on_die? fun(poppy_name: string)
-	local attach = function(poppy_name, bufnr, parent_win, title, on_die)
-		vim.bo[bufnr].buflisted = false
-		vim.bo[bufnr].bufhidden = "hide"
-		api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
-		api.nvim_win_set_buf(parent_win, bufnr)
-		state.poppies_runtime[poppy_name] = {
-			active = true,
-			hidden = false,
-			bufnr = bufnr,
-			win = parent_win,
-			title = title,
-		}
-		-- Skip on_die on the active case to avoid a double recover.
-		if on_die and state.windows.current_poppy_name ~= poppy_name then
-			api.nvim_create_autocmd("BufUnload", {
-				group = "poppy_group",
-				buffer = bufnr,
-				once = true,
-				callback = function()
-					if state.runtime(poppy_name) and not state.windows.current_poppy_name then
-						on_die(poppy_name)
-					end
-				end,
-			})
-		end
+---@param poppy_name string
+---@param bufnr integer
+---@param parent_win integer
+---@param title string
+---@param on_die? fun(poppy_name: string)
+local attach = function(poppy_name, bufnr, parent_win, title, on_die)
+	vim.bo[bufnr].buflisted = false
+	vim.bo[bufnr].bufhidden = "hide"
+	api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
+	api.nvim_win_set_buf(parent_win, bufnr)
+	state.poppies_runtime[poppy_name] = {
+		active = true,
+		hidden = false,
+		bufnr = bufnr,
+		win = parent_win,
+		title = title,
+	}
+	-- Skip on_die on the active case to avoid a double recover.
+	if on_die and state.windows.current_poppy_name ~= poppy_name then
+		api.nvim_create_autocmd("BufUnload", {
+			group = "poppy_group",
+			buffer = bufnr,
+			once = true,
+			callback = function()
+				if state.runtime(poppy_name) and not state.windows.current_poppy_name then
+					on_die(poppy_name)
+				end
+			end,
+		})
 	end
+end
 
 -- :edit gives a real file buffer (filetype, checktime, normal load path); a hand-built buffer
 -- (readfile + set_lines + set_name) is modifiable but treated as never-read-from-disk and :w
@@ -85,12 +85,7 @@ end
 ---@param on_die? fun(poppy_name: string) Background file poppy: repaint sidebar when its buffer goes away.
 ---@return boolean ok
 M.run = function(poppy_name, poppy_opts, parent_win, on_die)
-	local raw_val
-	if type(poppy_opts.file) == "function" then
-		raw_val = poppy_opts.file()
-	else
-		raw_val = poppy_opts.file
-	end
+	local raw_val = type(poppy_opts.file) == "function" and poppy_opts.file() or poppy_opts.file
 	if raw_val == nil or raw_val == "" then
 		shared.notify_warn("poppy '%s' file function returned %s at open; dropping", poppy_name, raw_val == nil and "nil" or "empty string")
 		return false
@@ -98,7 +93,6 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 	local file_path = fn.expand(raw_val)
 
 	local reused = reusable(poppy_name, file_path)
-	local is_fresh = reused == nil
 
 	---@param reason string
 	---@return false
@@ -108,31 +102,13 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 	end
 
 	local file_missing = fn.filereadable(file_path) ~= 1
-	if file_missing and is_fresh then
-		local ok, err = create_file_with_parents(file_path)
+	if file_missing and not reused then
+		local ok, err = M.create_file_with_parents(file_path)
 		if not ok then
 			shared.notify_warn("poppy '%s' could not create %s: %s", poppy_name, file_path, tostring(err))
 			return fail("create failed at open")
 		end
 		file_missing = false
-	end
-
-	---@param path string Absolute path to create.
-	---@return boolean ok
-	---@return string? err
-	local function create_file_with_parents(path)
-		local parent = vim.fs.dirname(path)
-		if parent ~= "" then
-			local mk_ok, mk_err = pcall(fn.mkdir, parent, "p")
-			if not mk_ok then
-				return false, "could not create " .. parent .. ": " .. tostring(mk_err)
-			end
-		end
-		local wr_ok, wr_err = pcall(fn.writefile, {}, path)
-		if not wr_ok then
-			return false, tostring(wr_err)
-		end
-		return true
 	end
 
 	local bufnr

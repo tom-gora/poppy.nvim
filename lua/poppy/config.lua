@@ -71,7 +71,8 @@ local default_opts = {
 local argv0 = function(command)
 	if type(command) == "string" then
 		return (command:gsub("%s.*", ""))
-	elseif type(command) == "table" and #command > 0 and type(command[1]) == "string" then
+	end
+	if type(command) == "table" and #command > 0 and type(command[1]) == "string" then
 		return command[1]
 	end
 	return nil
@@ -114,17 +115,13 @@ local resolve_poppy = function(name, poppy)
 		return nil
 	end
 
-	local mode
-	local raw
+	local mode, raw
 	if poppy.exec then
-		mode = "term"
-		raw = poppy.exec
+		mode, raw = "term", poppy.exec
 	elseif poppy.file then
-		mode = "file"
-		raw = poppy.file
+		mode, raw = "file", poppy.file
 	elseif poppy.shell then
-		mode = "term"
-		raw = poppy.shell
+		mode, raw = "term", poppy.shell
 	else
 		shared.notify_error("poppy '%s' must have exactly one of 'exec', 'file', or 'shell'", tostring(name))
 		return nil
@@ -144,10 +141,7 @@ local resolve_poppy = function(name, poppy)
 		end
 		value = expanded
 	else
-		local check = value
-		if poppy.shell and value == "default" then
-			check = os.getenv("SHELL") or "bash"
-		end
+		local check = poppy.shell and value == "default" and (os.getenv("SHELL") or "bash") or value
 		local argv = argv0(check)
 		if argv and argv ~= "" and fn.executable(argv) == 0 then
 			shared.notify_warn("poppy '%s' binary '%s' not found on $PATH", tostring(name), argv)
@@ -157,13 +151,10 @@ local resolve_poppy = function(name, poppy)
 
 	local title = poppy.title
 	if title == nil then
-		if mode == "file" then
-			title = vim.fs.basename(value)
-		elseif type(value) == "table" then
-			title = vim.fs.basename(value[1] or name)
-		else
-			title = vim.fs.basename(vim.split(value, " ")[1] or name)
-		end
+		local head = mode == "file" and value
+			or type(value) == "table" and (value[1] or name)
+			or vim.split(value, " ")[1] or name
+		title = vim.fs.basename(head)
 	end
 
 	return {

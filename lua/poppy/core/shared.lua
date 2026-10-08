@@ -37,7 +37,6 @@ M.hide_poppy = function(name)
 end
 
 -- Closes any previous hint first; otherwise orphans accumulate across switches.
--- Closes any previous hint first; otherwise orphans accumulate across switches.
 M.show_menu_hint = function()
 	M.close_menu_hint()
 	local content_win = state.windows.content_win
@@ -138,6 +137,7 @@ M.drop_scratch_buffer = function(buf)
 	return true
 end
 
+
 local WIN_MARKER = "poppy_window"
 
 ---@param win integer
@@ -187,5 +187,6 @@ M.drop_poppy = function(name, reason)
 	end
 	return was_active
 end
+
 
 return M

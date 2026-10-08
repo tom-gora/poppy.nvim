@@ -305,11 +305,8 @@ local mount_panels = function(wrapper_win)
 	-- wrap + linebreak stay on as a safety net for narrower-than-wrapped widths.
 	if q_h == 0 and state.windows.menu_header_buf then
 		-- Stale question panel from a prior dialog or re-render.
-		local stale_win, stale_buf = state.windows.menu_header_win, state.windows.menu_header_buf
-		close_panel(stale_win)
-		if api.nvim_buf_is_valid(stale_buf) then
-			api.nvim_buf_delete(stale_buf, { force = true })
-		end
+		close_panel(state.windows.menu_header_win)
+		api.nvim_buf_delete(state.windows.menu_header_buf, { force = true })
 		state.windows.menu_header_win = nil
 		state.windows.menu_header_buf = nil
 	end

@@ -36,6 +36,16 @@ local function label_for(name)
 	return vim.fn.fnamemodify(raw, ":t")
 end
 
+---Under autohide the panel is hidden between switches; unhide it rather than remount so the
+---sidebar keeps its current row.
+local function show_or_mount()
+	if shared.opts_field("menu_autohide") and state.windows.hidden then
+		view.set_visible(true, state.windows.content_win)
+	else
+		view.mount(state.windows.wrapper_win)
+	end
+end
+
 ---@return string Absolute path of the poppy's file, or empty if not file-mode.
 local function file_path_for(name)
 	local configured = state.poppy_configured(name)
@@ -85,21 +95,12 @@ local function spec_for(name)
 end
 
 ---Checked at UI entry, not at setup, so a file created after setup is honored on the first call.
+---Checked at UI entry, not at setup, so a file created after setup is honored on the first call.
 ---@param name string
 ---@return boolean
 M.needs_file_decision = function(name)
-	local configured = state.poppy_configured(name)
-	if not configured or configured.config.mode ~= "file" then
-		return false
-	end
-	local raw = configured.config.file
-	if type(raw) == "function" then
-		raw = raw()
-	end
-	if type(raw) ~= "string" or raw == "" then
-		return false
-	end
-	return vim.fn.filereadable(vim.fn.expand(raw)) ~= 1
+	local path = file_path_for(name)
+	return path ~= "" and vim.fn.filereadable(path) ~= 1
 end
 
 ---Pre-selected row is "Yes" so accidental <CR> does the constructive thing.
@@ -227,12 +228,7 @@ M.open = function(name, resume)
 	local rt = state.runtime(name)
 	install_dialog(name, "kill_confirm", resume, { buf = rt and rt.bufnr })
 	menu_ui.set_override(spec_for(name))
-
-	if shared.opts_field("menu_autohide") and state.windows.hidden then
-		view.set_visible(true, state.windows.content_win)
-	else
-		view.mount(state.windows.wrapper_win)
-	end
+	show_or_mount()
 	view.set_focused(true)
 	menu_ui.focus_body()
 	-- Preselect "No": answering by accident should not be the destructive answer.
@@ -257,12 +253,7 @@ M.open_missing_file = function(poppies, on_complete)
 	end
 	install_dialog(poppies[1], "missing_file", on_complete, { poppies = poppies, index = 1 })
 	menu_ui.set_override(spec_for_missing(poppies[1]))
-
-	if shared.opts_field("menu_autohide") and state.windows.hidden then
-		view.set_visible(true, state.windows.content_win)
-	else
-		view.mount(state.windows.wrapper_win)
-	end
+	show_or_mount()
 	view.set_focused(true)
 	menu_ui.focus_body()
 	-- Preselect "Create": accidental <CR> is the constructive answer.
@@ -347,11 +338,7 @@ local function advance_missing_file_queue(dialog)
 	-- Clear WinClosed watchers before view.mount: closing the old panels would otherwise
 	-- re-enter M.resolve on the old dialog state. watch_panels() below installs new ones.
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
-	if shared.opts_field("menu_autohide") and state.windows.hidden then
-		view.set_visible(true, state.windows.content_win)
-	else
-		view.mount(state.windows.wrapper_win)
-	end
+	show_or_mount()
 	view.set_focused(true)
 	menu_ui.focus_body()
 	menu_ui.set_row(state.windows.menu_win, 1)

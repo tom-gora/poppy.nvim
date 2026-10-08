@@ -23,12 +23,7 @@ end
 ---@param poppy_opts PoppyResolvedConfig
 ---@return string|string[]|nil
 local term_resolve_command = function(poppy_opts)
-	local raw
-	if poppy_opts.shell ~= nil then
-		raw = poppy_opts.shell
-	else
-		raw = poppy_opts.exec
-	end
+	local raw = poppy_opts.shell ~= nil and poppy_opts.shell or poppy_opts.exec
 	if type(raw) == "function" then
 		local ok, result = pcall(raw)
 		if not ok then
@@ -107,43 +102,33 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 		return false
 	end
 
-	if reused then
-		api.nvim_win_set_buf(parent_win, bufnr)
-		state.poppies_runtime[poppy_name] = {
-			active = true,
-			hidden = false,
-			bufnr = bufnr,
-			win = parent_win,
-			title = poppy_opts.title,
-		}
-		return true
-	end
+	if not reused then
+		-- Scopes the active buffer to bufnr so the terminal attaches even though parent_win shows another.
+		local spawn_ok = false
+		api.nvim_buf_call(bufnr, function()
+			api.nvim_set_option_value("modified", false, { buf = bufnr })
+			---@type table
+			local spawn_opts = {
+				on_exit = function()
+					if api.nvim_buf_is_valid(bufnr) then
+						pcall(api.nvim_buf_delete, bufnr, { force = true })
+					end
+					state.clear_runtime(poppy_name)
+					if on_die then
+						on_die(poppy_name)
+					end
+				end,
+			}
+			local _, ok = term_spawn(command, spawn_opts)
+			spawn_ok = ok
+		end)
 
-	-- Scopes the active buffer to bufnr so the terminal attaches even though parent_win shows another.
-	local spawn_ok = false
-	api.nvim_buf_call(bufnr, function()
-		api.nvim_set_option_value("modified", false, { buf = bufnr })
-		---@type table
-		local spawn_opts = {
-			on_exit = function()
-				if api.nvim_buf_is_valid(bufnr) then
-					pcall(api.nvim_buf_delete, bufnr, { force = true })
-				end
-				state.clear_runtime(poppy_name)
-				if on_die then
-					on_die(poppy_name)
-				end
-			end,
-		}
-		local _, ok = term_spawn(command, spawn_opts)
-		spawn_ok = ok
-	end)
-
-	if not spawn_ok then
-		-- jobstart can still fail for other reasons (malformed argv).
-		shared.drop_poppy(poppy_name, string.format("jobstart returned no id for %s", vim.inspect(command)))
-		pcall(api.nvim_buf_delete, bufnr, { force = true })
-		return false
+		if not spawn_ok then
+			-- jobstart can still fail for other reasons (malformed argv).
+			shared.drop_poppy(poppy_name, string.format("jobstart returned no id for %s", vim.inspect(command)))
+			pcall(api.nvim_buf_delete, bufnr, { force = true })
+			return false
+		end
 	end
 
 	api.nvim_win_set_buf(parent_win, bufnr)
