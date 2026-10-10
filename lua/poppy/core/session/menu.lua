@@ -50,10 +50,11 @@ M.bind = function(buf, keymaps)
 	if not keys then
 		return 0
 	end
+	local poppy_action_bound = (shared.resolve_key(keys.poppy_action))
 	-- vim.keymap.set replaces only on matching lhs; re-binding a narrower spec would leave the
 	-- previous keys live and get_keymap would still report them as claimed.
 	for _, field in ipairs({ "poppy_action", "select", "kill", "exit_menu" }) do
-		local lhs = keys[field]
+		local lhs = field == "poppy_action" and poppy_action_bound or keys[field]
 		if lhs and lhs ~= "" then
 			pcall(vim.api.nvim_buf_del_keymap, buf, "n", lhs)
 			pcall(vim.api.nvim_buf_del_keymap, buf, "t", lhs)
@@ -61,7 +62,7 @@ M.bind = function(buf, keymaps)
 	end
 	local bound = 0
 	for _, km in ipairs(keymaps or {}) do
-		local lhs = keys[km[1]]
+		local lhs = km[1] == "poppy_action" and poppy_action_bound or keys[km[1]]
 		if lhs and lhs ~= "" and type(km[3]) == "function" then
 			vim.keymap.set(shared.NORM_TERM_MODES, lhs, km[3], {
 				buffer = buf,

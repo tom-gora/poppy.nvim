@@ -53,7 +53,7 @@ local sanitize_string_fields = function(defaults, user, keys, max_display_width,
 end
 
 local default_opts = {
-	keys = { poppy_action = "<C-_>", select = "<CR>", kill = "d", exit_menu = "<Esc>" },
+	keys = { poppy_action = "<C-/>", select = "<CR>", kill = "d", exit_menu = "<Esc>" },
 	icons = { exec = "🛠", shell = "$", file = "🗋" },
 	menu_autohide = false,
 	title_header = true,

@@ -5,6 +5,33 @@ local M = {}
 local api = vim.api
 local state = require("poppy.core.session.state")
 
+-- Keys the user physically presses (displayed in hints) mapped to keys nvim actually receives
+-- when the path between keyboard and nvim doesn't carry the modern extended-keyboard protocol.
+-- Only consulted for the default poppy_action: user overrides bypass the shim entirely.
+local MULTIPLEXER_FALLBACKS = {
+	["<C-/>"] = "<C-_>",
+}
+
+---@return boolean inside_tmux or screen or zellij
+local function in_multiplexer()
+	return os.getenv("TMUX") ~= nil
+		or os.getenv("STY") ~= nil
+		or os.getenv("ZELLIJ") ~= nil
+end
+
+---Resolve a user-supplied key (display string) to the byte sequence nvim should bind.
+---For default <C-/> inside a multiplexer, swaps to the fallback so the keystroke actually
+---reaches nvim; the display string is unchanged.
+---@param user_value string
+---@return string bound what to pass to vim.keymap.set
+---@return string display what to show in hints
+M.resolve_key = function(user_value)
+	if not MULTIPLEXER_FALLBACKS[user_value] or not in_multiplexer() then
+		return user_value, user_value
+	end
+	return MULTIPLEXER_FALLBACKS[user_value], user_value
+end
+
 ---@param win integer|nil
 ---@return boolean
 M.try_focus_win = function(win)

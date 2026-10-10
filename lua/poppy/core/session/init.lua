@@ -47,7 +47,8 @@ local setup_global_key = function()
 	if not keys then
 		return
 	end
-	vim.keymap.set(shared.NORM_TERM_MODES, keys.poppy_action, function()
+	local bound, _ = shared.resolve_key(keys.poppy_action)
+	vim.keymap.set(shared.NORM_TERM_MODES, bound, function()
 		M.toggle()
 	end, { desc = "Poppy: Toggle UI" })
 end
