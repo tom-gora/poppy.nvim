@@ -12,13 +12,10 @@ local MULTIPLEXER_FALLBACKS = {
 	["<C-/>"] = "<C-_>",
 }
 
----@return boolean inside_tmux or screen or zellij
+---@return boolean inside_tmux or screen (zellij intentionally not supported)
 local function in_multiplexer()
 	return os.getenv("TMUX") ~= nil
 		or os.getenv("STY") ~= nil
-		or os.getenv("ZELLIJ") ~= nil
-		or os.getenv("ZELLIJ_SESSION_NAME") ~= nil
-		or os.getenv("ZELLIJ_PANE_ID") ~= nil
 end
 
 ---Resolve a user-supplied key (display string) to the byte sequence nvim should bind.
