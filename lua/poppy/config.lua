@@ -60,6 +60,7 @@ local default_opts = {
 	hints_footer = true,
 	autoclose = true,
 	exclusive_float = true,
+	assume_multiplexer = false,
 	menu_width = layout.DEFAULT_MENU_WIDTH,
 	win_height = 0.75,
 	win_width = 0.8,
@@ -188,6 +189,7 @@ M.merge = function(user_opts)
 		"hints_footer",
 		"autoclose",
 		"exclusive_float",
+		"assume_multiplexer",
 		"menu_width",
 		"win_height",
 		"win_width",
@@ -203,7 +205,7 @@ M.merge = function(user_opts)
 		end
 	end
 
-	local bool_keys = { "menu_autohide", "title_header", "hints_footer", "autoclose", "exclusive_float" }
+	local bool_keys = { "menu_autohide", "title_header", "hints_footer", "autoclose", "exclusive_float", "assume_multiplexer" }
 	for _, k in ipairs(bool_keys) do
 		if merged[k] ~= nil and type(merged[k]) ~= "boolean" then
 			shared.notify_warn(
@@ -272,6 +274,7 @@ M.merge = function(user_opts)
 		hints_footer = merged.hints_footer,
 		autoclose = merged.autoclose,
 		exclusive_float = merged.exclusive_float,
+		assume_multiplexer = merged.assume_multiplexer,
 		menu_width = merged.menu_width,
 		win_height = layout.normalize_dimension(merged.win_height, 0.75),
 		win_width = layout.normalize_dimension(merged.win_width, 0.8),

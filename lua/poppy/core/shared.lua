@@ -17,6 +17,8 @@ local function in_multiplexer()
 	return os.getenv("TMUX") ~= nil
 		or os.getenv("STY") ~= nil
 		or os.getenv("ZELLIJ") ~= nil
+		or os.getenv("ZELLIJ_SESSION_NAME") ~= nil
+		or os.getenv("ZELLIJ_PANE_ID") ~= nil
 end
 
 ---Resolve a user-supplied key (display string) to the byte sequence nvim should bind.
@@ -26,10 +28,15 @@ end
 ---@return string bound what to pass to vim.keymap.set
 ---@return string display what to show in hints
 M.resolve_key = function(user_value)
-	if not MULTIPLEXER_FALLBACKS[user_value] or not in_multiplexer() then
+	local fallback = MULTIPLEXER_FALLBACKS[user_value]
+	if not fallback then
 		return user_value, user_value
 	end
-	return MULTIPLEXER_FALLBACKS[user_value], user_value
+	local assume = state.windows.opts and state.windows.opts.assume_multiplexer == true
+	if not assume and not in_multiplexer() then
+		return user_value, user_value
+	end
+	return fallback, user_value
 end
 
 ---@param win integer|nil

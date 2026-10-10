@@ -27,6 +27,7 @@
 ---@field hints_footer? boolean # Show keybind legend below list. Default: true
 ---@field autoclose? boolean # Close the manager when focus leaves all poppy windows. Default: true
 ---@field exclusive_float? boolean # When poppy opens close all other floating windows
+---@field assume_multiplexer? boolean # Force the <C-/> → <C-_> fallback regardless of env detection. Default: false
 ---@field menu_width? number|function # Width of side panels. Function re-evaluated on each mount and sidebar toggle. Default: 25
 ---@field win_height? number|function # Height ratio of screen (0.2-1.0), or absolute columns/lines (>1), or function returning same. Default: 0.75
 ---@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute columns/lines (>1), or function returning same. Default: 0.8
@@ -41,6 +42,7 @@
 ---@field hints_footer boolean
 ---@field autoclose boolean
 ---@field exclusive_float boolean
+---@field assume_multiplexer boolean
 ---@field menu_width number|function
 ---@field win_height number|function
 ---@field win_width number|function
