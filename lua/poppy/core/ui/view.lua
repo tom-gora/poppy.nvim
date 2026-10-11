@@ -21,6 +21,7 @@ M.content = {}
 local wrapper_open_with = function(buf, poppy_opts, width_override)
 	local width, height, row =
 		layout.compute_wrapper_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override, M.min_wrapper_width())
+	-- wrapper window: the editor-anchored float that holds every panel.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "editor",
@@ -74,6 +75,7 @@ M.content.create = function(wrapper_win, list_panel_width)
 	local ext_nu = vim.o.number
 	local ext_rnu = vim.o.relativenumber
 
+	-- content window: shows the active poppy's buffer; takes the left slot inside the wrapper.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",

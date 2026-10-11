@@ -46,6 +46,8 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 	local width = width_override or wc.width
 	local col = col_override or 0
 
+	-- header window: title bar (POPPY.NVIM) sitting above the sidebar in landing view,
+	-- or as a corner badge above the sidebar in content view.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -185,6 +187,7 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 		height = math.max(1, height - row_override)
 	end
 
+	-- body window: the sidebar list (poppy rows) — or dialog rows under an override.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -570,6 +573,7 @@ hints.create_bottom_right = function(parent_win, keys)
 	local row = math.max(0, win_conf.height) + 1
 	local col = math.max(0, win_conf.width) + 1
 
+	-- corner hint window: the 1-line "<C-/> Menu" badge that appears under menu_autohide.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -610,6 +614,7 @@ hints.recreate = function(wrapper_win, buf, opts)
 	-- Separator and trailing blank are added to `height` below.
 	local height = opts.height or #(opts.hints or {})
 
+	-- hints window: the key-binding legend at the bottom of the sidebar (or below the body).
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
