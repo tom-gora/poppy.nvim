@@ -5,25 +5,18 @@ local M = {}
 local api = vim.api
 local state = require("poppy.core.session.state")
 
--- Keys the user physically presses (displayed in hints) mapped to keys nvim actually receives
--- when the path between keyboard and nvim doesn't carry the modern extended-keyboard protocol.
--- Only consulted for the default poppy_action: user overrides bypass the shim entirely.
+-- Display-string → bind-target map for keys that lose Ctrl info through some muxes.
 local MULTIPLEXER_FALLBACKS = {
 	["<C-/>"] = "<C-_>",
 }
 
----@return boolean inside_tmux or screen (zellij intentionally not supported)
 local function in_multiplexer()
-	return os.getenv("TMUX") ~= nil
-		or os.getenv("STY") ~= nil
+	return os.getenv("TMUX") ~= nil or os.getenv("STY") ~= nil
 end
 
----Resolve a user-supplied key (display string) to the byte sequence nvim should bind.
----For default <C-/> inside a multiplexer, swaps to the fallback so the keystroke actually
----reaches nvim; the display string is unchanged.
 ---@param user_value string
----@return string bound what to pass to vim.keymap.set
----@return string display what to show in hints
+---@return string bound
+---@return string display
 M.resolve_key = function(user_value)
 	local fallback = MULTIPLEXER_FALLBACKS[user_value]
 	if not fallback then
@@ -34,6 +27,21 @@ M.resolve_key = function(user_value)
 		return user_value, user_value
 	end
 	return fallback, user_value
+end
+
+-- Keys that share a byte with a non-ctrl key; mapping the aliased form to a poppy_action
+-- silently collides with that other key. <C-[> is excluded: the kitty protocol distinguishes
+-- it from <Esc> on modern terminals, and warning would be a false positive.
+local ALIASED_KEYS = {
+	["<C-i>"] = "<Tab>",
+	["<C-m>"] = "<CR>",
+	["<C-?>"] = "<BS>",
+}
+
+---@param key string
+---@return string? alias The key this collides with, or nil if it's not aliased.
+M.key_alias = function(key)
+	return ALIASED_KEYS[key]
 end
 
 ---@param win integer|nil

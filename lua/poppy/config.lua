@@ -240,6 +240,19 @@ M.merge = function(user_opts)
 	end
 
 	local keys = sanitize_string_fields(default_opts.keys, merged.keys, DEFAULT_KEYS)
+	for field, value in pairs(keys) do
+		local alias = shared.key_alias(value)
+		if alias then
+			shared.notify_warn(
+				"configured bind '%s' for keys.%s will conflict with %s. Falling back to default '%s'.",
+				value,
+				field,
+				alias,
+				tostring(default_opts.keys[field])
+			)
+			keys[field] = default_opts.keys[field]
+		end
+	end
 	local icons = sanitize_string_fields(default_opts.icons, merged.icons, DEFAULT_ICONS, 2, true)
 
 	local valid_locations = { center = true, top = true, bottom = true }
