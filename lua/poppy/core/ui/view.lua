@@ -269,27 +269,7 @@ local mount_panels = function(wrapper_win)
 	local hints_on = shared.opts_field("hints_footer") ~= false
 	local effective_legend_h = hints_on and legend_h or 0
 	local q_lines, q_h = menu_ui.menu_header_lines(menu, panel_w)
-
-	local above_body = 0
-	local STACK = {
-		{ key = "header", height = hh },
-		{ key = "menu_header_buf", height = q_h },
-	}
-	for _, panel in ipairs(STACK) do
-		panel.top = above_body
-		above_body = above_body + panel.height
-	end
-	---Rows to offset a panel by: everything stacked above it.
-	---@param key string
-	---@return integer
-	local function top_of(key)
-		for _, panel in ipairs(STACK) do
-			if panel.key == key then
-				return panel.top
-			end
-		end
-		return 0
-	end
+	local above_body = hh + q_h
 
 	ensure_panel("menu_buf", "menu_win", function()
 		return render.body.create(wrapper_win, panel_w, cfg.focusable, effective_legend_h, above_body)
@@ -314,7 +294,8 @@ local mount_panels = function(wrapper_win)
 	end
 
 	if q_h > 0 then
-		local q_row = top_of("menu_header_buf")
+		-- menu_header_buf sits directly below the header in the fixed stack order.
+		local q_row = hh
 		ensure_panel("menu_header_buf", "menu_header_win", function()
 			local win, buf = render.body.create_plain(wrapper_win, panel_w, q_h, q_row)
 			vim.wo[win].wrap = true
@@ -382,17 +363,13 @@ M.set_visible = function(visible, content_win)
 	local wc = api.nvim_win_get_config(wrapper_win)
 	if visible then
 		mount_panels(wrapper_win)
-		if content_win and api.nvim_win_is_valid(content_win) then
-			local mw = menu_width(wc.width)
-			local cw = math.max(1, math.min(wc.width - mw - 2, wc.width - 2))
-			resize_content(content_win, cw, wc.height - 2)
-		end
+		local mw = menu_width(wc.width)
+		local cw = math.max(1, math.min(wc.width - mw - 2, wc.width - 2))
+		resize_content(content_win, cw, wc.height - 2)
 	else
 		close_all_panels()
 		state.windows.hidden = true
-		if content_win and api.nvim_win_is_valid(content_win) then
-			resize_content(content_win, wc.width - 2, wc.height - 2, 0)
-		end
+		resize_content(content_win, wc.width - 2, wc.height - 2, 0)
 	end
 end
 

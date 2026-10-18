@@ -282,26 +282,17 @@ local function drop_question()
 	end
 end
 
----Dropping the question changes how much room the body has; a repaint alone leaves the body
----sitting below the gap it left (body is sized by what's above it).
-local function relayout()
-	local wrapper_win = state.windows.wrapper_win
-	if not shared.session_is_open() or not wrapper_win then
-		return
-	end
-	if shared.opts_field("menu_autohide") and state.windows.hidden then
-		return
-	end
-	view.mount(wrapper_win)
-end
-
 ---Restores what the dialog displaced: menu visibility and focus on the buffer.
 local function restore_content()
 	if not shared.session_is_open() then
 		return
 	end
+	-- Dropping the question changes how much room the body has; a repaint alone leaves the body
+	-- sitting below the gap it left (body is sized by what's above it).
 	-- Only needed here: Save and Discard go on to tear the poppy down (that path remounts).
-	relayout()
+	if not (shared.opts_field("menu_autohide") and state.windows.hidden) then
+		view.mount(state.windows.wrapper_win)
+	end
 	-- Mirror the tail of a real selection so autohide settles the same way.
 	if shared.opts_field("menu_autohide") then
 		view.set_visible(false, state.windows.content_win)

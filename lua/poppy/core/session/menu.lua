@@ -142,10 +142,14 @@ M.legend_height = function(hints)
 	return #hints + 2
 end
 
----Session required lazily inside each closure to keep the cycle open.
+---Session required lazily at call time to keep the cycle open.
+---@type table
+local session = nil
+
 ---@param cfg table One of M.LANDING / M.SIDEBAR.
 ---@return PoppyMenuSpec
 M.spec_poppy_list = function(cfg)
+	session = session or require("poppy.core.session")
 	return normalize({
 		id = "poppy_list",
 		width = cfg.width_source == "wrapper" and "content" or "declared",
@@ -156,7 +160,6 @@ M.spec_poppy_list = function(cfg)
 		hints = cfg.hints or M.HINTS.body,
 		keymaps = {
 			{ "select", "Select", function()
-				local session = require("poppy.core.session")
 				if vim.v.count > 0 then
 					session.switch_by_index(vim.v.count)
 				else
@@ -164,7 +167,6 @@ M.spec_poppy_list = function(cfg)
 				end
 			end },
 			{ "kill", "Kill", function()
-				local session = require("poppy.core.session")
 				if vim.v.count > 0 then
 					session.kill_by_index(vim.v.count)
 				else

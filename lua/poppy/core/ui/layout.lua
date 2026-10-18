@@ -52,6 +52,14 @@ M.landing_min_width = function(opts, poppies)
 end
 
 ---@param opts? PoppyMergedConfig
+---@param poppies {name: string, config: PoppyResolvedConfig}[]
+---@param vim_cols integer
+---@return integer
+M.landing_width = function(opts, poppies, vim_cols)
+	return math.min(M.landing_min_width(opts, poppies), vim_cols)
+end
+
+---@param opts? PoppyMergedConfig
 ---@return integer
 M.get_header_height = function(opts)
 	return (opts and opts.title_header ~= false) and HEADER_HEIGHT or 0
