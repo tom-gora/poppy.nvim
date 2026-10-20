@@ -5,6 +5,8 @@ local M = {}
 ---@class PoppyState
 ---@field wrapper_win integer|nil
 ---@field wrapper_buf integer|nil
+---@field menu_wrapper_win integer|nil Inner container for menu/hints/menu_header. Sized to match the panel area; bordered only when experimental.borders is set.
+---@field menu_wrapper_buf integer|nil
 ---@field content_win integer|nil
 ---@field content_buf integer|nil
 ---@field menu_hint_win integer|nil
@@ -31,6 +33,8 @@ M.default_state = function()
 	return {
 		wrapper_win = nil,
 		wrapper_buf = nil,
+		menu_wrapper_win = nil,
+		menu_wrapper_buf = nil,
 		content_win = nil,
 		content_buf = nil,
 		menu_hint_win = nil,

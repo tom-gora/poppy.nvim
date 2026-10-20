@@ -176,7 +176,6 @@ M.drop_scratch_buffer = function(buf)
 	return true
 end
 
-
 local WIN_MARKER = "poppy_window"
 
 ---@param win integer
@@ -226,6 +225,5 @@ M.drop_poppy = function(name, reason)
 	end
 	return was_active
 end
-
 
 return M

@@ -13,6 +13,80 @@ local shared = require("poppy.core.shared")
 
 M.wrapper = {}
 M.content = {}
+M.menu_wrapper = {}
+
+-- Read once per mount. Reads opts each call so toggling experimental.borders at
+-- setup() takes effect on the next mount without rebuilding this module.
+local function is_borders()
+	return state.windows.opts and state.windows.opts.experimental and state.windows.opts.experimental.borders or false
+end
+
+---@param wrapper_win integer
+---@param panel_w integer Width of the panel content area (sidebar mw or full wrapper width in landing).
+---@param panel_h integer Height of the panel content area (full wrapper height).
+---@return integer? win
+---@return integer? buf
+M.menu_wrapper.create = function(wrapper_win, panel_w, panel_h)
+	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
+	local bordered = is_borders()
+	-- Bordered mode: content is panel_w/panel_h minus 1 on each side (border takes a cell
+	-- each), so the visual extent (content + 2) fits exactly inside the wrapper.
+	local outer_w = bordered and panel_w or panel_w
+	local outer_h = bordered and (panel_h - 2) or panel_h
+	-- Borders occupy the outer cells, content starts 1 cell inside.
+	local outer_col_offset = bordered and 0 or 0
+	local outer_row_offset = bordered and 0 or 0
+
+	local buf = api.nvim_create_buf(false, true)
+	local win = api.nvim_open_win(buf, false, {
+		relative = "win",
+		win = wrapper_win,
+		width = outer_w,
+		height = outer_h,
+		col = wrapper_conf.width - panel_w + outer_col_offset,
+		row = outer_row_offset,
+		style = "minimal",
+		border = bordered and "rounded" or "none",
+		zindex = layout.POPPY_Z_INDEX,
+		focusable = false,
+	})
+	style.apply_panel_style(win)
+	shared.apply_win_marker(win)
+	return win, buf
+end
+
+M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)
+	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
+	local bordered = is_borders()
+	local outer_w = bordered and panel_w or panel_w
+	local outer_h = bordered and (panel_h - 2) or panel_h
+	local outer_col_offset = bordered and 0 or 0
+	local outer_row_offset = bordered and 0 or 0
+
+	local win = api.nvim_open_win(buf, false, {
+		relative = "win",
+		win = wrapper_win,
+		width = outer_w,
+		height = outer_h,
+		col = wrapper_conf.width - panel_w + outer_col_offset,
+		row = outer_row_offset,
+		style = "minimal",
+		border = bordered and "rounded" or "none",
+		zindex = layout.POPPY_Z_INDEX,
+		focusable = false,
+	})
+	style.apply_panel_style(win)
+	shared.apply_win_marker(win)
+	return win
+end
+
+M.menu_wrapper.ensure = function(buf, wrapper_win, panel_w, panel_h)
+	if buf and api.nvim_buf_is_valid(buf) then
+		return M.menu_wrapper.recreate(wrapper_win, buf, panel_w, panel_h), buf
+	end
+	local win, wbuf = M.menu_wrapper.create(wrapper_win, panel_w, panel_h)
+	return win, wbuf
+end
 
 ---@param buf integer
 ---@param poppy_opts? PoppyMergedConfig
@@ -117,10 +191,12 @@ local close_all_panels = function()
 	close_panel(state.windows.menu_win)
 	close_panel(state.windows.menu_header_win)
 	close_panel(state.windows.header_win)
+	close_panel(state.windows.menu_wrapper_win)
 	state.windows.hints_win = nil
 	state.windows.menu_win = nil
 	state.windows.menu_header_win = nil
 	state.windows.header_win = nil
+	state.windows.menu_wrapper_win = nil
 end
 
 ---@param win integer|nil
@@ -192,11 +268,7 @@ local warned_widths = {}
 ---@param wrapper_width? integer
 ---@return integer
 local menu_width = function(wrapper_width)
-	local declared = layout.evaluate_dimension(
-		shared.opts_field("menu_width"),
-		layout.DEFAULT_MENU_WIDTH,
-		"menu_width"
-	)
+	local declared = layout.evaluate_dimension(shared.opts_field("menu_width"), layout.DEFAULT_MENU_WIDTH, "menu_width")
 	-- Floor at 1: 0 or negative passes evaluate_dimension, and nvim_open_win rejects it.
 	local w = math.max(1, declared)
 
@@ -263,6 +335,7 @@ local mount_panels = function(wrapper_win)
 	local hint_geom = is_sidebar and GEOMETRY.sidebar or GEOMETRY.landing
 
 	local panel_w = is_sidebar and mw or wc.width
+	local panel_h = wc.height
 
 	local menu = menu_ui.current_spec()
 	local legend_h = menu_ui.legend_height(menu.hints)
@@ -271,16 +344,31 @@ local mount_panels = function(wrapper_win)
 	local q_lines, q_h = menu_ui.menu_header_lines(menu, panel_w)
 	local above_body = hh + q_h
 
-	ensure_panel("menu_buf", "menu_win", function()
-		return render.body.create(wrapper_win, panel_w, cfg.focusable, effective_legend_h, above_body)
+	-- menu_wrapper sits behind the panel area as a quiet sizing container in
+	-- borderless mode, and grows a rounded border in bordered mode (with sub-
+	-- panels inset 1 cell via render.lua's border_inset()).
+	ensure_panel("menu_wrapper_buf", "menu_wrapper_win", function()
+		return M.menu_wrapper.create(wrapper_win, panel_w, panel_h)
 	end, function(buf)
-		return render.body.recreate(wrapper_win, buf, panel_w, cfg.focusable, effective_legend_h, above_body)
+		return M.menu_wrapper.recreate(wrapper_win, buf, panel_w, panel_h)
+	end)
+
+	local menu_wrapper = state.windows.menu_wrapper_win
+	if not menu_wrapper or not api.nvim_win_is_valid(menu_wrapper) then
+		-- Without a menu_wrapper the sub-panels have nothing to anchor to.
+		return
+	end
+
+	ensure_panel("menu_buf", "menu_win", function()
+		return render.body.create(menu_wrapper, panel_w, cfg.focusable, effective_legend_h, above_body)
+	end, function(buf)
+		return render.body.recreate(menu_wrapper, buf, panel_w, cfg.focusable, effective_legend_h, above_body)
 	end)
 
 	ensure_panel("hints_buf", "hints_win", function()
-		return render.hints.create(wrapper_win, hint_geom(wc, mw, #menu.hints))
+		return render.hints.create(menu_wrapper, hint_geom(wc, mw, #menu.hints))
 	end, function(buf)
-		return render.hints.recreate(wrapper_win, buf, hint_geom(wc, mw, #menu.hints))
+		return render.hints.recreate(menu_wrapper, buf, hint_geom(wc, mw, #menu.hints))
 	end, not hints_on)
 
 	-- focusable = false on the question panel: cursor stays in the answers buffer.
@@ -297,7 +385,7 @@ local mount_panels = function(wrapper_win)
 		-- menu_header_buf sits directly below the header in the fixed stack order.
 		local q_row = hh
 		ensure_panel("menu_header_buf", "menu_header_win", function()
-			local win, buf = render.body.create_plain(wrapper_win, panel_w, q_h, q_row)
+			local win, buf = render.body.create_plain(menu_wrapper, panel_w, q_h, q_row)
 			vim.wo[win].wrap = true
 			vim.wo[win].linebreak = true
 			shared.with_modifiable(buf, function()
@@ -305,23 +393,28 @@ local mount_panels = function(wrapper_win)
 			end)
 			return win, buf
 		end, function(buf)
-			return render.body.recreate_plain(wrapper_win, buf, panel_w, q_h, q_row)
+			return render.body.recreate_plain(menu_wrapper, buf, panel_w, q_h, q_row)
 		end)
 	end
 
-	local header_fn = is_sidebar and GEOMETRY.sidebar_header or GEOMETRY.landing_header
-	local header_w, header_col = header_fn(wc, mw)
+	-- Header is anchored to menu_wrapper so it sits inside the rounded border along with
+	-- the rest of the panel stack; render.lua handles the inset based on experimental.borders.
 	ensure_panel("header_buf", "header_win", function()
-		return render.header.create(wrapper_win, header_w, header_col)
+		return render.header.create(menu_wrapper)
 	end, function(buf)
-		return render.header.recreate(wrapper_win, buf, header_w, header_col)
+		return render.header.recreate(menu_wrapper, buf)
 	end, hh == 0)
 
 	-- First-show under autohide would otherwise be stale (kill-then-show).
 	if valid_buf(state.windows.menu_buf) then
-		render.body.paint_items(state.windows.menu_buf, render.rowset(menu, panel_w))
+		local inset = state.windows.opts
+				and state.windows.opts.experimental
+				and state.windows.opts.experimental.borders
+				and 1
+			or 0
+		render.body.paint_items(state.windows.menu_buf, render.rowset(menu, panel_w - inset))
 		if valid_buf(state.windows.hints_buf) then
-			render.hints.write_spec(state.windows.hints_buf, shared.keys(), menu.hints, panel_w)
+			render.hints.write_spec(state.windows.hints_buf, shared.keys(), menu.hints, panel_w - inset)
 		end
 		-- Bind only on focusable bodies; get_keymap would still report bindings as claimed on an unfocusable one.
 		if cfg.focusable then
@@ -356,7 +449,7 @@ M.set_visible = function(visible, content_win)
 	if not api.nvim_win_is_valid(wrapper_win) then
 		return
 	end
-	if state.windows.hidden == (not visible) then
+	if state.windows.hidden == not visible then
 		return
 	end
 
@@ -421,6 +514,11 @@ M.get_header_buf = function()
 	return state.windows.header_buf
 end
 
+---@return integer|nil
+M.get_menu_wrapper_buf = function()
+	return state.windows.menu_wrapper_buf
+end
+
 M.menu_width = menu_width
 
 M.refresh_poppies = function()
@@ -436,8 +534,13 @@ M.refresh_poppies = function()
 	if not valid_buf(state.windows.menu_buf) then
 		return
 	end
+	local inset = state.windows.opts
+			and state.windows.opts.experimental
+			and state.windows.opts.experimental.borders
+			and 1
+		or 0
 	local menu = menu_ui.current_spec()
-	render.body.paint_items(state.windows.menu_buf, render.rowset(menu, width))
+	render.body.paint_items(state.windows.menu_buf, render.rowset(menu, width - inset))
 end
 
 M.setup_style = style.setup

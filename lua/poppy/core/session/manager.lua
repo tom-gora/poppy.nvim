@@ -126,6 +126,7 @@ local cleanup = function(drop_poppies)
 			view.get_menu_buf(),
 			view.get_menu_header_buf(),
 			view.get_header_buf(),
+			view.get_menu_wrapper_buf(),
 			hint_buf,
 		}) do
 			if buf and api.nvim_buf_is_valid(buf) and not in_use[buf] then
@@ -136,6 +137,7 @@ local cleanup = function(drop_poppies)
 		state.windows.wrapper_win = nil
 		state.windows.content_win = nil
 		state.windows.content_buf = nil
+		state.windows.menu_wrapper_buf = nil
 		state.windows.is_landing = false
 	end)
 	if not ok then

@@ -26,40 +26,52 @@ local TITLE_MARK = 1
 local DOT_MARK = 2
 local header = {}
 
----@param wrapper_win integer
----@param width_override? integer
----@param col_override? integer
----@return integer? win
----@return integer? buf
-header.create = function(wrapper_win, width_override, col_override)
-	local buf = create_buf()
-	return header.recreate(wrapper_win, buf, width_override, col_override), buf
+-- 1 when experimental.borders is on, 0 otherwise. In bordered mode sub-panels anchored to
+-- menu_wrapper inset by 1 on every side so they sit inside the rounded border instead of
+-- overlapping it. Read once per call rather than threading an arg.
+local function border_inset()
+	return state.windows.opts and state.windows.opts.experimental and state.windows.opts.experimental.borders and 1 or 0
 end
 
----@param wrapper_win integer
----@param buf integer
----@param width_override? integer
----@param col_override? integer
+---@param menu_wrapper_win integer
 ---@return integer? win
-header.recreate = function(wrapper_win, buf, width_override, col_override)
-	local wc = api.nvim_win_get_config(wrapper_win)
-	local width = width_override or wc.width
-	local col = col_override or 0
+---@return integer? buf
+header.create = function(menu_wrapper_win)
+	local buf = create_buf()
+	return header.recreate(menu_wrapper_win, buf), buf
+end
 
-	-- header window: title bar (POPPY.NVIM) sitting above the sidebar in landing view,
-	-- or as a corner badge above the sidebar in content view.
+---Header is anchored to menu_wrapper. Always NW at (inset, inset), spanning the full
+---inner width minus inset. In borderless mode inset = 0 so it sits flush with the
+---panel; in bordered mode inset = 1 so it sits inside the rounded border.
+---@param menu_wrapper_win integer
+---@param buf integer
+---@return integer? win
+header.recreate = function(menu_wrapper_win, buf)
+	local wc = api.nvim_win_get_config(menu_wrapper_win)
+	local inset = border_inset()
+	-- Inset 1 on left (clear of border), 2 on right (border + breathing room for visual balance).
+	local width = wc.width - 2 * inset
+	local col = inset
+	-- Anchor flush against the inside of the top border (no extra padding row); the buffer's
+	-- leading empty line already provides the visual gap below the border.
+	local row = 0
+
+	-- header window: title bar (POPPY.NVIM) sitting above the sidebar.
+	-- zindex +1 above menu_wrapper so the title draws over the bordered panel area
+	-- (without it, the menu_wrapper's same-z layer covers the header).
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
 		width = width,
-		height = 3,
+		height = 2,
 		col = col,
-		row = 0,
+		row = row + ((inset == 0) and 1 or 0),
 		style = "minimal",
 		border = "none",
 		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
-		win = wrapper_win,
+		win = menu_wrapper_win,
 	}
 
 	local win = api.nvim_open_win(buf, false, config)
@@ -74,7 +86,7 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 
 	shared.with_modifiable(buf, function()
 		api.nvim_buf_clear_namespace(buf, header_ns, 0, -1)
-		api.nvim_buf_set_lines(buf, 0, -1, false, { "", title_line, sep })
+		api.nvim_buf_set_lines(buf, 0, -1, false, { title_line, sep })
 	end)
 
 	---@type vim.api.keyset.set_extmark
@@ -91,7 +103,7 @@ header.recreate = function(wrapper_win, buf, width_override, col_override)
 		end_col = dot_byte_end,
 		hl_group = "PoppyRed",
 	}
-	api.nvim_buf_set_extmark(buf, header_ns, 1, dot_byte_col, vim.tbl_extend("force", dot_extmark, { id = DOT_MARK }))
+	api.nvim_buf_set_extmark(buf, header_ns, 0, dot_byte_col, vim.tbl_extend("force", dot_extmark, { id = DOT_MARK }))
 	return win
 end
 
@@ -175,26 +187,33 @@ end
 ---@return integer? win
 body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
+	local inset = border_inset()
+	local inset_inv = inset == 0 and 1 or 0
 	local hint_offset = hint_height or 5
-	local height = math.max(1, wrapper_conf.height - hint_offset)
-	-- `row_override` is the dialog question panel: it sits above the body regardless of header.
-	local has_question = row_override and row_override > 0
+	-- In bordered mode, body is anchored to menu_wrapper below the header. Available rows
+	-- = menu_wrapper content height - 3 (header) - hints_height. Subtract row_override for
+	-- a dialog question panel above the body.
 	local header_h = layout.get_header_height(state.windows.opts)
-	local no_header = header_h == 0 and not has_question
-	local anchor = no_header and "NW" or "SE"
-	local row = no_header and 0 or (wrapper_conf.height - hint_offset)
+	local has_question = row_override and row_override > 0
+	local available = wrapper_conf.height - (inset == 1 and (header_h + hint_offset + 2 * inset) or hint_offset)
 	if has_question then
-		height = math.max(1, height - row_override)
+		available = math.max(1, available - row_override)
 	end
+	local width = menu_width - inset
+	local height = tonumber(math.max(1, available - inset))
+	local no_header = header_h == 0 and not has_question
+	local row = no_header and inset_inv or header_h - inset
 
 	-- body window: the sidebar list (poppy rows) — or dialog rows under an override.
+	-- In bordered mode, inset 1 on the left and 2 on the right for visual balance with the rounded border.
+	-- In borderless mode, anchor SE so the body sits flush against the right edge of menu_wrapper.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
-		width = menu_width,
+		width = width,
 		height = height,
-		anchor = anchor,
-		col = wrapper_conf.width,
+		anchor = "NE",
+		col = wrapper_conf.width - inset,
 		row = row,
 		style = "minimal",
 		border = "none",
@@ -503,14 +522,15 @@ end
 ---@return integer? win
 body.recreate_plain = function(wrapper_win, buf, width, height, row)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local h = math.max(1, height)
+	local inset = border_inset()
+	local h = math.max(1, height - inset)
 	local config = {
 		relative = "win",
 		win = wrapper_win,
 		anchor = "SE",
 		row = row + h,
-		col = wrapper_conf.width,
-		width = width,
+		col = wrapper_conf.width - inset,
+		width = width - inset,
 		height = h,
 		style = "minimal",
 		border = "none",
@@ -586,7 +606,7 @@ hints.create_bottom_right = function(parent_win, keys)
 		border = "none",
 		zindex = layout.POPPY_Z_INDEX + 1,
 		focusable = false,
-		win = parent_win,
+		rent_win,
 	}
 
 	local win = api.nvim_open_win(buf, false, config)
@@ -608,24 +628,24 @@ end
 hints.recreate = function(wrapper_win, buf, opts)
 	opts = opts or {}
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local col = opts.col or wrapper_conf.width
-	local row = (opts.row or wrapper_conf.height) + (opts.row_offset or 0)
-	local width = opts.width or wrapper_conf.width
+	local inset = border_inset()
+	local width = (opts.width or wrapper_conf.width) - inset
 	-- Separator and trailing blank are added to `height` below.
 	local height = opts.height or #(opts.hints or {})
 
 	-- hints window: the key-binding legend at the bottom of the sidebar (or below the body).
+	-- SW anchor: row=0 puts SW at parent NW; row=parent.height-1 puts SW at parent's bottom.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
-		width = width,
+		width = width - inset,
 		height = height + 2,
-		col = col,
-		row = row,
+		col = wrapper_conf.width - 2 * inset,
+		row = wrapper_conf.height,
 		anchor = "SE",
 		style = "minimal",
 		border = "none",
-		zindex = layout.POPPY_Z_INDEX + 1,
+		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
 		win = wrapper_win,
 	}
@@ -645,7 +665,7 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	if not keys or not spec then
 		return
 	end
-	local sep = " " .. string.rep("─", math.max(0, wrapper_width - #INDENT)) .. " "
+	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - #INDENT)) .. " "
 	local lines = { sep }
 
 	for _, kp in ipairs(spec) do

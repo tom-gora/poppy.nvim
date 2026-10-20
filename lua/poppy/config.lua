@@ -194,6 +194,7 @@ M.merge = function(user_opts)
 		"win_height",
 		"win_width",
 		"win_location",
+		"experimental",
 	}
 	local known_set = {}
 	for _, name in ipairs(known_top) do
@@ -295,6 +296,7 @@ M.merge = function(user_opts)
 		poppies = poppies,
 		poppies_resolved = poppies_resolved,
 		dropped_names = dropped_names,
+		experimental = merged.experimental,
 	}
 end
 

@@ -33,6 +33,7 @@
 ---@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute columns/lines (>1), or function returning same. Default: 0.8
 ---@field win_location? "center"|"top"|"bottom" # Vertical position of the wrapper. Default: "center"
 ---@field poppies? table<string, PoppyItemConfig>
+---@field experimental? { borders?: boolean } # WIP: opt-in to new bordered UI work. Default: { borders = false }.
 
 ---@class PoppyMergedConfig
 ---@field keys PoppyKeys
