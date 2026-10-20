@@ -14,7 +14,7 @@ local INDENT = "  "
 local KEY_COL = 5
 local COL_GAP = "  "
 
-local function create_buf()
+local function create_unmodifiable_buf()
 	local buf = api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
 	return buf
@@ -37,7 +37,7 @@ end
 ---@return integer? win
 ---@return integer? buf
 header.create = function(menu_wrapper_win)
-	local buf = create_buf()
+	local buf = create_unmodifiable_buf()
 	return header.recreate(menu_wrapper_win, buf), buf
 end
 
@@ -151,7 +151,7 @@ end
 ---@return integer? win
 ---@return integer? buf
 body.create = function(wrapper_win, menu_width, focusable, hint_height, row_override)
-	local buf = create_buf()
+	local buf = create_unmodifiable_buf()
 	api.nvim_clear_autocmds({ group = body_autocmd_group, buffer = buf })
 	api.nvim_create_autocmd("InsertEnter", {
 		group = body_autocmd_group,
@@ -561,7 +561,7 @@ end
 ---@return integer? win
 ---@return integer buf
 body.create_plain = function(wrapper_win, width, height, row)
-	local buf = create_buf()
+	local buf = create_unmodifiable_buf()
 	return body.recreate_plain(wrapper_win, buf, width, height, row), buf
 end
 
@@ -583,7 +583,7 @@ local hints = {}
 ---@return integer? buf
 hints.create = function(wrapper_win, opts)
 	opts = opts or {}
-	local buf = create_buf()
+	local buf = create_unmodifiable_buf()
 	return hints.recreate(wrapper_win, buf, opts), buf
 end
 
@@ -592,7 +592,7 @@ end
 ---@return integer? win
 ---@return integer? buf
 hints.create_bottom_right = function(parent_win, keys)
-	local buf = create_buf()
+	local buf = create_unmodifiable_buf()
 	if not keys then
 		return nil, buf
 	end
@@ -640,7 +640,7 @@ hints.recreate = function(wrapper_win, buf, opts)
 	local inset = border_inset()
 	local width = (opts.width or wrapper_conf.width) - inset
 	-- Separator and trailing blank are added to `height` below.
-	local height = opts.height or #(opts.hints or {})
+	local height = opts.height + 2 or #(opts.hints or {}) + 2
 
 	-- hints window: the key-binding legend at the bottom of the sidebar (or below the body).
 	-- SW anchor: row=0 puts SW at parent NW; row=parent.height-1 puts SW at parent's bottom.
@@ -648,8 +648,8 @@ hints.recreate = function(wrapper_win, buf, opts)
 	local config = {
 		relative = "win",
 		width = width - inset,
-		height = height + 2,
-		col = wrapper_conf.width - 2 * inset,
+		height = height,
+		col = wrapper_conf.width - inset,
 		row = wrapper_conf.height,
 		anchor = "SE",
 		style = "minimal",
@@ -674,7 +674,7 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	if not keys or not spec then
 		return
 	end
-	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - #INDENT)) .. " "
+	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - (#INDENT + 2)))
 	local lines = { sep }
 
 	for _, kp in ipairs(spec) do
