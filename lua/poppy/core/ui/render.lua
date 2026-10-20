@@ -24,6 +24,7 @@ local header_ns = api.nvim_create_namespace("poppy_header_panel")
 -- Stable ids so re-renders replace rather than accumulate.
 local TITLE_MARK = 1
 local DOT_MARK = 2
+local SEP_MARK = 3
 local header = {}
 
 -- 1 when experimental.borders is on, 0 otherwise. In bordered mode sub-panels anchored to
@@ -92,6 +93,10 @@ header.recreate = function(menu_wrapper_win, buf)
 	---@type vim.api.keyset.set_extmark
 	local title_extmark = { end_col = #title_line, hl_group = "NormalPoppyUIPanel" }
 	api.nvim_buf_set_extmark(buf, header_ns, 1, 0, vim.tbl_extend("force", title_extmark, { id = TITLE_MARK }))
+
+	---@type vim.api.keyset.set_extmark
+	local sep_extmark = { end_col = #sep, hl_group = "PoppySeparator" }
+	api.nvim_buf_set_extmark(buf, header_ns, 1, 0, vim.tbl_extend("force", sep_extmark, { id = SEP_MARK }))
 
 	-- ◉ is 3-byte UTF-8; resolve display col to byte offset before setting the extmark.
 	-- title_col is a number; "5P" would concatenate to "5P" and resolve to col 2.
@@ -575,6 +580,7 @@ local fmt_hint = function(key, label, indent)
 	return hint_line(key, label, indent)
 end
 
+local hints_ns = api.nvim_create_namespace("poppy_hints_panel")
 local hints = {}
 
 ---@param wrapper_win integer
@@ -687,6 +693,11 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	shared.with_modifiable(buf, function()
 		api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	end)
+
+	api.nvim_buf_clear_namespace(buf, hints_ns, 0, -1)
+	---@type vim.api.keyset.set_extmark
+	local sep_extmark = { end_row = 1, hl_group = "PoppySeparator" }
+	api.nvim_buf_set_extmark(buf, hints_ns, 0, 0, sep_extmark)
 end
 
 M.hints = hints
