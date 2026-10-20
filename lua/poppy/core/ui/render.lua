@@ -10,7 +10,7 @@ local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 
 -- Hint line geometry, shared with layout.lua's width measurements.
-local INDENT = "  "
+local INDENT = "   "
 local KEY_COL = 5
 local COL_GAP = "  "
 
@@ -82,7 +82,7 @@ header.recreate = function(menu_wrapper_win, buf)
 	local title = "P◉PPY.NVIM"
 	local title_w = fn.strdisplaywidth(title)
 	local title_col = math.max(0, math.floor((width - title_w) / 2))
-	local sep = " " .. string.rep("─", width - 2) .. " "
+	local sep = "  " .. string.rep("─", width - 4) .. "  "
 	local title_line = string.rep(" ", title_col) .. title
 
 	shared.with_modifiable(buf, function()
@@ -685,9 +685,12 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 
 	for _, kp in ipairs(spec) do
 		local hint_text = fmt_hint(keys[kp[1]], kp[2], INDENT)
+
+		local trimmed_hint = string.gsub(hint_text, "%s*$", "")
+
 		table.insert(
 			lines,
-			string.gsub(hint_text, "^%s*(.-)%s*$", "%1") .. string.rep(" ", math.max(1, wrapper_width - vim.fn.strdisplaywidth(hint_text)))
+			trimmed_hint .. string.rep(" ", math.max(1, wrapper_width - vim.fn.strdisplaywidth(trimmed_hint)))
 		)
 	end
 
