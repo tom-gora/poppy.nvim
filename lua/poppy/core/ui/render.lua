@@ -193,16 +193,25 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	-- In bordered mode, body is anchored to menu_wrapper below the header. Available rows
 	-- = menu_wrapper content height - 3 (header) - hints_height. Subtract row_override for
 	-- a dialog question panel above the body.
-	local header_h = layout.get_header_height(state.windows.opts)
+	local header_offset = layout.get_header_height(state.windows.opts)
 	local has_question = row_override and row_override > 0
-	local available = wrapper_conf.height - (inset == 1 and (header_h + hint_offset + 2 * inset) or hint_offset)
+	local no_header = header_offset == 0 and not has_question
+	local no_hints = shared.opts_field("hints_footer") ~= true
+	-- MAGIC IF BLOCK DO NOT TOUCH!
+	local available = wrapper_conf.height - hint_offset + (2 * inset)
+	if no_header and not no_hints then
+		available = available - inset_inv - inset
+	elseif no_hints and not no_header then
+		available = available + hint_offset
+	elseif no_header and no_hints then
+		available = wrapper_conf.height + (hint_offset + header_offset) - inset_inv + inset
+	end
 	if has_question then
 		available = math.max(1, available - row_override)
 	end
 	local width = menu_width - inset
 	local height = tonumber(math.max(1, available - inset))
-	local no_header = header_h == 0 and not has_question
-	local row = no_header and inset_inv or header_h - inset
+	local row = no_header and inset_inv or header_offset - inset
 
 	-- body window: the sidebar list (poppy rows) — or dialog rows under an override.
 	-- In bordered mode, inset 1 on the left and 2 on the right for visual balance with the rounded border.
@@ -604,7 +613,7 @@ hints.create_bottom_right = function(parent_win, keys)
 		anchor = "SE",
 		style = "minimal",
 		border = "none",
-		zindex = layout.POPPY_Z_INDEX + 1,
+		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
 		rent_win,
 	}
