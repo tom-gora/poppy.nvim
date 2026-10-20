@@ -15,10 +15,10 @@ M.wrapper = {}
 M.content = {}
 M.menu_wrapper = {}
 
--- Read once per mount. Reads opts each call so toggling experimental.borders at
--- setup() takes effect on the next mount without rebuilding this module.
+-- Read once per mount. Reads opts each call so toggling border at setup() takes effect on
+-- the next mount without rebuilding this module.
 local function is_borders()
-	return state.windows.opts and state.windows.opts.experimental and state.windows.opts.experimental.borders or false
+	return state.windows.opts and state.windows.opts.use_borders or false
 end
 
 ---@param wrapper_win integer
@@ -46,7 +46,7 @@ M.menu_wrapper.create = function(wrapper_win, panel_w, panel_h)
 		col = wrapper_conf.width - panel_w + outer_col_offset,
 		row = outer_row_offset,
 		style = "minimal",
-		border = bordered and "rounded" or "none",
+		border = state.windows.opts.border_style,
 		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
 	})
@@ -71,7 +71,7 @@ M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)
 		col = wrapper_conf.width - panel_w + outer_col_offset,
 		row = outer_row_offset,
 		style = "minimal",
-		border = bordered and "rounded" or "none",
+		border = state.windows.opts.border_style,
 		zindex = layout.POPPY_Z_INDEX,
 		focusable = false,
 	})
@@ -159,7 +159,7 @@ M.content.create = function(wrapper_win, list_panel_width)
 		col = 0,
 		row = 0,
 		style = "minimal",
-		border = "solid",
+		border = state.windows.opts.use_borders and state.windows.opts.border_style or "solid",
 		zindex = layout.POPPY_Z_INDEX,
 		focusable = true,
 		win = wrapper_win,
@@ -398,7 +398,7 @@ local mount_panels = function(wrapper_win)
 	end
 
 	-- Header is anchored to menu_wrapper so it sits inside the rounded border along with
-	-- the rest of the panel stack; render.lua handles the inset based on experimental.borders.
+	-- the rest of the panel stack; render.lua handles the inset based on opts.use_borders.
 	ensure_panel("header_buf", "header_win", function()
 		return render.header.create(menu_wrapper)
 	end, function(buf)
@@ -407,11 +407,7 @@ local mount_panels = function(wrapper_win)
 
 	-- First-show under autohide would otherwise be stale (kill-then-show).
 	if valid_buf(state.windows.menu_buf) then
-		local inset = state.windows.opts
-				and state.windows.opts.experimental
-				and state.windows.opts.experimental.borders
-				and 1
-			or 0
+		local inset = is_borders() and 1 or 0
 		render.body.paint_items(state.windows.menu_buf, render.rowset(menu, panel_w - inset))
 		if valid_buf(state.windows.hints_buf) then
 			render.hints.write_spec(state.windows.hints_buf, shared.keys(), menu.hints, panel_w - inset)
@@ -534,11 +530,7 @@ M.refresh_poppies = function()
 	if not valid_buf(state.windows.menu_buf) then
 		return
 	end
-	local inset = state.windows.opts
-			and state.windows.opts.experimental
-			and state.windows.opts.experimental.borders
-			and 1
-		or 0
+	local inset = is_borders() and 1 or 0
 	local menu = menu_ui.current_spec()
 	render.body.paint_items(state.windows.menu_buf, render.rowset(menu, width - inset))
 end

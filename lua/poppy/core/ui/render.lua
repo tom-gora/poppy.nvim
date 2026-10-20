@@ -27,11 +27,11 @@ local DOT_MARK = 2
 local SEP_MARK = 3
 local header = {}
 
--- 1 when experimental.borders is on, 0 otherwise. In bordered mode sub-panels anchored to
--- menu_wrapper inset by 1 on every side so they sit inside the rounded border instead of
+-- 1 when opts.use_borders is on, 0 otherwise. In bordered mode sub-panels anchored to
+-- menu_wrapper inset by 1 on every side so they sit inside the border instead of
 -- overlapping it. Read once per call rather than threading an arg.
 local function border_inset()
-	return state.windows.opts and state.windows.opts.experimental and state.windows.opts.experimental.borders and 1 or 0
+	return state.windows.opts and state.windows.opts.use_borders and 1 or 0
 end
 
 ---@param menu_wrapper_win integer
@@ -272,16 +272,16 @@ M.measure_item = function(idx_width, label)
 end
 
 -- One hint line: indent + key padded to KEY_COL + gap + label + trailing space.
-local hint_line = function(key, label, indent)
+local fmt_hint = function(key, label)
 	local padded = key .. string.rep(" ", math.max(0, KEY_COL - #key))
-	return indent .. padded .. COL_GAP .. label .. " "
+	return INDENT .. padded .. COL_GAP .. label .. " "
 end
 
 ---@param key string
 ---@param label string
 ---@return integer
 M.measure_hint_line = function(key, label)
-	return fn.strdisplaywidth(hint_line(key, label, INDENT))
+	return fn.strdisplaywidth(fmt_hint(key, label))
 end
 
 ---Used by fit_text and wrap_text for the single-overlong-token case.
@@ -572,14 +572,6 @@ end
 
 M.body = body
 
----@param key string
----@param label string
----@param indent string
----@return string
-local fmt_hint = function(key, label, indent)
-	return hint_line(key, label, indent)
-end
-
 local hints_ns = api.nvim_create_namespace("poppy_hints_panel")
 local hints = {}
 
@@ -646,14 +638,14 @@ hints.recreate = function(wrapper_win, buf, opts)
 	local inset = border_inset()
 	local width = (opts.width or wrapper_conf.width) - inset
 	-- Separator and trailing blank are added to `height` below.
-	local height = opts.height + 2 or #(opts.hints or {}) + 2
+	local height = (opts.height or #opts.hints) + 2
 
 	-- hints window: the key-binding legend at the bottom of the sidebar (or below the body).
 	-- SW anchor: row=0 puts SW at parent NW; row=parent.height-1 puts SW at parent's bottom.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
-		width = width - inset,
+		width = width,
 		height = height,
 		col = wrapper_conf.width - inset,
 		row = wrapper_conf.height,
@@ -680,18 +672,14 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	if not keys or not spec then
 		return
 	end
-	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - (#INDENT + 2)))
+	local inset = border_inset()
+	local inset_inv = inset == 0 and 1 or 0
+	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - (4 - inset))) .. "  "
 	local lines = { sep }
 
 	for _, kp in ipairs(spec) do
-		local hint_text = fmt_hint(keys[kp[1]], kp[2], INDENT)
-
-		local trimmed_hint = string.gsub(hint_text, "%s*$", "")
-
-		table.insert(
-			lines,
-			trimmed_hint .. string.rep(" ", math.max(1, wrapper_width - vim.fn.strdisplaywidth(trimmed_hint)))
-		)
+		local hint_text = fmt_hint(keys[kp[1]], kp[2])
+		table.insert(lines, hint_text .. string.rep(" ", math.max(1, wrapper_width - #hint_text)))
 	end
 
 	table.insert(lines, " ")

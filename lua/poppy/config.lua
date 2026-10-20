@@ -194,7 +194,7 @@ M.merge = function(user_opts)
 		"win_height",
 		"win_width",
 		"win_location",
-		"experimental",
+		"border",
 	}
 	local known_set = {}
 	for _, name in ipairs(known_top) do
@@ -280,6 +280,54 @@ M.merge = function(user_opts)
 		end
 	end
 
+	local function classify_border(v, borderless_style)
+		if type(v) == "string" then
+			if v == "none" or v == "solid" then
+				return false, borderless_style
+			end
+			if v == "single" or v == "double" or v == "rounded" or v == "shadow" then
+				return true, v
+			end
+			return nil, nil
+		end
+		if type(v) == "table" and #v >= 1 and type(v[1]) == "string" then
+			local head = v[1]
+			if head == "none" or head == "solid" then
+				return false, borderless_style
+			end
+			if head == "single" or head == "double" or head == "rounded" or head == "shadow" then
+				return true, head
+			end
+			return true, v
+		end
+		return nil, nil
+	end
+
+	local function resolve_border(user_border, borderless_style, fallback_warn)
+		if user_border ~= nil then
+			local use, style = classify_border(user_border, borderless_style)
+			if use ~= nil then
+				return use, style
+			end
+			shared.notify_warn("invalid border %s; falling back to winborder", vim.inspect(user_border))
+		end
+
+		local ok, wb = pcall(function()
+			return vim.opt.winborder:get()
+		end)
+		if ok and type(wb) == "table" and #wb > 0 then
+			local use, style = classify_border(wb, borderless_style)
+			if use ~= nil then
+				return use, style
+			end
+			shared.notify_warn("invalid winborder %s; %s", vim.inspect(wb), fallback_warn)
+		end
+
+		return false, borderless_style
+	end
+
+	local use_borders, border_style = resolve_border(merged.border, "none", "using borderless")
+
 	return {
 		keys = keys,
 		icons = icons,
@@ -296,7 +344,8 @@ M.merge = function(user_opts)
 		poppies = poppies,
 		poppies_resolved = poppies_resolved,
 		dropped_names = dropped_names,
-		experimental = merged.experimental,
+		use_borders = use_borders,
+		border_style = border_style,
 	}
 end
 

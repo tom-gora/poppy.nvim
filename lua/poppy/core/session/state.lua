@@ -5,7 +5,7 @@ local M = {}
 ---@class PoppyState
 ---@field wrapper_win integer|nil
 ---@field wrapper_buf integer|nil
----@field menu_wrapper_win integer|nil Inner container for menu/hints/menu_header. Sized to match the panel area; bordered only when experimental.borders is set.
+---@field menu_wrapper_win integer|nil Inner container for menu/hints/menu_header. Sized to match the panel area; bordered only when opts.use_borders is true.
 ---@field menu_wrapper_buf integer|nil
 ---@field content_win integer|nil
 ---@field content_buf integer|nil

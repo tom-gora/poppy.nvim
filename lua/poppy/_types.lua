@@ -33,7 +33,7 @@
 ---@field win_width? number|function # Width ratio of screen (0.2-1.0), or absolute columns/lines (>1), or function returning same. Default: 0.8
 ---@field win_location? "center"|"top"|"bottom" # Vertical position of the wrapper. Default: "center"
 ---@field poppies? table<string, PoppyItemConfig>
----@field experimental? { borders?: boolean } # WIP: opt-in to new bordered UI work. Default: { borders = false }.
+---@field border? PoppyBorder # Wrapper chrome style. "none"/"solid" fold into the borderless layout; "single"/"double"/"rounded"/"shadow" or an 8-char table draw a visible border around menu_wrapper. Falls back to vim.opt.winborder, then borderless default.
 
 ---@class PoppyMergedConfig
 ---@field keys PoppyKeys
@@ -51,6 +51,10 @@
 ---@field poppies table<string, PoppyItemConfig>
 ---@field poppies_resolved table<string, PoppyResolvedConfig>
 ---@field dropped_names string[]
+---@field use_borders boolean # True when the bordered layout applies (1-cell inset for sub-panels).
+---@field border_style "none"|"single"|"double"|"rounded"|"shadow"|string[] # Style passed to menu_wrapper's nvim_open_win border field.
+
+---@alias PoppyBorder "none"|"solid"|"single"|"double"|"rounded"|"shadow"|string[]
 
 -- Only `mode` and `title` are actually resolved. exec/file/shell keep the
 -- user's raw value verbatim (function included) so modes can re-evaluate at
