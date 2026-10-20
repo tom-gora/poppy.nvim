@@ -685,7 +685,10 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 
 	for _, kp in ipairs(spec) do
 		local hint_text = fmt_hint(keys[kp[1]], kp[2], INDENT)
-		table.insert(lines, hint_text .. string.rep(" ", math.max(1, wrapper_width - #hint_text)))
+		table.insert(
+			lines,
+			string.gsub(hint_text, "^%s*(.-)%s*$", "%1") .. string.rep(" ", math.max(1, wrapper_width - vim.fn.strdisplaywidth(hint_text)))
+		)
 	end
 
 	table.insert(lines, " ")
