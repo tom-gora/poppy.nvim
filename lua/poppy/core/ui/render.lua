@@ -667,6 +667,10 @@ hints.recreate = function(wrapper_win, buf, opts)
 	}
 
 	local win = api.nvim_open_win(buf, false, config)
+	-- write_spec pads each line to wrapper_width exactly; soft-wrap would duplicate the trailing
+	-- cell onto a second visual row, leaving a phantom blank line above the separator.
+	vim.wo[win].wrap = false
+	vim.wo[win].linebreak = false
 	style.apply_hints_panel_style(win)
 	shared.apply_win_marker(win)
 	return win
