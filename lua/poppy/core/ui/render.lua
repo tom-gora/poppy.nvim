@@ -620,7 +620,7 @@ hints.create_bottom_right = function(parent_win, keys)
 		anchor = "SE",
 		style = "minimal",
 		border = "none",
-		zindex = layout.POPPY_Z_INDEX,
+		zindex = layout.POPPY_Z_INDEX + 1,
 		focusable = false,
 		rent_win,
 	}
