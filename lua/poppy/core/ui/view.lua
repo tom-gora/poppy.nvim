@@ -382,8 +382,8 @@ local mount_panels = function(wrapper_win)
 	end
 
 	if q_h > 0 then
-		-- menu_header_buf sits directly below the header in the fixed stack order.
-		local q_row = hh
+		-- menu_header_buf occupies the rows the body yields to it: the body's own start row.
+		local q_row = is_borders() and (hh - 1) or hh
 		ensure_panel("menu_header_buf", "menu_header_win", function()
 			local win, buf = render.body.create_plain(menu_wrapper, panel_w, q_h, q_row)
 			vim.wo[win].wrap = true

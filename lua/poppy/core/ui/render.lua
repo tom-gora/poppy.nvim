@@ -199,7 +199,8 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	-- = menu_wrapper content height - 3 (header) - hints_height. Subtract row_override for
 	-- a dialog question panel above the body.
 	local header_offset = layout.get_header_height(state.windows.opts)
-	local has_question = row_override and row_override > 0
+	-- row_override counts header + question rows, so a question exists only when it exceeds the header alone.
+	local has_question = row_override and row_override > header_offset
 	local no_header = header_offset == 0 and not has_question
 	local no_hints = shared.opts_field("hints_footer") ~= true
 	-- MAGIC IF BLOCK DO NOT TOUCH!
@@ -215,8 +216,12 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 		available = math.max(1, available - row_override)
 	end
 	local width = menu_width - inset
-	local height = tonumber(math.max(1, available - inset))
-	local row = no_header and inset_inv or header_offset - inset
+	local height = tonumber(math.max(1, available - row_override) - inset)
+	-- row_override counts every row above the body (header + question), so it *is* the start row.
+	local row = no_header and inset_inv or row_override - inset
+	if has_question then
+		row = row + inset + 2 * inset_inv
+	end
 
 	-- body window: the sidebar list (poppy rows) — or dialog rows under an override.
 	-- In bordered mode, inset 1 on the left and 2 on the right for visual balance with the rounded border.
@@ -537,18 +542,22 @@ end
 body.recreate_plain = function(wrapper_win, buf, width, height, row)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local inset = border_inset()
-	local h = math.max(1, height - inset)
+	local inset_inv = inset == 0 and 1 or 0
+	local h = math.max(1, height)
+	local header_offset = layout.get_header_height(state.windows.opts)
+	header_offset = header_offset == 0 and 0 or 1
+	local row_adjusted = row + h + 1 - header_offset
 	local config = {
 		relative = "win",
 		win = wrapper_win,
 		anchor = "SE",
-		row = row + h,
+		row = row_adjusted,
 		col = wrapper_conf.width - inset,
 		width = width - inset,
 		height = h,
 		style = "minimal",
 		border = "none",
-		zindex = layout.POPPY_Z_INDEX,
+		zindex = layout.POPPY_QUESTION_Z_INDEX,
 		focusable = false,
 	}
 	local win = api.nvim_open_win(buf, false, config)

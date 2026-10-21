@@ -4,6 +4,9 @@ local M = {}
 
 -- 48: under Neovim's default 50 (completion pum, hovers, notifications), above other plugin pickers.
 M.POPPY_Z_INDEX = 48
+-- A dialog's question panel must outrank the answers list: same-zindex floats get restacked on
+-- focus, and focus_body runs after the panel is mounted, so the body would end up covering it.
+M.POPPY_QUESTION_Z_INDEX = M.POPPY_Z_INDEX + 1
 M.DEFAULT_MENU_WIDTH = 25
 
 M.MIN_MENU_WIDTH = 20
