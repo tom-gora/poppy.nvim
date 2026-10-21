@@ -1,8 +1,5 @@
 require("poppy._types")
 
--- Split from session/init.lua so that file keeps only flow logic. Callbacks that need to call
--- back into the session require it lazily -- a top-level require would be circular.
-
 local M = {}
 
 local api = vim.api
@@ -41,7 +38,7 @@ M.setup = function(opts)
 		end,
 	})
 
-	if opts and opts.menu_autohide then
+	if opts and opts.autohide_menu then
 		api.nvim_create_autocmd("CursorHold", {
 			group = "poppy_group",
 			callback = function()
@@ -52,7 +49,7 @@ M.setup = function(opts)
 		})
 	end
 
-	if opts and opts.autoclose then
+	if opts and opts.close_on_focus_lost then
 		api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, {
 			group = "poppy_group",
 			callback = function()
@@ -64,19 +61,18 @@ M.setup = function(opts)
 					if not shared.session_is_open() then
 						return
 					end
-					local cur = api.nvim_get_current_win()
-					if not api.nvim_win_is_valid(cur) then
+					local win = api.nvim_get_current_win()
+					if not api.nvim_win_is_valid(win) then
 						return
 					end
-					if shared.is_poppy_window(cur) then
+					if shared.is_poppy_window(win) then
 						return
 					end
 					-- A live question blocks the session being closed out from under it.
 					if dialog.trapped() then
 						return
 					end
-					-- Cmdline exempt: user may be typing :Poppy or any command.
-					if vim.fn.win_gettype(cur) == "command" then
+					if vim.fn.win_gettype(win) == "command" then
 						return
 					end
 					session().toggle()
@@ -88,7 +84,7 @@ end
 
 -- Per open, once, so the next session re-arms it.
 ---@return nil
-M.setup_exclusive_float = function()
+M.setup_float_sweep = function()
 	api.nvim_create_autocmd("WinEnter", {
 		group = "poppy_group",
 		once = true,

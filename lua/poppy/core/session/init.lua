@@ -1,8 +1,5 @@
 require("poppy._types")
 
--- Public surface and one-shot wiring. Runtime orchestration lives in
--- session/manager.lua; this file owns setup() and the public routing table.
-
 local M = {}
 
 local api = vim.api
@@ -112,9 +109,8 @@ local init_or_reset_state = function()
 	state.poppies_runtime = {}
 end
 
--- Tearing down through manager.close() keeps one teardown path. The opts check
--- is what keeps a first call silent: manager.close would otherwise trip
--- ensure_setup's "setup() must be called first".
+-- Tearing down through manager.close() keeps one teardown path. The opts check keeps a
+-- first call silent: manager.close would otherwise trip ensure_setup's "must be called first".
 local teardown_live_session = function()
 	if state.windows.opts and shared.session_is_open() then
 		manager.close()
@@ -155,7 +151,6 @@ M.setup = function(user_opts)
 	})
 end
 
--- Public surface — pure routing:
 M.open = manager.open
 M.close = manager.close
 M.toggle = manager.toggle

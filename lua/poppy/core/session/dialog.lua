@@ -1,8 +1,5 @@
 require("poppy._types")
 
--- Renders through the menu backend; what lives here is the question-specific part (trap,
--- outcome mapping, per-kind resolve logic).
-
 local M = {}
 
 local api = vim.api
@@ -36,10 +33,10 @@ local function label_for(name)
 	return vim.fn.fnamemodify(raw, ":t")
 end
 
----Under autohide the panel is hidden between switches; unhide it rather than remount so the
----sidebar keeps its current row.
+-- Under autohide the panel is hidden between switches; unhide rather than remount so the
+-- sidebar keeps its current row.
 local function show_or_mount()
-	if shared.opts_field("menu_autohide") and state.windows.hidden then
+	if shared.opts_field("autohide_menu") and state.windows.hidden then
 		view.set_visible(true, state.windows.content_win)
 	else
 		view.mount(state.windows.wrapper_win)
@@ -52,14 +49,7 @@ local function file_path_for(name)
 	if not configured or configured.config.mode ~= "file" then
 		return ""
 	end
-	local raw = configured.config.file
-	if type(raw) == "function" then
-		raw = raw()
-	end
-	if type(raw) ~= "string" or raw == "" then
-		return ""
-	end
-	return vim.fn.expand(raw)
+	return shared.expand_file_value(configured.config.file)
 end
 
 ---One binding only: no kill, no exit, no toggle (poppy_action is trapped).
@@ -94,7 +84,6 @@ local function spec_for(name)
 	}
 end
 
----Checked at UI entry, not at setup, so a file created after setup is honored on the first call.
 ---Checked at UI entry, not at setup, so a file created after setup is honored on the first call.
 ---@param name string
 ---@return boolean
@@ -290,11 +279,11 @@ local function restore_content()
 	-- Dropping the question changes how much room the body has; a repaint alone leaves the body
 	-- sitting below the gap it left (body is sized by what's above it).
 	-- Only needed here: Save and Discard go on to tear the poppy down (that path remounts).
-	if not (shared.opts_field("menu_autohide") and state.windows.hidden) then
+	if not (shared.opts_field("autohide_menu") and state.windows.hidden) then
 		view.mount(state.windows.wrapper_win)
 	end
 	-- Mirror the tail of a real selection so autohide settles the same way.
-	if shared.opts_field("menu_autohide") then
+	if shared.opts_field("autohide_menu") then
 		view.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	end
@@ -326,8 +315,8 @@ local function advance_missing_file_queue(dialog)
 	dialog.name = poppies[i]
 	dialog.index = i + 1
 	menu_ui.set_override(spec_for_missing(poppies[i]))
-	-- Clear WinClosed watchers before view.mount: closing the old panels would otherwise
-	-- re-enter M.resolve on the old dialog state. watch_panels() below installs new ones.
+	-- Clear WinClosed watchers before view.mount: closing old panels would re-enter M.resolve
+	-- on the old dialog state. watch_panels() below installs new ones.
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 	show_or_mount()
 	view.set_focused(true)
@@ -349,26 +338,21 @@ M.resolve = function(outcome)
 			menu_ui.clear_override()
 			pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 			drop_question()
-			-- Clear the trap before the continuation. M.open's drain checks dialog.trapped()
-			-- and bails on it; without this it would never re-run.
-			state.windows.dialog = nil
-			local ok, err = pcall(after)
-			if not ok then
-				error(err, 0)
-			end
+		-- Clear the trap before the continuation. M.open's drain checks dialog.trapped() and
+		-- bails on it; without this it would never re-run.
+		state.windows.dialog = nil
+		local ok, err = pcall(after)
+		if not ok then
+			error(err, 0)
 		end
+	end
 
-		-- Run the per-poppy side effect, then either advance to the next entry or finish.
 		local function handle_one()
 			local name = dialog.name
 			if outcome == OUTCOME_CREATE then
 				local configured = state.poppy_configured(name)
-				local raw = configured and configured.config.file
-				if type(raw) == "function" then
-					raw = raw()
-				end
-				if type(raw) == "string" and raw ~= "" then
-					local expanded = vim.fn.expand(raw)
+				local expanded = shared.expand_file_value(configured and configured.config.file)
+				if expanded ~= "" then
 					local ok, err = require("poppy.core.modes.file").create_file_with_parents(expanded)
 					if not ok then
 						drop_poppy(name, "could not create " .. expanded .. ": " .. tostring(err))
@@ -399,7 +383,7 @@ M.resolve = function(outcome)
 		pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 		drop_question()
 		-- Trap stays engaged across the continuation: the resume deletes the poppy's buffer
-		-- while the content pane still shows it, firing its WinClosed watcher; with the trap
+		-- while the content pane still shows it, firing its WinClosed watcher. With the trap
 		-- already released, the watcher would rebuild the pane and re-show the question for
 		-- a poppy that's already gone. Cleared only after the continuation.
 		local ok, err = pcall(after)

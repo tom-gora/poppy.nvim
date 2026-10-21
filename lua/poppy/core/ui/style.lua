@@ -6,21 +6,19 @@ local api = vim.api
 local fn = vim.fn
 local state = require("poppy.core.session.state")
 
--- Static block: the real cursor sits in a leading cell on every row and acts as the row marker.
--- 'guicursor' is global only; nvim rejects { win = ... }, and { scope = "local" } silently writes
--- through to the global. A missed restore would leave a static block cursor in every window.
+-- 'guicursor' is global only; nvim rejects { win = ... }, and { scope = "local" } silently
+-- writes through to the global. A missed restore would leave a static block cursor in every window.
 local LIST_CURSOR = "a:block-blinkon0"
 
--- Module-level: M.setup() re-runs on every ColorScheme and setup() call. Clearing `overridden`
--- while still owning the global would discard the user's saved value.
+-- M.setup() re-runs on every ColorScheme and setup() call. Clearing `overridden` while still
+-- owning the global would discard the user's saved value.
 local cursor_mode = {
-	saved = nil, -- captured once before we first touch it
-	overridden = false, -- whether we currently have a value stashed, independent of what it is
-	menu_win = nil, -- last list window we entered, so an unrelated WinLeave doesn't restore
+	saved = nil,
+	overridden = false,
+	menu_win = nil,
 }
 
 -- The list window is recreated on every mount (its id changes; only the buffer id is stable).
--- WinEnter/WinLeave callbacks pass a *buffer* id, not a window id -- identity comes from state.
 ---@return integer|nil
 local current_menu_win = function()
 	local win = state.windows.menu_win
@@ -87,10 +85,6 @@ local setup_cursor_autocmds = function()
 	})
 	api.nvim_create_autocmd("WinLeave", {
 		group = "poppy_body_cursor_mode",
-		-- Restore on every leave once we hold an override, without checking the window id: WinLeave
-		-- fires while the outgoing window is still current, so "is the list still current" is true
-		-- even as focus leaves it. The paired WinEnter re-applies the override if focus returns.
-		-- Over-restoring is self-correcting.
 		callback = restore_cursor_mode,
 	})
 	api.nvim_create_autocmd("VimLeavePre", {
@@ -119,7 +113,6 @@ end
 -- pcall so an unrecognized hl in a misconfigured theme doesn't abort. Re-run on every setup so
 -- signs track the just-set groups.
 local define_poppy_signs = function()
-	-- Active = red dot, hidden = small dot, never opened = nothing.
 	local signs = {
 		{ name = "PoppyDotActive", text = "◉", texthl = "PoppyRed" },
 		{ name = "PoppyDotFileH", text = "•", texthl = "PoppyFileHidden" },
@@ -132,7 +125,7 @@ local define_poppy_signs = function()
 	end
 end
 
--- Padded to 2 cells like the category icons: two stacked signs must keep the signcolumn at SIGN_COL.
+-- Padded to 2 cells like the category icons so two stacked signs keep signcolumn=SIGN_COL.
 local CONFIRM_SIGNS = {
 	{ name = "PoppyConfirmYes", text = "\u{2714}" },
 	{ name = "PoppyConfirmNo", text = "\u{2717}" },
@@ -224,12 +217,12 @@ M.setup = function()
 	local lnra = api.nvim_get_hl(0, { name = "LineNrAbove" })
 	local lnrb = api.nvim_get_hl(0, { name = "LineNrBelow" })
 
-	-- Cursorline sourced from the theme so it matches the terminal. nvim 0.13 has a native
-	-- cursorlinehl option; on 0.12 this goes through winhl.
+	-- Cursorline sourced from the theme so it matches the terminal.
+	-- nvim 0.13 has a native cursorlinehl; on 0.12 this goes through winhl.
 	local cline = api.nvim_get_hl(0, { name = "CursorLine" })
 	api.nvim_set_hl(0, "PoppyCursorLine", { fg = cline.fg, bg = cline.bg })
 
-	-- Rows use the raw category colour; state is carried by the signcolumn, not by the text.
+	-- Rows use the raw category colour; state lives in the signcolumn, not the text.
 	local CATEGORY = { { "File", type_hl }, { "Exec", string_hl }, { "Shell", func_hl } }
 
 	for _, entry in ipairs(CATEGORY) do
@@ -278,8 +271,9 @@ M.apply_panel_style = function(win)
 	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
 end
 
--- SignColumn pinned to the panel background so cursorline never bleeds into it -- state lives there.
+-- SignColumn pinned to the panel background so cursorline never bleeds into it.
 ---@param win integer
+---@return void
 M.apply_body_style = function(win)
 	vim.schedule(function()
 		if not api.nvim_win_is_valid(win) then

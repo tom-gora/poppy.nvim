@@ -28,17 +28,17 @@ require("poppy").setup({
         kill         = "d",
         exit_menu    = "<Esc>",
     },
-    icons            = { exec = "🛠", shell = "$", file = "🗋" },
-    menu_autohide    = false, -- hide sidebar after selecting; corner hint shows the binding
-    title_header     = true,
-    hints_footer     = true,
-    autoclose        = true,  -- close when focus leaves all poppy windows
-    exclusive_float  = true,  -- close other floating windows when poppy opens
-    assume_multiplexer = false, -- force the mux fallback when env detection misses
-    menu_width       = 25,
-    win_height       = 0.75, -- ratio (0.2..1.0), absolute cells (>1), or function
-    win_width        = 0.8,
-    win_location     = "center", -- "center" | "top" | "bottom"
+    icons                  = { exec = "🛠", shell = "$", file = "🗋" },
+    autohide_menu          = false, -- hide sidebar after selecting; corner hint shows the binding
+    title_header           = true,
+    hints_footer           = true,
+    close_on_focus_lost    = true,  -- close when focus leaves all poppy windows
+    close_other_floats_on_open = true, -- close other floating windows when poppy opens
+    assume_multiplexer     = false, -- force the mux fallback when env detection misses
+    menu_width             = 25,
+    win_height             = 0.75, -- ratio (0.2..1.0), absolute cells (>1), or function
+    win_width              = 0.8,
+    win_location           = "center", -- "center" | "top" | "bottom"
 
     poppies = {
         lazygit = { exec = "lazygit", title = "LazyGit" },

@@ -5,7 +5,6 @@ local M = {}
 local api = vim.api
 local state = require("poppy.core.session.state")
 
--- Display-string → bind-target map for keys that lose Ctrl info through some muxes.
 local MULTIPLEXER_FALLBACKS = {
 	["<C-/>"] = "<C-_>",
 }
@@ -29,9 +28,9 @@ M.resolve_key = function(user_value)
 	return fallback, user_value
 end
 
--- Keys that share a byte with a non-ctrl key; mapping the aliased form to a poppy_action
--- silently collides with that other key. <C-[> is excluded: the kitty protocol distinguishes
--- it from <Esc> on modern terminals, and warning would be a false positive.
+-- <C-i> / <C-m> / <C-?> share a byte with a non-ctrl key; mapping the aliased form to
+-- poppy_action silently collides with that other key.
+-- <C-[> is excluded: the kitty protocol distinguishes it from <Esc> on modern terminals.
 local ALIASED_KEYS = {
 	["<C-i>"] = "<Tab>",
 	["<C-m>"] = "<CR>",
@@ -113,7 +112,7 @@ end
 M.with_modifiable = function(buf, apply)
 	api.nvim_set_option_value("modifiable", true, { buf = buf })
 	local ok, err = xpcall(apply, debug.traceback)
-	-- If apply() died because the buffer was deleted, setting the option again raises "Invalid buffer id".
+	-- If apply() died because the buffer was deleted, the second set_option raises "Invalid buffer id".
 	pcall(api.nvim_set_option_value, "modifiable", false, { buf = buf })
 	if not ok then
 		error(err, 0)
@@ -122,6 +121,43 @@ end
 
 ---@type string[]
 M.NORM_TERM_MODES = { "n", "t" }
+
+---First whitespace-delimited token of a string, or the first element of a string list.
+---@param command string|string[]|function|nil
+---@return string?
+M.argv0 = function(command)
+	if type(command) == "string" then
+		return (command:gsub("%s.*", ""))
+	end
+	if type(command) == "table" and #command > 0 and type(command[1]) == "string" then
+		return command[1]
+	end
+	return nil
+end
+
+---@return string
+M.default_shell = function()
+	return os.getenv("SHELL") or "bash"
+end
+
+---Resolve a `file` field to an absolute path. `raw` may be a string, a function, or nil.
+---Returns empty string if the value is nil/empty/non-string.
+---@param raw string|function|nil
+---@return string
+M.expand_file_value = function(raw)
+	if type(raw) == "function" then
+		raw = raw()
+	end
+	if type(raw) ~= "string" or raw == "" then
+		return ""
+	end
+	return vim.fn.expand(raw)
+end
+
+---@return boolean
+M.use_borders = function()
+	return state.windows.opts and state.windows.opts.use_borders or false
+end
 
 ---@return boolean
 M.ensure_setup = function()

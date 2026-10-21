@@ -55,11 +55,11 @@ end
 local default_opts = {
 	keys = { poppy_action = "<C-/>", select = "<CR>", kill = "d", exit_menu = "<Esc>" },
 	icons = { exec = "🛠", shell = "$", file = "🗋" },
-	menu_autohide = false,
+	autohide_menu = false,
 	title_header = true,
 	hints_footer = true,
-	autoclose = true,
-	exclusive_float = true,
+	close_on_focus_lost = true,
+	close_other_floats_on_open = true,
 	assume_multiplexer = false,
 	menu_width = layout.DEFAULT_MENU_WIDTH,
 	win_height = 0.75,
@@ -67,19 +67,6 @@ local default_opts = {
 	win_location = "center",
 }
 
----@param command string|string[]|function|nil
----@return string|nil
-local argv0 = function(command)
-	if type(command) == "string" then
-		return (command:gsub("%s.*", ""))
-	end
-	if type(command) == "table" and #command > 0 and type(command[1]) == "string" then
-		return command[1]
-	end
-	return nil
-end
-
----On `not ok` the caller drops the poppy.
 ---@param name string
 ---@param raw string|string[]|function|nil
 ---@return string|string[]|nil value
@@ -142,8 +129,8 @@ local resolve_poppy = function(name, poppy)
 		end
 		value = expanded
 	else
-		local check = poppy.shell and value == "default" and (os.getenv("SHELL") or "bash") or value
-		local argv = argv0(check)
+		local check = poppy.shell and value == "default" and shared.default_shell() or value
+		local argv = shared.argv0(check)
 		if argv and argv ~= "" and fn.executable(argv) == 0 then
 			shared.notify_warn("poppy '%s' binary '%s' not found on $PATH", tostring(name), argv)
 			return nil
@@ -184,11 +171,11 @@ M.merge = function(user_opts)
 		"keys",
 		"icons",
 		"poppies",
-		"menu_autohide",
+		"autohide_menu",
 		"title_header",
 		"hints_footer",
-		"autoclose",
-		"exclusive_float",
+		"close_on_focus_lost",
+		"close_other_floats_on_open",
 		"assume_multiplexer",
 		"menu_width",
 		"win_height",
@@ -206,7 +193,7 @@ M.merge = function(user_opts)
 		end
 	end
 
-	local bool_keys = { "menu_autohide", "title_header", "hints_footer", "autoclose", "exclusive_float", "assume_multiplexer" }
+	local bool_keys = { "autohide_menu", "title_header", "hints_footer", "close_on_focus_lost", "close_other_floats_on_open", "assume_multiplexer" }
 	for _, k in ipairs(bool_keys) do
 		if merged[k] ~= nil and type(merged[k]) ~= "boolean" then
 			shared.notify_warn(
@@ -331,11 +318,11 @@ M.merge = function(user_opts)
 	return {
 		keys = keys,
 		icons = icons,
-		menu_autohide = merged.menu_autohide,
+		autohide_menu = merged.autohide_menu,
 		title_header = merged.title_header,
 		hints_footer = merged.hints_footer,
-		autoclose = merged.autoclose,
-		exclusive_float = merged.exclusive_float,
+		close_on_focus_lost = merged.close_on_focus_lost,
+		close_other_floats_on_open = merged.close_other_floats_on_open,
 		assume_multiplexer = merged.assume_multiplexer,
 		menu_width = merged.menu_width,
 		win_height = layout.normalize_dimension(merged.win_height, 0.75),

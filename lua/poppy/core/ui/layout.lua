@@ -4,16 +4,16 @@ local M = {}
 
 -- 48: under Neovim's default 50 (completion pum, hovers, notifications), above other plugin pickers.
 M.POPPY_Z_INDEX = 48
--- A dialog's question panel must outrank the answers list: same-zindex floats get restacked on
--- focus, and focus_body runs after the panel is mounted, so the body would end up covering it.
+-- Question panel outranks the answers list: same-z floats get restacked on focus, and
+-- focus_body runs after the panel is mounted, so the body would cover it otherwise.
 M.POPPY_QUESTION_Z_INDEX = M.POPPY_Z_INDEX + 1
 M.DEFAULT_MENU_WIDTH = 25
 
 M.MIN_MENU_WIDTH = 20
 M.MAX_MENU_WIDTH = 35
 
--- Floor on the content pane. On a narrow wrapper, sidebar and content compete for the same cells
--- and the sidebar wins by default. Reserving this plus the 2 cells content.create subtracts for
+-- Floor on the content pane: on a narrow wrapper, sidebar and content compete for the same cells
+-- and the sidebar wins by default. Reserving this + the 2 cells content.create subtracts for
 -- the border guarantees the floor.
 M.MIN_CONTENT_WIDTH = 35
 
@@ -22,11 +22,8 @@ local HEADER_HEIGHT = 3
 local fn = vim.fn
 local shared = require("poppy.core.shared")
 
--- Each section (header, hints, list) is measured from the renderer with its own layout rule.
--- Measured from the renderers so the legend can never end up croppable.
 local HEADER_TITLE = "P ◉ PPY.NVIM"
 
--- Trailing breathing room matching the separators' left-edge inset.
 M.PANEL_PAD = 1
 
 ---@param opts? PoppyMergedConfig
@@ -87,7 +84,6 @@ M.normalize_dimension = function(value, default)
 	return default
 end
 
--- A throw or non-number return must not abort the open; fall back to the default with a warn.
 ---@param value number|function
 ---@param default number
 ---@param name string
@@ -114,7 +110,6 @@ M.evaluate_dimension = function(value, default, name)
 end
 local evaluate_dimension = M.evaluate_dimension
 
--- >1 = absolute cells; <=1 = ratio of `total`.
 ---@param value number
 ---@param total integer
 ---@param name string
@@ -138,8 +133,8 @@ end
 ---@param opts? PoppyMergedConfig
 ---@param vim_cols integer
 ---@param vim_lines integer
----@param content_width? integer Landing width: sized to its content, replacing win_width rather than competing with it. Only the screen caps it.
----@param min_width? integer Smallest wrapper the caller can still use, ignoring the ratio. Applied only when there is no content_width: the landing is sized to its content and must not be inflated.
+---@param content_width? integer
+---@param min_width? integer
 ---@return integer width
 ---@return integer height
 ---@return integer row
@@ -149,8 +144,7 @@ M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width
 	local raw_w = evaluate_dimension(opts.win_width or 0.8, 0.8, "win_width")
 	local raw_h = evaluate_dimension(opts.win_height or 0.75, 0.75, "win_height")
 
-	-- A replacement, not a floor: max(content, win_width) would let win_width win whenever its
-	-- ratio exceeded the content, making the landing absurdly wide on launch.
+	-- Replacement, not a floor: max(content, win_width) would let win_width win on launch.
 	local width = content_width and math.min(content_width, vim_cols) or resolve_dimension(raw_w, vim_cols, "win_width")
 
 	-- Ratio is a preference, not a promise: the wrapper grows on a screen too narrow for both.

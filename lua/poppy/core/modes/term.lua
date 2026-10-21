@@ -35,20 +35,9 @@ local term_resolve_command = function(poppy_opts)
 		return nil
 	end
 	if poppy_opts.shell ~= nil and raw == "default" then
-		return os.getenv("SHELL") or "bash"
+		return shared.default_shell()
 	end
 	return raw
-end
-
----@param command string|string[]|function|nil
----@return string|nil argv[0] of a command (string or table form) for executable() lookup.
-local argv0 = function(command)
-	if type(command) == "string" then
-		return (command:gsub("%s.*", "")) -- first whitespace-delimited token
-	elseif type(command) == "table" and #command > 0 and type(command[1]) == "string" then
-		return command[1]
-	end
-	return nil
 end
 
 ---@param command string|string[]|function|nil
@@ -91,7 +80,7 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 		shared.drop_poppy(poppy_name, string.format("command resolved to nil for poppy '%s'", poppy_name))
 		return false
 	end
-	local argv = argv0(command)
+	local argv = shared.argv0(command)
 	if argv and fn.executable(argv) == 0 then
 		shared.drop_poppy(poppy_name, string.format("binary '%s' not found on $PATH", argv))
 		return false

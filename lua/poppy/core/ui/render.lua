@@ -1,7 +1,6 @@
 require("poppy._types")
 
 local M = {}
-
 local api = vim.api
 local fn = vim.fn
 local state = require("poppy.core.session.state")
@@ -9,7 +8,6 @@ local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 
--- Hint line geometry, shared with layout.lua's width measurements.
 local INDENT = "   "
 local KEY_COL = 5
 local COL_GAP = "  "
@@ -27,11 +25,9 @@ local DOT_MARK = 2
 local SEP_MARK = 3
 local header = {}
 
--- 1 when opts.use_borders is on, 0 otherwise. In bordered mode sub-panels anchored to
--- menu_wrapper inset by 1 on every side so they sit inside the border instead of
--- overlapping it. Read once per call rather than threading an arg.
+-- In bordered mode sub-panels inset by 1 on every side so they sit inside the rounded border.
 local function border_inset()
-	return state.windows.opts and state.windows.opts.use_borders and 1 or 0
+	return shared.use_borders() and 1 or 0
 end
 
 ---@param menu_wrapper_win integer
@@ -42,25 +38,19 @@ header.create = function(menu_wrapper_win)
 	return header.recreate(menu_wrapper_win, buf), buf
 end
 
----Header is anchored to menu_wrapper. Always NW at (inset, inset), spanning the full
----inner width minus inset. In borderless mode inset = 0 so it sits flush with the
----panel; in bordered mode inset = 1 so it sits inside the rounded border.
 ---@param menu_wrapper_win integer
 ---@param buf integer
 ---@return integer? win
 header.recreate = function(menu_wrapper_win, buf)
 	local wc = api.nvim_win_get_config(menu_wrapper_win)
 	local inset = border_inset()
-	-- Inset 1 on left (clear of border), 2 on right (border + breathing room for visual balance).
+	-- Inset 1 on left (clear of border), 2 on right (border + breathing room).
 	local width = wc.width - 2 * inset
 	local col = inset
-	-- Anchor flush against the inside of the top border (no extra padding row); the buffer's
-	-- leading empty line already provides the visual gap below the border.
+	-- Anchor flush against the inside of the top border; the buffer's leading empty line gives the visual gap.
 	local row = 0
 
-	-- header window: title bar (POPPY.NVIM) sitting above the sidebar.
-	-- zindex +1 above menu_wrapper so the title draws over the bordered panel area
-	-- (without it, the menu_wrapper's same-z layer covers the header).
+	-- zindex +1 above menu_wrapper so the title draws over the bordered panel area.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -99,7 +89,6 @@ header.recreate = function(menu_wrapper_win, buf)
 	api.nvim_buf_set_extmark(buf, header_ns, 1, 0, vim.tbl_extend("force", sep_extmark, { id = SEP_MARK }))
 
 	-- ◉ is 3-byte UTF-8; resolve display col to byte offset before setting the extmark.
-	-- title_col is a number; "5P" would concatenate to "5P" and resolve to col 2.
 	local dot_display_col = title_col + fn.strdisplaywidth("P")
 	local dot_byte_col = fn.byteidx(title_line, dot_display_col)
 	local dot_byte_end = fn.byteidx(title_line, dot_display_col + 1)
@@ -115,7 +104,7 @@ end
 M.header = header
 
 local body_ns = api.nvim_create_namespace("poppy_body_panel")
--- Own augroup, not poppy_ui: that one is cleared on every mount and would drop the cursor guard.
+-- Own augroup: poppy_ui is cleared on every mount and would drop the cursor guard.
 local body_autocmd_group = api.nvim_create_augroup("poppy_body_buffer", { clear = false })
 local sign_group = "poppy_body"
 local body = {}
@@ -129,7 +118,7 @@ local cap_category = function(category)
 	return category:sub(1, 1):upper() .. category:sub(2)
 end
 
--- Active poppy: red dot. Hidden (running in background): small dot. Never opened: nothing.
+-- Active: red dot. Hidden: small dot. Never opened: nothing.
 local pick_sign = function(category, is_active, is_hidden)
 	if is_active then
 		return "PoppyDotActive"
@@ -266,17 +255,16 @@ local max_index_width = function(count)
 	return #tostring(count)
 end
 
--- Two signs (state dot + category icon) at signcolumn="yes:2" = 4. Must match body.recreate's signcolumn.
-M.SIGN_COL = 4
+-- Two signs (state dot + category icon) at signcolumn="yes:2" = 4 cells. Must match body.recreate's signcolumn.
+local SIGN_COL = 4
 
 ---@param idx_width integer
 ---@param title string
 ---@return integer
 M.measure_item = function(idx_width, label)
-	return M.SIGN_COL + 2 + idx_width + 1 + fn.strdisplaywidth(label)
+	return SIGN_COL + 2 + idx_width + 1 + fn.strdisplaywidth(label)
 end
 
--- One hint line: indent + key padded to KEY_COL + gap + label + trailing space.
 local fmt_hint = function(key, label)
 	local padded = key .. string.rep(" ", math.max(0, KEY_COL - #key))
 	return INDENT .. padded .. COL_GAP .. label .. " "
@@ -332,7 +320,7 @@ local fit_text = function(label, max_width)
 end
 
 -- Exported so a menu can budget a title against the panel width with the painter's own arithmetic.
-M.fit_text = fit_text
+-- (No menu actually uses it today; kept local for now.)
 
 ---Wrap text to `width` on word boundaries. Differs from 'wrap'/'linebreak' (display-only,
 ---no height back) so the caller knows the line count before the window exists.
@@ -430,7 +418,7 @@ M.rowset = function(menu, panel_width)
 	local budget = panel_width - M.measure_item(set.idx_width, "") - 1
 	for i, row in ipairs(set.rows) do
 		set.rows[i] = {
-			label = M.fit_text(row.label, budget),
+			label = fit_text(row.label, budget),
 			marks = row.marks,
 			hl = row.hl,
 		}
@@ -531,8 +519,6 @@ body.paint_items = function(buf, spec)
 	fn.sign_placelist(placelist)
 end
 
----Anchored "SE" so it sits in the sidebar; "row" is the TOP offset (bottom = row + height).
----Signcolumn matches the body so the question's left edge lines up with the items below.
 ---@param wrapper_win integer
 ---@param buf integer
 ---@param width integer
@@ -609,7 +595,7 @@ hints.create_bottom_right = function(parent_win, keys)
 	local row = math.max(0, win_conf.height) + 1
 	local col = math.max(0, win_conf.width) + 1
 
-	-- corner hint window: the 1-line "<C-/> Menu" badge that appears under menu_autohide.
+	-- corner hint window: the 1-line "<C-/> Menu" badge that appears under autohide_menu.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -622,7 +608,7 @@ hints.create_bottom_right = function(parent_win, keys)
 		border = "none",
 		zindex = layout.POPPY_Z_INDEX + 1,
 		focusable = false,
-		rent_win,
+		win = parent_win,
 	}
 
 	local win = api.nvim_open_win(buf, false, config)
@@ -649,7 +635,6 @@ hints.recreate = function(wrapper_win, buf, opts)
 	-- Separator and trailing blank are added to `height` below.
 	local height = (opts.height or #opts.hints) + 2
 
-	-- hints window: the key-binding legend at the bottom of the sidebar (or below the body).
 	-- SW anchor: row=0 puts SW at parent NW; row=parent.height-1 puts SW at parent's bottom.
 	---@type vim.api.keyset.win_config
 	local config = {

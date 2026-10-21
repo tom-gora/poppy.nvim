@@ -15,25 +15,17 @@ M.wrapper = {}
 M.content = {}
 M.menu_wrapper = {}
 
--- Read once per mount. Reads opts each call so toggling border at setup() takes effect on
--- the next mount without rebuilding this module.
-local function is_borders()
-	return state.windows.opts and state.windows.opts.use_borders or false
-end
-
 ---@param wrapper_win integer
----@param panel_w integer Width of the panel content area (sidebar mw or full wrapper width in landing).
----@param panel_h integer Height of the panel content area (full wrapper height).
+---@param panel_w integer
+---@param panel_h integer
 ---@return integer? win
 ---@return integer? buf
 M.menu_wrapper.create = function(wrapper_win, panel_w, panel_h)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local bordered = is_borders()
-	-- Bordered mode: content is panel_w/panel_h minus 1 on each side (border takes a cell
-	-- each), so the visual extent (content + 2) fits exactly inside the wrapper.
+	local bordered = shared.use_borders()
+	-- Bordered mode shrinks content by 1 on each side so the border sits outside it.
 	local outer_w = bordered and panel_w or panel_w
 	local outer_h = bordered and (panel_h - 2) or panel_h
-	-- Borders occupy the outer cells, content starts 1 cell inside.
 	local outer_col_offset = bordered and 0 or 0
 	local outer_row_offset = bordered and 0 or 0
 
@@ -57,7 +49,7 @@ end
 
 M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local bordered = is_borders()
+	local bordered = shared.use_borders()
 	local outer_w = bordered and panel_w or panel_w
 	local outer_h = bordered and (panel_h - 2) or panel_h
 	local outer_col_offset = bordered and 0 or 0
@@ -95,7 +87,6 @@ end
 local wrapper_open_with = function(buf, poppy_opts, width_override)
 	local width, height, row =
 		layout.compute_wrapper_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override, M.min_wrapper_width())
-	-- wrapper window: the editor-anchored float that holds every panel.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "editor",
@@ -149,7 +140,6 @@ M.content.create = function(wrapper_win, list_panel_width)
 	local ext_nu = vim.o.number
 	local ext_rnu = vim.o.relativenumber
 
-	-- content window: shows the active poppy's buffer; takes the left slot inside the wrapper.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -159,7 +149,7 @@ M.content.create = function(wrapper_win, list_panel_width)
 		col = 0,
 		row = 0,
 		style = "minimal",
-		border = state.windows.opts.use_borders and state.windows.opts.border_style or "solid",
+		border = shared.use_borders() and state.windows.opts.border_style or "solid",
 		zindex = layout.POPPY_Z_INDEX,
 		focusable = true,
 		win = wrapper_win,
@@ -247,7 +237,7 @@ local header_height = function()
 	return layout.get_header_height(state.windows.opts)
 end
 
--- Widest hint line the sidebar can ever need. The +1 is the hints separator's lead space.
+-- Widest hint line the sidebar can ever need; +1 for the hints separator's lead space.
 local legend_floor = function()
 	local keys = shared.keys()
 	if not keys then
@@ -261,15 +251,14 @@ local legend_floor = function()
 	)
 end
 
--- Already warned about, so a repaint does not re-notify on every mount.
 local warned_widths = {}
 
--- Centralised here so mount_panels, set_visible, and refresh_poppies agree on one width.
+-- Centralised so mount_panels, set_visible, and refresh_poppies agree on one width.
 ---@param wrapper_width? integer
 ---@return integer
 local menu_width = function(wrapper_width)
 	local declared = layout.evaluate_dimension(shared.opts_field("menu_width"), layout.DEFAULT_MENU_WIDTH, "menu_width")
-	-- Floor at 1: 0 or negative passes evaluate_dimension, and nvim_open_win rejects it.
+	-- 0 or negative passes evaluate_dimension; nvim_open_win rejects it.
 	local w = math.max(1, declared)
 
 	if w < layout.MIN_MENU_WIDTH or w > layout.MAX_MENU_WIDTH then
@@ -287,7 +276,6 @@ local menu_width = function(wrapper_width)
 		w = clamped
 	end
 
-	-- Only overrides a declared width if a remapped key makes it impossible to honour even at MAX.
 	local legend = legend_floor()
 	if legend > w and legend > layout.MAX_MENU_WIDTH then
 		w = legend
@@ -296,7 +284,6 @@ local menu_width = function(wrapper_width)
 	if not wrapper_width then
 		return w
 	end
-	-- Sidebar gives way to keep MIN_CONTENT_WIDTH for the content pane.
 	local reserved = layout.MIN_CONTENT_WIDTH + 2
 	return math.min(w, math.max(1, wrapper_width - reserved))
 end
@@ -306,8 +293,6 @@ M.min_wrapper_width = function()
 	return menu_width() + layout.MIN_CONTENT_WIDTH + 2
 end
 
--- Geometry only. Which presentation is showing, focusability, and the legend live in the menu
--- backend; this layer adds only offsets and the header split.
 local GEOMETRY = {
 	sidebar = function(wc, mw, h)
 		return { width = mw, col = wc.width, row = wc.height - 1, row_offset = 1, height = h }
@@ -323,9 +308,9 @@ local GEOMETRY = {
 	end,
 }
 
--- A panel present contributes its height to everything below it; an absent one contributes nothing.
--- That is what lets `title_header = false` drop the title bar and a dialog's menu_header sit
--- directly on top of the body with no per-case arithmetic.
+-- A present panel contributes its height to everything below it; an absent one contributes nothing.
+-- That lets `title_header = false` drop the title bar and a dialog's menu_header sit directly on
+-- top of the body with no per-case arithmetic.
 local mount_panels = function(wrapper_win)
 	local wc = api.nvim_win_get_config(wrapper_win)
 	local hh = header_height()
@@ -344,9 +329,8 @@ local mount_panels = function(wrapper_win)
 	local q_lines, q_h = menu_ui.menu_header_lines(menu, panel_w)
 	local above_body = hh + q_h
 
-	-- menu_wrapper sits behind the panel area as a quiet sizing container in
-	-- borderless mode, and grows a rounded border in bordered mode (with sub-
-	-- panels inset 1 cell via render.lua's border_inset()).
+	-- menu_wrapper is a quiet sizing container in borderless mode; in bordered mode it grows the
+	-- rounded border and sub-panels inset 1 cell via render.lua's border_inset().
 	ensure_panel("menu_wrapper_buf", "menu_wrapper_win", function()
 		return M.menu_wrapper.create(wrapper_win, panel_w, panel_h)
 	end, function(buf)
@@ -371,7 +355,7 @@ local mount_panels = function(wrapper_win)
 		return render.hints.recreate(menu_wrapper, buf, hint_geom(wc, mw, #menu.hints))
 	end, not hints_on)
 
-	-- focusable = false on the question panel: cursor stays in the answers buffer.
+	-- focusable = false on the question panel so cursor stays in the answers buffer.
 	-- wrap + linebreak stay on as a safety net for narrower-than-wrapped widths.
 	if q_h == 0 and state.windows.menu_header_buf then
 		-- Stale question panel from a prior dialog or re-render.
@@ -383,7 +367,7 @@ local mount_panels = function(wrapper_win)
 
 	if q_h > 0 then
 		-- menu_header_buf occupies the rows the body yields to it: the body's own start row.
-		local q_row = is_borders() and (hh - 1) or hh
+		local q_row = shared.use_borders() and (hh - 1) or hh
 		ensure_panel("menu_header_buf", "menu_header_win", function()
 			local win, buf = render.body.create_plain(menu_wrapper, panel_w, q_h, q_row)
 			vim.wo[win].wrap = true
@@ -397,8 +381,6 @@ local mount_panels = function(wrapper_win)
 		end)
 	end
 
-	-- Header is anchored to menu_wrapper so it sits inside the rounded border along with
-	-- the rest of the panel stack; render.lua handles the inset based on opts.use_borders.
 	ensure_panel("header_buf", "header_win", function()
 		return render.header.create(menu_wrapper)
 	end, function(buf)
@@ -407,7 +389,7 @@ local mount_panels = function(wrapper_win)
 
 	-- First-show under autohide would otherwise be stale (kill-then-show).
 	if valid_buf(state.windows.menu_buf) then
-		local inset = is_borders() and 1 or 0
+		local inset = shared.use_borders() and 1 or 0
 		render.body.paint_items(state.windows.menu_buf, render.rowset(menu, panel_w - inset))
 		if valid_buf(state.windows.hints_buf) then
 			render.hints.write_spec(state.windows.hints_buf, shared.keys(), menu.hints, panel_w - inset)
@@ -530,7 +512,7 @@ M.refresh_poppies = function()
 	if not valid_buf(state.windows.menu_buf) then
 		return
 	end
-	local inset = is_borders() and 1 or 0
+	local inset = shared.use_borders() and 1 or 0
 	local menu = menu_ui.current_spec()
 	render.body.paint_items(state.windows.menu_buf, render.rowset(menu, width - inset))
 end

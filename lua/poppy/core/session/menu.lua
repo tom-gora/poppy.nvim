@@ -1,9 +1,5 @@
 require("poppy._types")
 
--- Owns which menu is showing (the poppy list or a dialog override), what the body and legend
--- render, and which keys are bound. ui/view.lua reads the spec and legend height and calls into
--- render.lua; we delegate focus and keymap wiring.
-
 local M = {}
 
 local api = vim.api
@@ -37,8 +33,6 @@ local function normalize(spec)
 	end
 	return out
 end
-
-M.normalize = normalize
 
 ---A dialog binds select and nothing else, so the other three are simply absent rather than
 ---bound to a no-op -- keeps get_keymap honest.
@@ -93,10 +87,6 @@ M.set_row = function(win, row)
 	return pcall(api.nvim_win_set_cursor, win, { math.max(1, row), 0 }) == true
 end
 
--------------------------------------------------------------------------------
--- The poppy list: the default menu instance.
--------------------------------------------------------------------------------
-
 M.HINTS = {
 	landing = {
 		{ "select", "Select" },
@@ -119,7 +109,6 @@ M.current_cfg = function()
 	return state.windows.is_landing and M.LANDING or M.SIDEBAR
 end
 
----One pass: reserves the sign column so the question's left edge lines up.
 ---@param menu PoppyMenuSpec
 ---@param panel_width integer
 ---@return string[] lines
@@ -186,7 +175,6 @@ M.current_spec = function()
 	return M.spec_override or M.spec_poppy_list(M.current_cfg())
 end
 
--- Dialog seam: swap in a different spec, same code path that lays out the poppy list.
 ---@param spec table|nil
 M.set_override = function(spec)
 	M.spec_override = spec and normalize(spec) or nil
@@ -217,11 +205,6 @@ M.focus_body = function()
 	return true
 end
 
--------------------------------------------------------------------------------
--- poppy_action focus/visibility routing lives here because the menu owns the body's
--- focusable flag. view imported lazily to keep the cycle open.
--------------------------------------------------------------------------------
-
 M.toggle_menu = function()
 	if not shared.ensure_setup() then
 		return
@@ -233,7 +216,7 @@ M.toggle_menu = function()
 
 	local want_focus = not view.is_menu_focused()
 
-	if shared.opts_field("menu_autohide") then
+	if shared.opts_field("autohide_menu") then
 		view.set_visible(want_focus, state.windows.content_win)
 	end
 
@@ -259,7 +242,7 @@ M.exit_menu = function()
 		return
 	end
 
-	if shared.opts_field("menu_autohide") then
+	if shared.opts_field("autohide_menu") then
 		view.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	else

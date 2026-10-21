@@ -47,7 +47,7 @@ local attach = function(poppy_name, bufnr, parent_win, title, on_die)
 		win = parent_win,
 		title = title,
 	}
-	-- Skip on_die on the active case to avoid a double recover.
+	-- Skip on_die when this poppy is already current to avoid a double recover.
 	if on_die and state.windows.current_poppy_name ~= poppy_name then
 		api.nvim_create_autocmd("BufUnload", {
 			group = "poppy_group",
@@ -63,8 +63,7 @@ local attach = function(poppy_name, bufnr, parent_win, title, on_die)
 end
 
 -- :edit gives a real file buffer (filetype, checktime, normal load path); a hand-built buffer
--- (readfile + set_lines + set_name) is modifiable but treated as never-read-from-disk and :w
--- would fail with E13. Only called on a fresh open.
+-- is modifiable but treated as never-read-from-disk and :w would fail with E13.
 ---@param parent_win integer
 ---@param file_path string
 ---@return integer? bufnr
@@ -85,12 +84,11 @@ end
 ---@param on_die? fun(poppy_name: string) Background file poppy: repaint sidebar when its buffer goes away.
 ---@return boolean ok
 M.run = function(poppy_name, poppy_opts, parent_win, on_die)
-	local raw_val = type(poppy_opts.file) == "function" and poppy_opts.file() or poppy_opts.file
-	if raw_val == nil or raw_val == "" then
-		shared.notify_warn("poppy '%s' file function returned %s at open; dropping", poppy_name, raw_val == nil and "nil" or "empty string")
+	local file_path = shared.expand_file_value(poppy_opts.file)
+	if file_path == "" then
+		shared.notify_warn("poppy '%s' file value resolved to empty at open; dropping", poppy_name)
 		return false
 	end
-	local file_path = fn.expand(raw_val)
 
 	local reused = reusable(poppy_name, file_path)
 

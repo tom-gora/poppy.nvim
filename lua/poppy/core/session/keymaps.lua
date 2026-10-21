@@ -1,10 +1,8 @@
 require("poppy._types")
 
 local M = {}
-
 local shared = require("poppy.core.shared")
 
----select/kill/exit_menu live on the menu body and would conflict with the content.
 ---@param buf integer
 M.bind_poppy_action = function(buf)
 	local keys = shared.keys()

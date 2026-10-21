@@ -1,10 +1,5 @@
 require("poppy._types")
 
--- Runtime orchestration: lifecycle (open/close/toggle/recover/transition),
--- switch dispatch, kill dispatch, and query accessors. Wire (setup, keymaps,
--- :Poppy command) lives in session/init.lua; this file picks up at the first
--- runtime verb and runs to the public query accessors.
-
 local M = {}
 
 local api = vim.api
@@ -20,10 +15,6 @@ local MODES = {
 	term = require("poppy.core.modes.term"),
 	file = require("poppy.core.modes.file"),
 }
-
--- ============================================================================
--- Cross-verb helpers (session-internal)
--- ============================================================================
 
 local cursor_to_poppy_index = function()
 	local ok, cursor = pcall(api.nvim_win_get_cursor, 0)
@@ -63,11 +54,6 @@ local is_known_poppy = function(name)
 	return false
 end
 
--- ============================================================================
--- Cleanup
--- ============================================================================
-
--- Keeps poppies_configured intact: that's the user's declared config, not runtime state.
 local clear_poppies = function()
 	for _, configured in ipairs(state.poppies_configured) do
 		local rt = state.runtime(configured.name)
@@ -146,10 +132,6 @@ local cleanup = function(drop_poppies)
 	end
 end
 
--- ============================================================================
--- Flow: open / close / toggle
--- ============================================================================
-
 local open_wrapper = function(width_override)
 	local win, wbuf = view.wrapper.ensure(state.windows.wrapper_buf, state.windows.opts, width_override)
 	state.windows.wrapper_buf = wbuf
@@ -206,10 +188,8 @@ M.toggle = function()
 	end
 end
 
----@param poppy_name? string Name to open; nil opens the manager on the landing view.
---- A name that was never configured is rejected with a warning: nothing opens,
---- and an already-open session is left untouched.
----@return integer? win wrapper window, or nil if nothing opened
+---@param poppy_name? string
+---@return integer?
 M.open = function(poppy_name)
 	if not shared.ensure_setup() then
 		return nil
@@ -219,21 +199,23 @@ M.open = function(poppy_name)
 	if not is_known_poppy(poppy_name) then
 		return nil
 	end
-	-- The missing-file dialog's on_complete re-invokes M.open() with no name. Tear down and
-	-- reopen from scratch so the user lands on a fresh poppies list.
+	-- on_complete is the missing-file queue's continuation; it re-invokes M.open() with no name
+	-- so the user lands on a fresh poppies list after the queue drains.
 	if shared.session_is_open() then
 		if not drain_missing_file_queue(function()
 			M.open()
 		end) then
 			return state.windows.wrapper_win
 		end
-		M.close()
-		M.toggle()
-		return state.windows.wrapper_win
+		if poppy_name == nil then
+			M.close()
+			M.toggle()
+			return state.windows.wrapper_win
+		end
 	end
 
-	if shared.opts_field("exclusive_float") then
-		autocommands.setup_exclusive_float()
+	if shared.opts_field("close_other_floats_on_open") then
+		autocommands.setup_float_sweep()
 	end
 
 	local last_poppy = state.windows.current_poppy_name
@@ -267,10 +249,6 @@ M.open = function(poppy_name)
 	return state.windows.wrapper_win
 end
 
--- ============================================================================
--- Transition / landing
--- ============================================================================
-
 M.transition_to_content = function()
 	if state.windows.is_landing then
 		view.unmount()
@@ -301,10 +279,6 @@ M.transition_to_content = function()
 	state.windows.content_win = c_win
 	state.windows.content_buf = c_buf
 end
-
--- ============================================================================
--- Switch
--- ============================================================================
 
 local do_switch = function(configured, poppy_name)
 	if state.windows.current_poppy_name then
@@ -347,7 +321,7 @@ local do_switch = function(configured, poppy_name)
 
 	require("poppy.core.session.keymaps").bind_poppy_action(api.nvim_win_get_buf(state.windows.content_win))
 
-	if shared.opts_field("menu_autohide") then
+	if shared.opts_field("autohide_menu") then
 		view.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	else
@@ -362,7 +336,7 @@ local do_switch = function(configured, poppy_name)
 	end
 end
 
--- Set while recovery re-drives a switch that already failed once. See switch_by_name's failure branch.
+-- Set while recovery re-drives a switch that already failed once.
 local retrying_after_failure = false
 
 ---@param poppy_name string
@@ -448,10 +422,6 @@ M.switch_by_cursor = function()
 	end
 end
 
--- ============================================================================
--- Kill
--- ============================================================================
-
 ---@param name string
 ---@return boolean was_active
 local _kill_now = function(name)
@@ -476,7 +446,6 @@ local _kill_now = function(name)
 	return was_active
 end
 
----resume is the only caller of _kill_now, so a "Go back" answer cannot re-trigger the question.
 ---@param name string
 ---@param resume fun()
 ---@return nil
@@ -556,10 +525,6 @@ M.kill_by_cursor = function()
 	end
 end
 
--- ============================================================================
--- Recover
--- ============================================================================
-
 ---@return string?
 local recover_pick_fallback = function()
 	if state.windows.last_poppy_name then
@@ -623,10 +588,6 @@ M.recover = function()
 		end
 	end)
 end
-
--- ============================================================================
--- Query
--- ============================================================================
 
 ---@param name string
 ---@return PoppySessionEntry?
