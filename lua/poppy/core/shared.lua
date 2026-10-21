@@ -123,14 +123,15 @@ end
 M.NORM_TERM_MODES = { "n", "t" }
 
 ---First whitespace-delimited token of a string, or the first element of a string list.
+---Nil when there is no token at all (empty or whitespace-only).
 ---@param command string|string[]|function|nil
 ---@return string?
 M.argv0 = function(command)
 	if type(command) == "string" then
-		return (command:gsub("%s.*", ""))
+		return command:match("^%s*(%S+)")
 	end
 	if type(command) == "table" and #command > 0 and type(command[1]) == "string" then
-		return command[1]
+		return command[1]:match("^%s*(%S+)")
 	end
 	return nil
 end

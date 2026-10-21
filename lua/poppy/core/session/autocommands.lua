@@ -72,7 +72,11 @@ M.setup = function(opts)
 					if dialog.trapped() then
 						return
 					end
-					if vim.fn.win_gettype(win) == "command" then
+					-- Cmdline and floats are transient UI, not a return to the editor:
+					-- closing on either yanks the session mid-command or mid-lookup
+					-- (diagnostic quickfix popups, hover windows, pickers).
+					local kind = vim.fn.win_gettype(win)
+					if kind == "command" or kind == "popup" then
 						return
 					end
 					session().toggle()

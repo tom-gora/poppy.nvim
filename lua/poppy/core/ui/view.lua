@@ -467,36 +467,6 @@ M.is_menu_focused = function()
 	return api.nvim_get_current_win() == menu_win
 end
 
----@return integer|nil
-M.get_hints_buf = function()
-	return state.windows.hints_buf
-end
-
----@return integer|nil
-M.get_menu_header_buf = function()
-	return state.windows.menu_header_buf
-end
-
----@return integer|nil
-M.get_menu_buf = function()
-	return state.windows.menu_buf
-end
-
----@return integer|nil
-M.get_menu_win = function()
-	return state.windows.menu_win
-end
-
----@return integer|nil
-M.get_header_buf = function()
-	return state.windows.header_buf
-end
-
----@return integer|nil
-M.get_menu_wrapper_buf = function()
-	return state.windows.menu_wrapper_buf
-end
-
 M.menu_width = menu_width
 
 M.refresh_poppies = function()

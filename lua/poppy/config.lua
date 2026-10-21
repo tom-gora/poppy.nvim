@@ -140,8 +140,9 @@ local resolve_poppy = function(name, poppy)
 	local title = poppy.title
 	if title == nil then
 		local head = mode == "file" and value
-			or type(value) == "table" and (value[1] or name)
-			or vim.split(value, " ")[1] or name
+			or type(value) == "table" and shared.argv0(value)
+			or shared.argv0(value)
+			or name
 		title = vim.fs.basename(head)
 	end
 

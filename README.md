@@ -32,7 +32,9 @@ require("poppy").setup({
     autohide_menu          = false, -- hide sidebar after selecting; corner hint shows the binding
     title_header           = true,
     hints_footer           = true,
-    close_on_focus_lost    = true,  -- close when focus leaves all poppy windows
+    close_on_focus_lost    = true,  -- close when focus returns to a normal editor window
+                                   -- (cmdline and floats such as hovers/diagnostic
+                                   --  popups do not trigger it)
     close_other_floats_on_open = true, -- close other floating windows when poppy opens
     assume_multiplexer     = false, -- force the mux fallback when env detection misses
     menu_width             = 25,

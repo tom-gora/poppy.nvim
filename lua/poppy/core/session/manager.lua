@@ -108,11 +108,11 @@ local cleanup = function(drop_poppies)
 		local buffers = { state.windows.content_buf }
 		for _, buf in ipairs({
 			state.windows.wrapper_buf,
-			view.get_hints_buf(),
-			view.get_menu_buf(),
-			view.get_menu_header_buf(),
-			view.get_header_buf(),
-			view.get_menu_wrapper_buf(),
+			state.windows.hints_buf,
+			state.windows.menu_buf,
+			state.windows.menu_header_buf,
+			state.windows.header_buf,
+			state.windows.menu_wrapper_buf,
 			hint_buf,
 		}) do
 			if buf and api.nvim_buf_is_valid(buf) and not in_use[buf] then
@@ -162,7 +162,7 @@ local enter_landing = function()
 	state.windows.content_win = nil
 	shared.drop_scratch_buffer(state.windows.content_buf)
 	state.windows.content_buf = nil
-	vim.bo[view.get_menu_buf()].filetype = "poppy_menu"
+	vim.bo[state.windows.menu_buf].filetype = "poppy_menu"
 	menu.focus_body()
 end
 
