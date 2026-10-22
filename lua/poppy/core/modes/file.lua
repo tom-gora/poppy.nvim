@@ -34,8 +34,7 @@ end
 ---@param bufnr integer
 ---@param parent_win integer
 ---@param title string
----@param on_die? fun(poppy_name: string)
-local attach = function(poppy_name, bufnr, parent_win, title, on_die)
+local attach = function(poppy_name, bufnr, parent_win, title)
 	vim.bo[bufnr].buflisted = false
 	vim.bo[bufnr].bufhidden = "hide"
 	api.nvim_buf_set_var(bufnr, "poppy_popup", poppy_name)
@@ -47,19 +46,6 @@ local attach = function(poppy_name, bufnr, parent_win, title, on_die)
 		win = parent_win,
 		title = title,
 	}
-	-- Skip on_die when this poppy is already current to avoid a double recover.
-	if on_die and state.windows.current_poppy_name ~= poppy_name then
-		api.nvim_create_autocmd("BufUnload", {
-			group = "poppy_group",
-			buffer = bufnr,
-			once = true,
-			callback = function()
-				if state.runtime(poppy_name) and not state.windows.current_poppy_name then
-					on_die(poppy_name)
-				end
-			end,
-		})
-	end
 end
 
 -- :edit gives a real file buffer (filetype, checktime, normal load path); a hand-built buffer
@@ -81,10 +67,9 @@ end
 ---@param poppy_name string
 ---@param poppy_opts PoppyResolvedConfig
 ---@param parent_win integer
----@param on_die? fun(poppy_name: string) Background file poppy: repaint sidebar when its buffer goes away.
 ---@return boolean ok
-M.run = function(poppy_name, poppy_opts, parent_win, on_die)
-	local file_path = shared.expand_file_value(poppy_opts.file)
+M.run = function(poppy_name, poppy_opts, parent_win)
+	local file_path = shared.expand_file_value(poppy_opts.value)
 	if file_path == "" then
 		shared.notify_warn("poppy '%s' file value resolved to empty at open; dropping", poppy_name)
 		return false
@@ -125,7 +110,7 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 		end
 	end
 
-	attach(poppy_name, bufnr, parent_win, poppy_opts.title, on_die)
+	attach(poppy_name, bufnr, parent_win, poppy_opts.title)
 	return true
 end
 

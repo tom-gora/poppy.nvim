@@ -28,9 +28,8 @@ M.resolve_key = function(user_value)
 	return fallback, user_value
 end
 
--- <C-i> / <C-m> / <C-?> share a byte with a non-ctrl key; mapping the aliased form to
--- poppy_action silently collides with that other key.
--- <C-[> is excluded: the kitty protocol distinguishes it from <Esc> on modern terminals.
+-- <C-i>/<C-m>/<C-?> share a byte with a non-ctrl key; binding the aliased form collides
+-- with that key. <C-[> is excluded: the kitty protocol distinguishes it from <Esc>.
 local ALIASED_KEYS = {
 	["<C-i>"] = "<Tab>",
 	["<C-m>"] = "<CR>",
@@ -160,6 +159,20 @@ M.use_borders = function()
 	return state.windows.opts and state.windows.opts.use_borders or false
 end
 
+local insets_cache_opts, insets_cache_value
+---Insets derived from use_borders(). Memoized on opts reference identity:
+---a fresh setup() (which assigns a new opts table) forces recompute.
+---@return { inset: integer, inset_inv: integer }
+M.get_insets = function()
+	local opts = state.windows.opts
+	if opts ~= insets_cache_opts then
+		local inset = opts and opts.use_borders and 1 or 0
+		insets_cache_opts = opts
+		insets_cache_value = { inset = inset, inset_inv = inset == 0 and 1 or 0 }
+	end
+	return insets_cache_value
+end
+
 ---@return boolean
 M.ensure_setup = function()
 	if state and state.windows and state.windows.opts then
@@ -181,15 +194,8 @@ M.notify_error = function(template, ...)
 	vim.notify("Poppy: " .. string.format(template, ...), vim.log.levels.ERROR)
 end
 
----@param poppy PoppyResolvedConfig
----@return "exec"|"file"|"shell"
-M.category_from_resolved = function(poppy)
-	return poppy.exec and "exec" or poppy.file and "file" or "shell"
-end
-
--- Buftype test is the safety: file mode reuses content_buf as the live file buffer
--- (buftype=""), so identity-based deletion would destroy edits. The other two guards add
--- defense-in-depth: never a buffer a live poppy owns, never one currently on screen.
+-- Skip if the buffer is a live file (file mode reuses content_buf) or in active use
+-- (poppy owns it / a window is showing it). The buftype check is the safety.
 ---@param buf integer|nil
 ---@return boolean dropped
 M.drop_scratch_buffer = function(buf)

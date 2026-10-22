@@ -22,21 +22,17 @@ M.menu_wrapper = {}
 ---@return integer? buf
 M.menu_wrapper.create = function(wrapper_win, panel_w, panel_h)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local bordered = shared.use_borders()
 	-- Bordered mode shrinks content by 1 on each side so the border sits outside it.
-	local outer_w = bordered and panel_w or panel_w
-	local outer_h = bordered and (panel_h - 2) or panel_h
-	local outer_col_offset = bordered and 0 or 0
-	local outer_row_offset = bordered and 0 or 0
+	local outer_h = shared.use_borders() and (panel_h - 2) or panel_h
 
 	local buf = api.nvim_create_buf(false, true)
 	local win = api.nvim_open_win(buf, false, {
 		relative = "win",
 		win = wrapper_win,
-		width = outer_w,
+		width = panel_w,
 		height = outer_h,
-		col = wrapper_conf.width - panel_w + outer_col_offset,
-		row = outer_row_offset,
+		col = wrapper_conf.width - panel_w,
+		row = 0,
 		style = "minimal",
 		border = state.windows.opts.border_style,
 		zindex = layout.POPPY_Z_INDEX,
@@ -49,19 +45,15 @@ end
 
 M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local bordered = shared.use_borders()
-	local outer_w = bordered and panel_w or panel_w
-	local outer_h = bordered and (panel_h - 2) or panel_h
-	local outer_col_offset = bordered and 0 or 0
-	local outer_row_offset = bordered and 0 or 0
+	local outer_h = shared.use_borders() and (panel_h - 2) or panel_h
 
 	local win = api.nvim_open_win(buf, false, {
 		relative = "win",
 		win = wrapper_win,
-		width = outer_w,
+		width = panel_w,
 		height = outer_h,
-		col = wrapper_conf.width - panel_w + outer_col_offset,
-		row = outer_row_offset,
+		col = wrapper_conf.width - panel_w,
+		row = 0,
 		style = "minimal",
 		border = state.windows.opts.border_style,
 		zindex = layout.POPPY_Z_INDEX,
@@ -300,12 +292,6 @@ local GEOMETRY = {
 	landing = function(wc, mw, h)
 		return { width = wc.width, col = wc.width, row = wc.height, height = h }
 	end,
-	sidebar_header = function(wc, mw)
-		return mw, wc.width - mw
-	end,
-	landing_header = function()
-		return nil, nil
-	end,
 }
 
 -- A present panel contributes its height to everything below it; an absent one contributes nothing.
@@ -330,7 +316,7 @@ local mount_panels = function(wrapper_win)
 	local above_body = hh + q_h
 
 	-- menu_wrapper is a quiet sizing container in borderless mode; in bordered mode it grows the
-	-- rounded border and sub-panels inset 1 cell via render.lua's border_inset().
+	-- rounded border and sub-panels inset 1 cell via shared.get_insets().
 	ensure_panel("menu_wrapper_buf", "menu_wrapper_win", function()
 		return M.menu_wrapper.create(wrapper_win, panel_w, panel_h)
 	end, function(buf)
@@ -389,7 +375,7 @@ local mount_panels = function(wrapper_win)
 
 	-- First-show under autohide would otherwise be stale (kill-then-show).
 	if valid_buf(state.windows.menu_buf) then
-		local inset = shared.use_borders() and 1 or 0
+		local inset = shared.get_insets().inset
 		render.body.paint_items(state.windows.menu_buf, render.rowset(menu, panel_w - inset))
 		if valid_buf(state.windows.hints_buf) then
 			render.hints.write_spec(state.windows.hints_buf, shared.keys(), menu.hints, panel_w - inset)
@@ -482,7 +468,7 @@ M.refresh_poppies = function()
 	if not valid_buf(state.windows.menu_buf) then
 		return
 	end
-	local inset = shared.use_borders() and 1 or 0
+	local inset = shared.get_insets().inset
 	local menu = menu_ui.current_spec()
 	render.body.paint_items(state.windows.menu_buf, render.rowset(menu, width - inset))
 end

@@ -86,7 +86,7 @@ M.setup = function(opts)
 	end
 end
 
--- Per open, once, so the next session re-arms it.
+-- Re-armed by every call to setup_float_sweep.
 ---@return nil
 M.setup_float_sweep = function()
 	api.nvim_create_autocmd("WinEnter", {

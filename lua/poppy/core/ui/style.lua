@@ -72,16 +72,18 @@ end
 M.restore_cursor_mode = restore_cursor_mode
 
 -- M.setup clears its own augroup, so an autocmd living there would be torn down mid-dispatch.
+local reapply_menu_cursor = function()
+	local menu_win = current_menu_win()
+	if menu_win and api.nvim_get_current_win() == menu_win then
+		apply_list_guicursor(menu_win)
+	end
+end
+
 local setup_cursor_autocmds = function()
 	api.nvim_create_augroup("poppy_body_cursor_mode", { clear = true })
 	api.nvim_create_autocmd("WinEnter", {
 		group = "poppy_body_cursor_mode",
-		callback = function()
-			local menu_win = current_menu_win()
-			if menu_win and api.nvim_get_current_win() == menu_win then
-				apply_list_guicursor(menu_win)
-			end
-		end,
+		callback = reapply_menu_cursor,
 	})
 	api.nvim_create_autocmd("WinLeave", {
 		group = "poppy_body_cursor_mode",
@@ -259,6 +261,9 @@ M.setup = function()
 	})
 
 	setup_cursor_autocmds()
+
+	-- ColorScheme fires restore_cursor_mode above; if focus is still in the list, re-apply.
+	reapply_menu_cursor()
 end
 
 ---@param win integer

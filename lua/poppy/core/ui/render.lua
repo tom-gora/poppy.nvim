@@ -28,11 +28,6 @@ local DOT_MARK = 2
 local SEP_MARK = 3
 local header = {}
 
--- In bordered mode sub-panels inset by 1 on every side so they sit inside the rounded border.
-local function border_inset()
-	return shared.use_borders() and 1 or 0
-end
-
 ---@param menu_wrapper_win integer
 ---@return integer? win
 ---@return integer? buf
@@ -46,11 +41,12 @@ end
 ---@return integer? win
 header.recreate = function(menu_wrapper_win, buf)
 	local wc = api.nvim_win_get_config(menu_wrapper_win)
-	local inset = border_inset()
-	-- Inset 1 on left (clear of border), 2 on right (border + breathing room).
+	local insets = shared.get_insets()
+	local inset = insets.inset
+	-- Inset 1 on left, 2 on right (clears the rounded border).
 	local width = wc.width - 2 * inset
 	local col = inset
-	-- Anchor flush against the inside of the top border; the buffer's leading empty line gives the visual gap.
+	-- Anchored to the top border; the buffer's empty first line gives the visual gap.
 	local row = 0
 
 	-- zindex +1 above menu_wrapper so the title draws over the bordered panel area.
@@ -184,14 +180,13 @@ end
 ---@return integer? win
 body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local inset = border_inset()
-	local inset_inv = inset == 0 and 1 or 0
+	local insets = shared.get_insets()
+	local inset, inset_inv = insets.inset, insets.inset_inv
 	local hint_offset = hint_height or 5
-	-- In bordered mode, body is anchored to menu_wrapper below the header. Available rows
-	-- = menu_wrapper content height - 3 (header) - hints_height. Subtract row_override for
-	-- a dialog question panel above the body.
+	-- In bordered mode, body sits below the header. Available rows = menu_wrapper content
+	-- height - 3 (header) - hints_height. row_override is the dialog question panel above.
 	local header_offset = layout.get_header_height(state.windows.opts)
-	-- row_override counts header + question rows, so a question exists only when it exceeds the header alone.
+	-- A question exists only when row_override exceeds the header height alone.
 	local has_question = row_override and row_override > header_offset
 	local no_header = header_offset == 0 and not has_question
 	local no_hints = shared.opts_field("hints_footer") ~= true
@@ -208,16 +203,15 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 		available = math.max(1, available - row_override)
 	end
 	local width = menu_width - inset
-	local height = tonumber(math.max(1, available - row_override) - inset)
+	local height = math.max(1, available - row_override) - inset
 	-- row_override counts every row above the body (header + question), so it *is* the start row.
 	local row = no_header and inset_inv or row_override - inset
 	if has_question then
 		row = row + inset + 2 * inset_inv
 	end
 
-	-- body window: the sidebar list (poppy rows) — or dialog rows under an override.
-	-- In bordered mode, inset 1 on the left and 2 on the right for visual balance with the rounded border.
-	-- In borderless mode, anchor SE so the body sits flush against the right edge of menu_wrapper.
+	-- Sidebar list, or dialog rows when a dialog is overlaid.
+	-- Bordered: inset 1L/2R to clear the rounded border. Borderless: anchor flush right.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -311,16 +305,13 @@ local fit_text = function(label, max_width)
 		end
 		result = test
 	end
-	-- Single overlong token, no whitespace: hard-cut rather than degrade to a lone ellipsis.
+	-- Single overlong token: hard-cut rather than degrade to a lone ellipsis.
 	if result == "" then
 		return hard_cut_to_width(label, max_width) .. "…"
 	end
 	result = result:gsub("[%p]+%s*$", "")
 	return fn.strdisplaywidth(result .. "…") <= max_width and (result .. "…") or result
 end
-
--- Exported so a menu can budget a title against the panel width with the painter's own arithmetic.
--- (No menu actually uses it today; kept local for now.)
 
 ---Wrap text to `width` on word boundaries. Differs from 'wrap'/'linebreak' (display-only,
 ---no height back) so the caller knows the line count before the window exists.
@@ -339,7 +330,7 @@ M.wrap_text = function(text, width)
 		end
 		local lines = {}
 		local line = ""
-		-- Words list built up front so a hard-cut's remainder can be appended as the next word.
+		-- Pre-tokenise so a hard-cut's remainder can re-enter the loop as a new word.
 		local words = {}
 		for word in paragraph:gmatch("%S+") do
 			words[#words + 1] = word
@@ -414,7 +405,7 @@ M.rowset = function(menu, panel_width)
 		idx_width = #tostring(math.max(#rows, 1)),
 		rows = rows,
 	}
-	-- Reserve a one-cell trailing margin so a truncated label never runs flush to the edge.
+	-- -1 reserves a one-cell trailing margin so a truncated label never runs flush to the edge.
 	local budget = panel_width - M.measure_item(set.idx_width, "") - 1
 	for i, row in ipairs(set.rows) do
 		set.rows[i] = {
@@ -438,22 +429,20 @@ local poppy_items = function(poppies, icons, menu_width)
 	local items = {}
 
 	for display_idx, configured in ipairs(poppies) do
-		local category = shared.category_from_resolved(configured.config)
+		local category = configured.config.mode
 		local raw_title = configured.config.title or configured.name
 		local runtime = state.runtime(configured.name)
 		local is_hidden = runtime and runtime.hidden or false
 		local is_active = runtime and runtime.active or false
-		-- Reserve a one-cell trailing margin so a truncated label never runs flush to the edge.
+		-- -1 reserves a one-cell trailing margin so a truncated label never runs flush to the edge.
 		local label_max = menu_width - M.measure_item(idx_width, "") - 1
 		local hl = is_active and ("PoppyCurrentRow" .. cap_category(category))
 			or (is_hidden and category_hl_hidden[category])
 			or category_hl[category]
 
-		-- State dot always; category icon only when there's a category (placeholder items get neither).
+		-- State dot always; category icon only when there's a category.
 		local marks = { pick_sign(category, is_active, is_hidden) }
-		if category ~= "" then
-			marks[#marks + 1] = pick_icon_sign(category, is_active)
-		end
+		marks[#marks + 1] = pick_icon_sign(category, is_active)
 
 		items[display_idx] = {
 			label = fit_text(raw_title, label_max),
@@ -469,7 +458,7 @@ local poppy_items = function(poppies, icons, menu_width)
 	return items
 end
 
----Sign ids are row-derived, so a repaint replaces rather than accumulates.
+-- Sign ids are row-derived, so a repaint replaces rather than accumulates.
 M.items_for_poppies = poppy_items
 
 ---@param buf integer
@@ -527,8 +516,8 @@ end
 ---@return integer? win
 body.recreate_plain = function(wrapper_win, buf, width, height, row)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local inset = border_inset()
-	local inset_inv = inset == 0 and 1 or 0
+	local insets = shared.get_insets()
+	local inset = insets.inset
 	local h = math.max(1, height)
 	local header_offset = layout.get_header_height(state.windows.opts)
 	header_offset = header_offset == 0 and 0 or 1
@@ -595,7 +584,7 @@ hints.create_bottom_right = function(parent_win, keys)
 	local row = math.max(0, win_conf.height) + 1
 	local col = math.max(0, win_conf.width) + 1
 
-	-- corner hint window: the 1-line "<C-/> Menu" badge that appears under autohide_menu.
+	-- 1-line "<C-/> Menu" badge shown by autohide_menu.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -630,12 +619,12 @@ end
 hints.recreate = function(wrapper_win, buf, opts)
 	opts = opts or {}
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local inset = border_inset()
+	local inset = shared.get_insets().inset
 	local width = (opts.width or wrapper_conf.width) - inset
-	-- Separator and trailing blank are added to `height` below.
+	-- +2 covers separator + trailing blank.
 	local height = (opts.height or #opts.hints) + 2
 
-	-- SW anchor: row=0 puts SW at parent NW; row=parent.height-1 puts SW at parent's bottom.
+	-- SW anchor puts the row at parent NW (0) or parent's bottom row (height-1).
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -652,8 +641,7 @@ hints.recreate = function(wrapper_win, buf, opts)
 	}
 
 	local win = api.nvim_open_win(buf, false, config)
-	-- write_spec pads each line to wrapper_width exactly; soft-wrap would duplicate the trailing
-	-- cell onto a second visual row, leaving a phantom blank line above the separator.
+	-- Soft-wrap would duplicate the trailing cell onto a second visual row.
 	vim.wo[win].wrap = false
 	vim.wo[win].linebreak = false
 	style.apply_hints_panel_style(win)
@@ -670,8 +658,7 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	if not keys or not spec then
 		return
 	end
-	local inset = border_inset()
-	local inset_inv = inset == 0 and 1 or 0
+	local inset = shared.get_insets().inset
 	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - (4 - inset))) .. "  "
 	local lines = { sep }
 

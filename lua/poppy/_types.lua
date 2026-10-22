@@ -53,10 +53,8 @@
 ---@alias PoppyBorder "none"|"solid"|"single"|"double"|"rounded"|"shadow"|string[]
 
 ---@class PoppyResolvedConfig
----@field exec? string|string[]|function
----@field file? string|function
----@field shell? string|function
----@field mode "term"|"file"
+---@field mode "exec"|"file"|"shell"
+---@field value string|string[]|function
 ---@field title string
 
 ---@class PoppyRuntimeState

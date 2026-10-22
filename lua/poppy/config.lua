@@ -103,33 +103,33 @@ local resolve_poppy = function(name, poppy)
 		return nil
 	end
 
-	local mode, raw
+	local mode, declared
 	if poppy.exec then
-		mode, raw = "term", poppy.exec
+		mode, declared = "exec", poppy.exec
 	elseif poppy.file then
-		mode, raw = "file", poppy.file
+		mode, declared = "file", poppy.file
 	elseif poppy.shell then
-		mode, raw = "term", poppy.shell
+		mode, declared = "shell", poppy.shell
 	else
 		shared.notify_error("poppy '%s' must have exactly one of 'exec', 'file', or 'shell'", tostring(name))
 		return nil
 	end
 
-	local value, ok, err = resolve_and_validate_value(name, raw)
+	local resolved, ok, err = resolve_and_validate_value(name, declared)
 	if not ok then
 		shared.notify_warn("poppy '%s' dropped at setup: %s", tostring(name), err)
 		return nil
 	end
 
 	if mode == "file" then
-		local expanded = fn.expand(value)
+		local expanded = fn.expand(resolved)
 		if expanded == "" then
-			shared.notify_warn("poppy '%s' file path resolved to empty: %s", tostring(name), tostring(value))
+			shared.notify_warn("poppy '%s' file path resolved to empty: %s", tostring(name), tostring(resolved))
 			return nil
 		end
-		value = expanded
+		resolved = expanded
 	else
-		local check = poppy.shell and value == "default" and shared.default_shell() or value
+		local check = mode == "shell" and resolved == "default" and shared.default_shell() or resolved
 		local argv = shared.argv0(check)
 		if argv and argv ~= "" and fn.executable(argv) == 0 then
 			shared.notify_warn("poppy '%s' binary '%s' not found on $PATH", tostring(name), argv)
@@ -139,20 +139,15 @@ local resolve_poppy = function(name, poppy)
 
 	local title = poppy.title
 	if title == nil then
-		local head = mode == "file" and value
-			or type(value) == "table" and shared.argv0(value)
-			or shared.argv0(value)
+		local head = mode == "file" and resolved
+			or type(resolved) == "table" and shared.argv0(resolved)
+			or shared.argv0(resolved)
 			or name
 		title = vim.fs.basename(head)
 	end
 
-	return {
-		exec = poppy.exec,
-		file = poppy.file,
-		shell = poppy.shell,
-		mode = mode,
-		title = title,
-	}
+	-- `value` keeps the declared form so a function is re-resolved at open, as documented.
+	return { mode = mode, value = declared, title = title }
 end
 
 local classify_border = function(v, borderless_style)

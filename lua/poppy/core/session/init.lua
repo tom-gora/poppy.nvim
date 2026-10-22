@@ -22,8 +22,8 @@ local sort_config = function(opts)
 			table.insert(sorted, { name = name, config = p_resolved })
 		end
 		table.sort(sorted, function(a, b)
-			local ord_a = CATEGORY_ORDER[shared.category_from_resolved(a.config)] or 99
-			local ord_b = CATEGORY_ORDER[shared.category_from_resolved(b.config)] or 99
+			local ord_a = CATEGORY_ORDER[a.config.mode] or 99
+			local ord_b = CATEGORY_ORDER[b.config.mode] or 99
 			if ord_a ~= ord_b then
 				return ord_a < ord_b
 			end

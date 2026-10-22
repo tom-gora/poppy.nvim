@@ -12,9 +12,7 @@ M.DEFAULT_MENU_WIDTH = 25
 M.MIN_MENU_WIDTH = 20
 M.MAX_MENU_WIDTH = 35
 
--- Floor on the content pane: on a narrow wrapper, sidebar and content compete for the same cells
--- and the sidebar wins by default. Reserving this + the 2 cells content.create subtracts for
--- the border guarantees the floor.
+-- Floor on the content pane so the sidebar wins against the content for narrow wrappers.
 M.MIN_CONTENT_WIDTH = 35
 
 local HEADER_HEIGHT = 3

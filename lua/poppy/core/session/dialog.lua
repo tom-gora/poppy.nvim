@@ -33,8 +33,7 @@ local function label_for(name)
 	return vim.fn.fnamemodify(raw, ":t")
 end
 
--- Under autohide the panel is hidden between switches; unhide rather than remount so the
--- sidebar keeps its current row.
+-- Under autohide the panel is hidden between switches; unhide keeps its current row.
 local function show_or_mount()
 	if shared.opts_field("autohide_menu") and state.windows.menu_hidden then
 		view.set_visible(true, state.windows.content_win)
@@ -49,10 +48,10 @@ local function file_path_for(name)
 	if not configured or configured.config.mode ~= "file" then
 		return ""
 	end
-	return shared.expand_file_value(configured.config.file)
+	return shared.expand_file_value(configured.config.value)
 end
 
----One binding only: no kill, no exit, no toggle (poppy_action is trapped).
+-- One binding only: poppy_action is trapped, so no kill/exit/toggle.
 ---@param name string
 ---@return table
 local function spec_for(name)
@@ -84,7 +83,7 @@ local function spec_for(name)
 	}
 end
 
----Checked at UI entry, not at setup, so a file created after setup is honored on the first call.
+---Checked at UI entry so files created after setup are honored.
 ---@param name string
 ---@return boolean
 M.needs_file_decision = function(name)
@@ -149,7 +148,6 @@ M.answer_row = function()
 end
 
 ---A count prefix picks the row; out-of-range counts fall back to the cursor.
----Missing-file dialogs have only Create/Don't; kill-confirm falls back to Go back.
 ---@return string
 M.answer = function()
 	local count = vim.v.count
@@ -200,13 +198,7 @@ local function install_dialog(name, kind, resume, extra)
 	}, extra or {})
 end
 
----@param name string
----@return table spec
-local function spec_for_kind(name, kind)
-	return kind == "missing_file" and spec_for_missing(name) or spec_for(name)
-end
-
----First call shows the kill-confirm dialog; reflows the spec in place for subsequent missing-file entries.
+---First call shows the kill-confirm dialog; the spec is reflowed in place for subsequent missing-file entries.
 ---@param name string
 ---@param resume fun() Carries out the interrupted close once answered.
 ---@return nil
@@ -220,7 +212,6 @@ M.open = function(name, resume)
 	show_or_mount()
 	view.set_focused(true)
 	menu_ui.focus_body()
-	-- Preselect "No": answering by accident should not be the destructive answer.
 	menu_ui.set_row(state.windows.menu_win, 1)
 	watch_panels()
 end
@@ -245,13 +236,11 @@ M.open_missing_file = function(poppies, on_complete)
 	show_or_mount()
 	view.set_focused(true)
 	menu_ui.focus_body()
-	-- Preselect "Create": accidental <CR> is the constructive answer.
 	menu_ui.set_row(state.windows.menu_win, 1)
 	watch_panels()
 end
 
----Can't be left to the next mount: recovery resolves either by switching (refreshes body) or by
----landing (remount), and either way the panel would survive as a reference to a closed window.
+-- Must run before the next mount: recovery resolves by switching (refreshes body) or landing (remounts), and either way the panel would survive as a reference to a closed window.
 local function drop_question()
 	local win, buf = state.windows.menu_header_win, state.windows.menu_header_buf
 	if win and api.nvim_win_is_valid(win) then
@@ -298,11 +287,11 @@ local function drop_poppy(name, reason)
 	if not configured then
 		return
 	end
-	local path = configured.config.file
+	local path = configured.config.value
 	shared.drop_poppy(name, reason or ("poppy '" .. name .. "' not created: " .. tostring(path)))
 end
 
--- Dialog state is still set when this runs (we're inside `finish`); the spec override is
+-- Dialog state is still set when this runs (we're inside finish); the spec override is
 -- replaced in place so the same float re-renders with the next question.
 local function advance_missing_file_queue(dialog)
 	local poppies = dialog.poppies
@@ -310,13 +299,13 @@ local function advance_missing_file_queue(dialog)
 	if i > #poppies then
 		return false
 	end
-	-- Reflow the spec for the next entry. Clear and re-install so the spec text changes.
+	-- Clear the override before re-installing so the spec text actually changes.
 	menu_ui.clear_override()
 	dialog.name = poppies[i]
 	dialog.index = i + 1
 	menu_ui.set_override(spec_for_missing(poppies[i]))
-	-- Clear WinClosed watchers before view.mount: closing old panels would re-enter M.resolve
-	-- on the old dialog state. watch_panels() below installs new ones.
+	-- Clear WinClosed watchers before view.mount: closing old panels would re-enter
+	-- M.resolve on the old dialog state. watch_panels() below installs new ones.
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 	show_or_mount()
 	view.set_focused(true)
@@ -338,20 +327,19 @@ M.resolve = function(outcome)
 			menu_ui.clear_override()
 			pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 			drop_question()
-		-- Clear the trap before the continuation. M.open's drain checks dialog.trapped() and
-		-- bails on it; without this it would never re-run.
-		state.windows.dialog = nil
-		local ok, err = pcall(after)
-		if not ok then
-			error(err, 0)
+			-- Clear the trap before the continuation so M.open's drain can re-run.
+			state.windows.dialog = nil
+			local ok, err = pcall(after)
+			if not ok then
+				error(err, 0)
+			end
 		end
-	end
 
 		local function handle_one()
 			local name = dialog.name
 			if outcome == OUTCOME_CREATE then
 				local configured = state.poppy_configured(name)
-				local expanded = shared.expand_file_value(configured and configured.config.file)
+				local expanded = shared.expand_file_value(configured and configured.config.value)
 				if expanded ~= "" then
 					local ok, err = require("poppy.core.modes.file").create_file_with_parents(expanded)
 					if not ok then
@@ -382,10 +370,9 @@ M.resolve = function(outcome)
 		menu_ui.clear_override()
 		pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 		drop_question()
-		-- Trap stays engaged across the continuation: the resume deletes the poppy's buffer
-		-- while the content pane still shows it, firing its WinClosed watcher. With the trap
-		-- already released, the watcher would rebuild the pane and re-show the question for
-		-- a poppy that's already gone. Cleared only after the continuation.
+		-- Trap stays engaged across the continuation: the resume deletes the poppy's buffer while
+		-- the content pane shows it, firing WinClosed. Releasing earlier would let the watcher
+		-- rebuild the pane and re-show the question for a poppy that's already gone.
 		local ok, err = pcall(after)
 		state.windows.dialog = nil
 		if not ok then

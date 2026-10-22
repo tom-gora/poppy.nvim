@@ -23,7 +23,7 @@ end
 ---@param poppy_opts PoppyResolvedConfig
 ---@return string|string[]|nil
 local term_resolve_command = function(poppy_opts)
-	local raw = poppy_opts.shell ~= nil and poppy_opts.shell or poppy_opts.exec
+	local raw = poppy_opts.value
 	if type(raw) == "function" then
 		local ok, result = pcall(raw)
 		if not ok then
@@ -34,23 +34,17 @@ local term_resolve_command = function(poppy_opts)
 	if raw == nil or raw == "" then
 		return nil
 	end
-	if poppy_opts.shell ~= nil and raw == "default" then
+	if poppy_opts.mode == "shell" and raw == "default" then
 		return shared.default_shell()
 	end
 	return raw
 end
 
----@param command string|string[]|function|nil
+---@param command string|string[]
 ---@param opts table
 ---@return integer|nil job_id
 ---@return boolean ok  false when jobstart refused; command was resolvable but failed to spawn
 local term_spawn = function(command, opts)
-	if type(command) == "function" then
-		command = command()
-	end
-	if not command then
-		return nil, false
-	end
 	if fn.has("nvim-0.11") == 1 then
 		opts.term = true
 		return fn.jobstart(command, opts), true
@@ -63,9 +57,8 @@ end
 ---@param poppy_name string
 ---@param poppy_opts PoppyResolvedConfig
 ---@param parent_win integer
----@param on_die? fun(poppy_name: string) Called when the spawned job exits; mode does not decide what happens next.
 ---@return boolean ok
-M.run = function(poppy_name, poppy_opts, parent_win, on_die)
+M.run = function(poppy_name, poppy_opts, parent_win)
 	if not poppy_opts or not parent_win then
 		return false
 	end
@@ -73,9 +66,6 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 	-- Pre-check $PATH synchronously: jobstart/termopen return a job id even for missing binaries
 	-- (fork succeeds, exec fails async), so without this the drop only happens after typing.
 	local command = term_resolve_command(poppy_opts)
-	if type(command) == "function" then
-		command = command()
-	end
 	if not command then
 		shared.drop_poppy(poppy_name, string.format("command resolved to nil for poppy '%s'", poppy_name))
 		return false
@@ -103,9 +93,6 @@ M.run = function(poppy_name, poppy_opts, parent_win, on_die)
 						pcall(api.nvim_buf_delete, bufnr, { force = true })
 					end
 					state.clear_runtime(poppy_name)
-					if on_die then
-						on_die(poppy_name)
-					end
 				end,
 			}
 			local _, ok = term_spawn(command, spawn_opts)
