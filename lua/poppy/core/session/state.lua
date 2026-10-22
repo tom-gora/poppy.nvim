@@ -21,12 +21,13 @@ local M = {}
 ---@field header_buf integer|nil
 ---@field current_poppy_name string|nil
 ---@field last_poppy_name string|nil
----@field is_landing boolean
----@field hidden boolean
+---@field is_landing boolean Structural: no content pane; menu *is* the UI (landing geometry).
+---@field menu_hidden boolean Presentation: sidebar unmounted by autohide_menu; only meaningful when not landing.
 ---@field opts PoppyMergedConfig?
 ---@field dialog {name: string, resume: fun(), buf: integer?}|nil A confirmation is up;
 --- teardown routes are inert while set, and any forced close of the dialog's panels resolves the question.
 ---@field recovering boolean True while a recovery routine is mid-flight; WinClosed watcher bails when set.
+---@field retrying_after_failure boolean Guards switch_by_name against infinite recover() recursion on a second failure.
 
 ---@return PoppyState
 M.default_state = function()
@@ -50,9 +51,10 @@ M.default_state = function()
 		current_poppy_name = nil,
 		last_poppy_name = nil,
 		is_landing = false,
-		hidden = false,
+		menu_hidden = false,
 		opts = nil,
 		recovering = false,
+		retrying_after_failure = false,
 		dialog = nil,
 	}
 end

@@ -12,6 +12,9 @@ local INDENT = "   "
 local KEY_COL = 5
 local COL_GAP = "  "
 
+local SIGN_COL = 4
+local SIGN_COL_OPT = "yes:2"
+
 local function create_unmodifiable_buf()
 	local buf = api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
@@ -231,7 +234,7 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	}
 
 	local win = api.nvim_open_win(buf, false, config)
-	vim.wo[win].signcolumn = "yes:2"
+	vim.wo[win].signcolumn = SIGN_COL_OPT
 	style.apply_body_style(win)
 	shared.apply_win_marker(win)
 	return win
@@ -254,9 +257,6 @@ local category_hl_hidden = {
 local max_index_width = function(count)
 	return #tostring(count)
 end
-
--- Two signs (state dot + category icon) at signcolumn="yes:2" = 4 cells. Must match body.recreate's signcolumn.
-local SIGN_COL = 4
 
 ---@param idx_width integer
 ---@param title string
@@ -547,7 +547,7 @@ body.recreate_plain = function(wrapper_win, buf, width, height, row)
 		focusable = false,
 	}
 	local win = api.nvim_open_win(buf, false, config)
-	vim.wo[win].signcolumn = "yes:2"
+	vim.wo[win].signcolumn = SIGN_COL_OPT
 	vim.wo[win].cursorline = false
 	style.apply_panel_style(win)
 	shared.apply_win_marker(win)

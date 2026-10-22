@@ -125,6 +125,7 @@ local cleanup = function(drop_poppies)
 		state.windows.content_buf = nil
 		state.windows.menu_wrapper_buf = nil
 		state.windows.is_landing = false
+		state.windows.menu_hidden = false
 	end)
 	if not ok then
 		shared.notify_error("cleanup failed: %s", tostring(err))
@@ -336,9 +337,6 @@ local do_switch = function(configured, poppy_name)
 	end
 end
 
--- Set while recovery re-drives a switch that already failed once.
-local retrying_after_failure = false
-
 ---@param poppy_name string
 ---@return nil
 M.switch_by_name = function(poppy_name)
@@ -380,7 +378,7 @@ M.switch_by_name = function(poppy_name)
 
 	local ok, err = pcall(do_switch, configured, poppy_name)
 	if ok then
-		retrying_after_failure = false
+		state.windows.retrying_after_failure = false
 		return
 	end
 
@@ -391,11 +389,11 @@ M.switch_by_name = function(poppy_name)
 
 	-- One retry, no more. recover() switches to a fallback; if that throws the same error
 	-- it would re-enter recover() and walk fallbacks forever.
-	if retrying_after_failure then
+	if state.windows.retrying_after_failure then
 		shared.notify_error("switch failed again; not retrying")
 		return
 	end
-	retrying_after_failure = true
+	state.windows.retrying_after_failure = true
 	M.recover()
 end
 

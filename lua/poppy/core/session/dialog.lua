@@ -36,7 +36,7 @@ end
 -- Under autohide the panel is hidden between switches; unhide rather than remount so the
 -- sidebar keeps its current row.
 local function show_or_mount()
-	if shared.opts_field("autohide_menu") and state.windows.hidden then
+	if shared.opts_field("autohide_menu") and state.windows.menu_hidden then
 		view.set_visible(true, state.windows.content_win)
 	else
 		view.mount(state.windows.wrapper_win)
@@ -279,7 +279,7 @@ local function restore_content()
 	-- Dropping the question changes how much room the body has; a repaint alone leaves the body
 	-- sitting below the gap it left (body is sized by what's above it).
 	-- Only needed here: Save and Discard go on to tear the poppy down (that path remounts).
-	if not (shared.opts_field("autohide_menu") and state.windows.hidden) then
+	if not (shared.opts_field("autohide_menu") and state.windows.menu_hidden) then
 		view.mount(state.windows.wrapper_win)
 	end
 	-- Mirror the tail of a real selection so autohide settles the same way.

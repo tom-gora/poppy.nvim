@@ -401,7 +401,7 @@ local mount_panels = function(wrapper_win)
 	end
 
 	state.windows.wrapper_win = wrapper_win
-	state.windows.hidden = false
+	state.windows.menu_hidden = false
 end
 
 ---@param wrapper_win integer
@@ -427,7 +427,7 @@ M.set_visible = function(visible, content_win)
 	if not api.nvim_win_is_valid(wrapper_win) then
 		return
 	end
-	if state.windows.hidden == not visible then
+	if state.windows.menu_hidden == not visible then
 		return
 	end
 
@@ -439,7 +439,7 @@ M.set_visible = function(visible, content_win)
 		resize_content(content_win, cw, wc.height - 2)
 	else
 		close_all_panels()
-		state.windows.hidden = true
+		state.windows.menu_hidden = true
 		resize_content(content_win, wc.width - 2, wc.height - 2, 0)
 	end
 end
@@ -470,7 +470,7 @@ end
 M.menu_width = menu_width
 
 M.refresh_poppies = function()
-	if state.windows.hidden then
+	if state.windows.menu_hidden then
 		return
 	end
 	local width
