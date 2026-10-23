@@ -52,6 +52,17 @@ M.try_focus_win = function(win)
 	return false
 end
 
+---Focus the content pane and enter insert mode if it shows a terminal buffer.
+M.focus_content_in_insert = function()
+	if not M.try_focus_win(state.windows.content_win) then
+		return
+	end
+	local cbuf = api.nvim_win_get_buf(state.windows.content_win)
+	if vim.bo[cbuf].buftype == "terminal" then
+		vim.cmd("startinsert")
+	end
+end
+
 ---@return boolean
 M.session_is_open = function()
 	return state.windows.wrapper_win ~= nil and api.nvim_win_is_valid(state.windows.wrapper_win)

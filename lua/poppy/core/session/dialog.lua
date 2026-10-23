@@ -136,17 +136,6 @@ local ROW_TO_OUTCOME_MISSING = {
 	[2] = OUTCOME_DROP,
 }
 
----The answer row under the cursor.
----@return integer
-M.answer_row = function()
-	local win = state.windows.menu_win
-	if not win or not api.nvim_win_is_valid(win) then
-		return 1
-	end
-	local ok, cursor = pcall(api.nvim_win_get_cursor, win)
-	return (ok and cursor and cursor[1]) or 1
-end
-
 ---A count prefix picks the row; out-of-range counts fall back to the cursor.
 ---@return string
 M.answer = function()
@@ -160,7 +149,13 @@ M.answer = function()
 		end
 	end
 	local fallback = is_missing and OUTCOME_DROP or OUTCOME_GO_BACK
-	return table_used[M.answer_row()] or fallback
+	local win = state.windows.menu_win
+	if not win or not api.nvim_win_is_valid(win) then
+		return fallback
+	end
+	local ok, cursor = pcall(api.nvim_win_get_cursor, win)
+	local row = (ok and cursor and cursor[1]) or 1
+	return table_used[row] or fallback
 end
 
 ---Force-closing a panel counts as the destructive answer: Discard for kill-confirm, Drop for missing-file.
@@ -265,16 +260,15 @@ local function restore_content()
 	if not shared.session_is_open() then
 		return
 	end
-	-- Dropping the question changes how much room the body has; a repaint alone leaves the body
-	-- sitting below the gap it left (body is sized by what's above it).
-	-- Only needed here: Save and Discard go on to tear the poppy down (that path remounts).
-	if not (shared.opts_field("autohide_menu") and state.windows.menu_hidden) then
-		view.mount(state.windows.wrapper_win)
-	end
-	-- Mirror the tail of a real selection so autohide settles the same way.
-	if shared.opts_field("autohide_menu") then
+	local autohide = shared.opts_field("autohide_menu")
+	if autohide then
 		view.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
+	end
+	-- Dropping the question changes how much room the body has; a repaint alone leaves the body
+	-- sitting below the gap it left (body is sized by what's above it).
+	if not (autohide and state.windows.menu_hidden) then
+		view.mount(state.windows.wrapper_win)
 	end
 	shared.try_focus_win(state.windows.content_win)
 end
@@ -295,15 +289,11 @@ end
 -- replaced in place so the same float re-renders with the next question.
 local function advance_missing_file_queue(dialog)
 	local poppies = dialog.poppies
-	local i = dialog.index
-	if i > #poppies then
-		return false
-	end
 	-- Clear the override before re-installing so the spec text actually changes.
 	menu_ui.clear_override()
-	dialog.name = poppies[i]
-	dialog.index = i + 1
-	menu_ui.set_override(spec_for_missing(poppies[i]))
+	dialog.name = poppies[dialog.index]
+	dialog.index = dialog.index + 1
+	menu_ui.set_override(spec_for_missing(dialog.name))
 	-- Clear WinClosed watchers before view.mount: closing old panels would re-enter
 	-- M.resolve on the old dialog state. watch_panels() below installs new ones.
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
@@ -312,7 +302,6 @@ local function advance_missing_file_queue(dialog)
 	menu_ui.focus_body()
 	menu_ui.set_row(state.windows.menu_win, 1)
 	watch_panels()
-	return true
 end
 
 M.resolve = function(outcome)
@@ -354,15 +343,14 @@ M.resolve = function(outcome)
 			if dialog.index > #dialog.poppies then
 				return false
 			end
-			return advance_missing_file_queue(dialog)
+			advance_missing_file_queue(dialog)
+			return true
 		end
 
-		local has_more = handle_one()
-		if has_more then
+		if handle_one() then
 			return
 		end
-		local on_complete = dialog.resume
-		finish(on_complete)
+		finish(dialog.resume)
 		return
 	end
 

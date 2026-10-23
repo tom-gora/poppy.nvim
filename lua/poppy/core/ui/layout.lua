@@ -15,6 +15,18 @@ M.MAX_MENU_WIDTH = 35
 -- Floor on the content pane so the sidebar wins against the content for narrow wrappers.
 M.MIN_CONTENT_WIDTH = 35
 
+-- Below this the layout is not degraded, it is meaningless, so poppy refuses to open
+-- rather than render one-cell panels and clipped hints. Width is the sidebar plus the
+-- content floor and their gutter; height only has to fit the single-row picker, and
+-- header/hints can be turned off in anything tighter.
+M.MIN_COLS = M.MIN_MENU_WIDTH + M.MIN_CONTENT_WIDTH + 2
+M.MIN_LINES = 10
+
+---@return boolean
+M.below_floor = function()
+	return vim.o.columns < M.MIN_COLS or vim.o.lines < M.MIN_LINES
+end
+
 local HEADER_HEIGHT = 3
 
 local fn = vim.fn

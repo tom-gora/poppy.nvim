@@ -10,6 +10,7 @@ local shared = require("poppy.core.shared")
 local menu = require("poppy.core.session.menu")
 local dialog = require("poppy.core.session.dialog")
 local autocommands = require("poppy.core.session.autocommands")
+local keymaps = require("poppy.core.session.keymaps")
 
 local MODES = {
 	exec = require("poppy.core.modes.term"),
@@ -31,7 +32,7 @@ end
 
 ---@param name_or_index string|integer|nil
 ---@return string?
-local resolve = function(name_or_index)
+local resolve_poppy_name = function(name_or_index)
 	if type(name_or_index) == "number" then
 		local configured = state.poppies_configured[name_or_index]
 		if not configured then
@@ -194,6 +195,17 @@ end
 ---@param poppy_name? string
 ---@return integer?
 M.open = function(poppy_name)
+	-- Before any state work: below the floor there is no layout worth building.
+	if layout.below_floor() then
+		shared.notify_warn(
+			"terminal too small (%dx%d); poppy needs at least %dx%d",
+			vim.o.columns,
+			vim.o.lines,
+			layout.MIN_COLS,
+			layout.MIN_LINES
+		)
+		return nil
+	end
 	if not shared.ensure_setup() then
 		return nil
 	end
@@ -202,11 +214,13 @@ M.open = function(poppy_name)
 	if not is_known_poppy(poppy_name) then
 		return nil
 	end
-	-- on_complete is the missing-file queue's continuation; re-invokes M.open() with no name
-	-- so the user lands on the poppies list after the queue drains.
+	-- on_complete is the missing-file queue's continuation; re-invoke M.open with the
+	-- requested name so a named open lands on its poppy after a decision. Bare opens
+	-- are not possible here (session_is_open + non-nil name checks below), so the name
+	-- is always set.
 	if shared.session_is_open() then
 		if not drain_missing_file_queue(function()
-			M.open()
+			M.open(poppy_name)
 		end) then
 			return state.windows.wrapper_win
 		end
@@ -313,7 +327,7 @@ local do_switch = function(configured, poppy_name)
 		return
 	end
 
-	require("poppy.core.session.keymaps").bind_poppy_action(api.nvim_win_get_buf(state.windows.content_win))
+	keymaps.bind_poppy_action(api.nvim_win_get_buf(state.windows.content_win))
 
 	if shared.opts_field("autohide_menu") then
 		view.set_visible(false, state.windows.content_win)
@@ -323,11 +337,14 @@ local do_switch = function(configured, poppy_name)
 	end
 
 	view.refresh_poppies()
-	local cbuf = api.nvim_win_get_buf(state.windows.content_win)
-	local is_terminal = vim.bo[cbuf].buftype == "terminal"
-	if shared.try_focus_win(state.windows.content_win) and is_terminal then
-		vim.cmd("startinsert")
+	-- The fresh sidebar buffer starts its cursor on row 1; park it on the active poppy so
+	-- the highlight and the active dot agree before the menu ever takes focus. No-op under
+	-- autohide, which has already unmounted the menu window.
+	local active_index = state.poppy_index(poppy_name)
+	if active_index then
+		menu.set_row(state.windows.menu_win, active_index)
 	end
+	shared.focus_content_in_insert()
 end
 
 ---@param poppy_name string
@@ -396,7 +413,7 @@ M.switch_by_index = function(index)
 	if not shared.ensure_setup() then
 		return
 	end
-	local name = resolve(index)
+	local name = resolve_poppy_name(index)
 	if name then
 		M.switch_by_name(name)
 	end
@@ -415,7 +432,7 @@ end
 
 ---@param name string
 ---@return boolean was_active
-local _kill_now = function(name)
+local kill_now = function(name)
 	if not name then
 		return false
 	end
@@ -440,7 +457,7 @@ end
 ---@param name string
 ---@param resume fun()
 ---@return nil
-local _kill = function(name, resume)
+local kill_maybe_confirm = function(name, resume)
 	if resume and dialog.needs_confirmation(name) then
 		dialog.open(name, resume)
 		return
@@ -457,8 +474,8 @@ M.kill_active = function()
 	if not name then
 		return
 	end
-	_kill(name, function()
-		_kill_now(name)
+	kill_maybe_confirm(name, function()
+		kill_now(name)
 		M.recover()
 	end)
 end
@@ -469,8 +486,8 @@ local kill_live_poppy = function(name)
 	if not state.runtime(name) then
 		return
 	end
-	_kill(name, function()
-		if _kill_now(name) then
+	kill_maybe_confirm(name, function()
+		if kill_now(name) then
 			M.recover()
 		elseif shared.session_is_open() and not state.windows.is_landing then
 			view.refresh_poppies()
@@ -496,7 +513,7 @@ M.kill_by_index = function(index)
 	if not shared.ensure_setup() then
 		return
 	end
-	local name = resolve(index)
+	local name = resolve_poppy_name(index)
 	if name then
 		return kill_live_poppy(name)
 	end
@@ -509,7 +526,7 @@ M.kill_by_cursor = function()
 	end
 	local idx = cursor_to_poppy_index()
 	if idx then
-		local name = resolve(idx)
+		local name = resolve_poppy_name(idx)
 		if name then
 			return kill_live_poppy(name)
 		end
@@ -583,6 +600,16 @@ M.recover = function()
 	end)
 end
 
+---@param configured {name: string, config: PoppyResolvedConfig}
+---@return PoppySessionEntry
+local entry_for = function(configured)
+	return {
+		name = configured.name,
+		config = configured.config,
+		runtime_state = state.runtime(configured.name),
+	}
+end
+
 ---@param name string
 ---@return PoppySessionEntry?
 M.get_poppy_by_name = function(name)
@@ -590,11 +617,7 @@ M.get_poppy_by_name = function(name)
 	if not configured then
 		return nil
 	end
-	return {
-		name = configured.name,
-		config = configured.config,
-		runtime_state = state.runtime(name),
-	}
+	return entry_for(configured)
 end
 
 ---@param index integer
@@ -604,11 +627,7 @@ M.get_poppy_by_index = function(index)
 	if not configured then
 		return nil
 	end
-	return {
-		name = configured.name,
-		config = configured.config,
-		runtime_state = state.runtime(configured.name),
-	}
+	return entry_for(configured)
 end
 
 ---@return PoppySessionEntry?
@@ -621,22 +640,14 @@ M.get_current_poppy = function()
 	if not configured then
 		return nil
 	end
-	return {
-		name = configured.name,
-		config = configured.config,
-		runtime_state = state.runtime(name),
-	}
+	return entry_for(configured)
 end
 
 ---@return PoppySessionEntry[]
 M.get_poppies = function()
 	local result = {}
 	for _, configured in ipairs(state.poppies_configured) do
-		result[#result + 1] = {
-			name = configured.name,
-			config = configured.config,
-			runtime_state = state.runtime(configured.name),
-		}
+		result[#result + 1] = entry_for(configured)
 	end
 	return result
 end

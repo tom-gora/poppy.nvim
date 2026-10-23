@@ -250,12 +250,7 @@ M.exit_menu = function()
 	end
 
 	view.refresh_poppies()
-	if shared.try_focus_win(state.windows.content_win) then
-		local cbuf = api.nvim_win_get_buf(state.windows.content_win)
-		if vim.bo[cbuf].buftype == "terminal" then
-			vim.cmd("startinsert")
-		end
-	end
+	shared.focus_content_in_insert()
 end
 
 return M

@@ -248,17 +248,13 @@ M.merge = function(user_opts)
 		end
 	end
 
-	local num_keys = { "menu_width" }
-	for _, k in ipairs(num_keys) do
-		if merged[k] ~= nil and type(merged[k]) ~= "number" and type(merged[k]) ~= "function" then
-			shared.notify_warn(
-				"config key '%s' expected number or function, got %s. Falling back to default %s.",
-				k,
-				type(merged[k]),
-				tostring(default_opts[k])
-			)
-			merged[k] = default_opts[k]
-		end
+	if merged.menu_width ~= nil and type(merged.menu_width) ~= "number" and type(merged.menu_width) ~= "function" then
+		shared.notify_warn(
+			"config key 'menu_width' expected number or function, got %s. Falling back to default %s.",
+			type(merged.menu_width),
+			tostring(default_opts.menu_width)
+		)
+		merged.menu_width = default_opts.menu_width
 	end
 
 	if merged.poppies ~= nil and type(merged.poppies) ~= "table" then

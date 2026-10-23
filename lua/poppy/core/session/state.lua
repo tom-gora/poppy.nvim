@@ -64,7 +64,7 @@ M.windows = M.default_state()
 ---@type {name: string, config: PoppyResolvedConfig}[]
 M.poppies_configured = {}
 
---@type table<string, PoppyRuntimeState?>
+---@type table<string, PoppyRuntimeState?>
 M.poppies_runtime = {}
 
 ---@param name string

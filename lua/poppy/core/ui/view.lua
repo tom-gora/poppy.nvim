@@ -20,27 +20,14 @@ M.menu_wrapper = {}
 ---@param panel_h integer
 ---@return integer? win
 ---@return integer? buf
+---@param wrapper_win integer
+---@param panel_w integer
+---@param panel_h integer
+---@return integer? win
+---@return integer? buf
 M.menu_wrapper.create = function(wrapper_win, panel_w, panel_h)
-	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	-- Bordered mode shrinks content by 1 on each side so the border sits outside it.
-	local outer_h = shared.use_borders() and (panel_h - 2) or panel_h
-
 	local buf = api.nvim_create_buf(false, true)
-	local win = api.nvim_open_win(buf, false, {
-		relative = "win",
-		win = wrapper_win,
-		width = panel_w,
-		height = outer_h,
-		col = wrapper_conf.width - panel_w,
-		row = 0,
-		style = "minimal",
-		border = state.windows.opts.border_style,
-		zindex = layout.POPPY_Z_INDEX,
-		focusable = false,
-	})
-	style.apply_panel_style(win)
-	shared.apply_win_marker(win)
-	return win, buf
+	return M.menu_wrapper.recreate(wrapper_win, buf, panel_w, panel_h), buf
 end
 
 M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)

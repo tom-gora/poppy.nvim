@@ -42,12 +42,12 @@ end
 header.recreate = function(menu_wrapper_win, buf)
 	local wc = api.nvim_win_get_config(menu_wrapper_win)
 	local insets = shared.get_insets()
-	local inset = insets.inset
+	local inset, inset_inv = insets.inset, insets.inset_inv
 	-- Inset 1 on left, 2 on right (clears the rounded border).
 	local width = wc.width - 2 * inset
 	local col = inset
 	-- Anchored to the top border; the buffer's empty first line gives the visual gap.
-	local row = 0
+	local row = inset_inv
 
 	-- zindex +1 above menu_wrapper so the title draws over the bordered panel area.
 	---@type vim.api.keyset.win_config
@@ -56,7 +56,7 @@ header.recreate = function(menu_wrapper_win, buf)
 		width = width,
 		height = 2,
 		col = col,
-		row = row + ((inset == 0) and 1 or 0),
+		row = row,
 		style = "minimal",
 		border = "none",
 		zindex = layout.POPPY_Z_INDEX,
@@ -190,14 +190,17 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	local has_question = row_override and row_override > header_offset
 	local no_header = header_offset == 0 and not has_question
 	local no_hints = shared.opts_field("hints_footer") ~= true
-	-- MAGIC IF BLOCK DO NOT TOUCH!
+	-- Most-specific branch first: the no_header/no_hints combination starts from
+	-- `wrapper_conf.height + hint_offset` (no header or hints ever subtracted). The two
+	-- single-flag branches start from the `available` baseline and re-add what was
+	-- missing. Same values as the old least-specific-first order.
 	local available = wrapper_conf.height - hint_offset + (2 * inset)
-	if no_header and not no_hints then
-		available = available - inset_inv - inset
-	elseif no_hints and not no_header then
+	if no_header and no_hints then
+		available = wrapper_conf.height + hint_offset - inset_inv + inset
+	elseif no_hints then
 		available = available + hint_offset
-	elseif no_header and no_hints then
-		available = wrapper_conf.height + (hint_offset + header_offset) - inset_inv + inset
+	elseif no_header then
+		available = available - inset_inv - inset
 	end
 	if has_question then
 		available = math.max(1, available - row_override)
@@ -205,10 +208,25 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	local width = menu_width - inset
 	local height = math.max(1, available - row_override) - inset
 	-- row_override counts every row above the body (header + question), so it *is* the start row.
+	-- When has_question, the +inset from header and the -inset from this branch cancel, leaving
+	-- `row_override + 2*inset_inv` (the question panel's bottom margin).
 	local row = no_header and inset_inv or row_override - inset
 	if has_question then
-		row = row + inset + 2 * inset_inv
+		row = row_override + 2 * inset_inv
 	end
+	if has_question then
+		available = math.max(1, available - row_override)
+	end
+	local width = menu_width - inset
+	local height = math.max(1, math.max(1, available - row_override) - inset)
+	-- row_override counts every row above the body (header + question), so it *is* the start row.
+	-- When has_question, the +inset from header and the -inset from this branch cancel, leaving
+	-- `row_override + 2*inset_inv` (the question panel's bottom margin).
+	local row = no_header and inset_inv or row_override - inset
+	if has_question then
+		row = row_override + 2 * inset_inv
+	end
+	local col = wrapper_conf.width - inset
 
 	-- Sidebar list, or dialog rows when a dialog is overlaid.
 	-- Bordered: inset 1L/2R to clear the rounded border. Borderless: anchor flush right.
@@ -218,7 +236,7 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 		width = width,
 		height = height,
 		anchor = "NE",
-		col = wrapper_conf.width - inset,
+		col = col,
 		row = row,
 		style = "minimal",
 		border = "none",

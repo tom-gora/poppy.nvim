@@ -84,6 +84,25 @@ M.setup = function(opts)
 			end,
 		})
 	end
+
+	-- Toggle rather than close: a live session keeps its poppy buffers, so widening the
+	-- window and toggling again lands straight back on the same poppy.
+	api.nvim_create_autocmd("VimResized", {
+		group = "poppy_group",
+		callback = function()
+			if not shared.session_is_open() or not layout.below_floor() then
+				return
+			end
+			session().toggle()
+			shared.notify_warn(
+				"terminal too small (%dx%d); toggle poppy back on at %dx%d or wider",
+				vim.o.columns,
+				vim.o.lines,
+				layout.MIN_COLS,
+				layout.MIN_LINES
+			)
+		end,
+	})
 end
 
 -- Re-armed by every call to setup_float_sweep.
