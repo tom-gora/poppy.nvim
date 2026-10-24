@@ -32,7 +32,8 @@ local HEADER_HEIGHT = 3
 local fn = vim.fn
 local shared = require("poppy.core.shared")
 
-local HEADER_TITLE = "P ◉ PPY.NVIM"
+-- Drawn by render.header, measured by landing_min_width. One string, one place.
+M.HEADER_TITLE = "P◉PPY.NVIM"
 
 M.PANEL_PAD = 1
 
@@ -57,7 +58,7 @@ M.landing_min_width = function(opts, poppies)
 
 	-- Each extent already includes its own left inset, so PANEL_PAD is added once on the trailing side.
 	local content = math.max(widest_row, widest_hint) + M.PANEL_PAD
-	local chrome = fn.strdisplaywidth(HEADER_TITLE) + (M.PANEL_PAD * 2)
+	local chrome = fn.strdisplaywidth(M.HEADER_TITLE) + (M.PANEL_PAD * 2)
 	return math.max(content, chrome) + 1
 end
 

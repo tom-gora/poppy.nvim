@@ -70,14 +70,9 @@
 ---@field runtime_state PoppyRuntimeState?
 
 ---@class PoppyHintOpts
----@field row? integer
----@field row_offset? integer
----@field col? integer
 ---@field width? integer
 ---@field height? integer
 ---@field hints? {string, string}[]
-
----@alias PoppyMenuWidth "declared"|"content"
 
 ---@class MenuItem
 ---@field label string
@@ -89,21 +84,16 @@
 ---@field rows MenuItem[]
 
 ---@class PoppyMenuKeymap
----@field field string
----@field desc string
----@field fn function
+---@field [1] string PoppyKeys field name ("poppy_action", "select", "kill", "exit_menu")
+---@field [2] string Description
+---@field [3] fun() Handler
 
 ---@class PoppyMenuSpec
 ---@field id string
----@field width PoppyMenuWidth
 ---@field focusable boolean
 ---@field trap boolean
+---@field items (fun(panel_width: integer): MenuItem[])? Lazy row provider; `rows` is used when absent
+---@field menu_header string[]? Question lines rendered above the body
 ---@field rows MenuItem[]
 ---@field hints {string, string}[]
 ---@field keymaps PoppyMenuKeymap[]
-
----@class PoppyMenuTarget
----@field menu_buf integer
----@field hints_buf integer?
----@field list_width integer
----@field hints_width integer

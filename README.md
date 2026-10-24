@@ -37,6 +37,7 @@ require("poppy").setup({
                                    --  popups do not trigger it)
     close_other_floats_on_open = true, -- close other floating windows when poppy opens
     assume_multiplexer     = false, -- force the mux fallback when env detection misses
+    border                 = "rounded", -- "none" | "single" | "double" | "rounded" | "shadow" | border spec
     menu_width             = 25,
     win_height             = 0.75, -- ratio (0.2..1.0), absolute cells (>1), or function
     win_width              = 0.8,
@@ -55,10 +56,27 @@ require("poppy").setup({
 | Key | Type | Behavior |
 | --- | --- | --- |
 | `exec` | `string\|string[]\|function` | Spawns a terminal buffer running the command. First token must be on `$PATH` at setup. |
-| `file` | `string\|function` | Opens the path. Missing parent directories are created on first open. |
+| `file` | `string\|function` | Opens the path. A missing file is offered for creation before the UI appears. |
 | `shell` | `string\|function` | Spawns a terminal buffer with the shell. `"default"` resolves to `$SHELL`. |
 
 `exec`/`file`/`shell` functions are called at setup (validation + title) and at first open. They must be safe to call at setup time. `title` is optional; the default is the file basename or the first whitespace-delimited token.
+
+### Borders
+
+`border` takes `"none"`, `"single"`, `"double"`, `"rounded"`, `"shadow"`, or an
+`nvim_open_win` border spec table. `"none"` (and `"solid"`) means borderless. Leave it
+out and poppy follows your global `winborder`, falling back to borderless.
+
+### Dialogs
+
+Two questions can interrupt an open. Both are answered before the UI settles, and
+several missing files are resolved one after another:
+
+- **Missing file** — a `file` poppy points at a path that does not exist. `Yes` creates
+  it along with its parent directories, `No` drops that poppy.
+- **Unsaved changes** — you kill a poppy whose buffer is modified. `Save` writes it,
+  `Discard` drops the changes, `Go back` cancels the kill. Terminals are exempt: their
+  `modified` flag never flips.
 
 ### Unsaved edits and missing files
 
@@ -76,6 +94,9 @@ Buffers stay loaded between switches (`bufhidden = "hide"`). On re-open: a clean
 ```
 
 Tab-completion knows the configured poppy names.
+
+Poppy refuses to open in a terminal smaller than 57x10 and says so; resize and toggle
+it back on.
 
 ## Lua API
 
@@ -104,6 +125,9 @@ require("poppy").is_open()
 ```
 
 `setup` may be re-called; a second call tears down any live session before re-initializing.
+
+`kill_by_name` / `kill_by_index` act on a poppy that has been opened. A configured but
+never-opened poppy has no session to kill and is left alone.
 
 ## How it works
 

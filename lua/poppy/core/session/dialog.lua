@@ -57,7 +57,6 @@ end
 local function spec_for(name)
 	return {
 		id = "confirm",
-		width = "content",
 		focusable = true,
 		trap = true,
 		menu_header = {
@@ -98,7 +97,6 @@ local function spec_for_missing(name)
 	local path = file_path_for(name)
 	return {
 		id = "missing_file",
-		width = "content",
 		focusable = true,
 		trap = true,
 		menu_header = {

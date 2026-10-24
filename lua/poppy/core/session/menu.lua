@@ -12,12 +12,11 @@ local shared = require("poppy.core.shared")
 local function normalize(spec)
 	spec = spec or {}
 	local known = {
-		id = true, width = true, focusable = true, trap = true,
+		id = true, focusable = true, trap = true,
 		items = true, rows = true, hints = true, keymaps = true, menu_header = true,
 	}
 	local out = {
 		id = tostring(spec.id or "menu"),
-		width = spec.width == "content" and "content" or "declared",
 		focusable = spec.focusable == true,
 		trap = spec.trap == true,
 		items = spec.items,
@@ -66,14 +65,6 @@ M.bind = function(buf, keymaps)
 		end
 	end
 	return bound
-end
-
----Separate from M.bind so a caller can repaint without rebinding.
----@param buf integer
----@param menu PoppyMenuSpec
----@return integer bound
-M.bind_spec = function(buf, menu)
-	return M.bind(buf, menu.keymaps)
 end
 
 ---The panel's CursorMoved guard pins the column; this only chooses the row.
@@ -141,7 +132,6 @@ M.spec_poppy_list = function(cfg)
 	session = session or require("poppy.core.session")
 	return normalize({
 		id = "poppy_list",
-		width = cfg.width_source == "wrapper" and "content" or "declared",
 		focusable = cfg.focusable == true,
 		items = function(panel_width)
 			return render.items_for_poppies(state.poppies_configured, shared.opts_field("icons"), panel_width)
@@ -188,7 +178,7 @@ end
 ---and only becomes focusable on toggle).
 ---@return boolean focused
 M.focus_body = function()
-	M.bind_spec(state.windows.menu_buf, M.current_spec())
+	M.bind(state.windows.menu_buf, M.current_spec().keymaps)
 	shared.close_menu_hint()
 	local win = state.windows.menu_win
 	if not shared.try_focus_win(win) then

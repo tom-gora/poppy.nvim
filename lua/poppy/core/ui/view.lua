@@ -272,12 +272,13 @@ M.min_wrapper_width = function()
 	return menu_width() + layout.MIN_CONTENT_WIDTH + 2
 end
 
+-- Only width and height reach the hints panel; the panel anchors itself.
 local GEOMETRY = {
-	sidebar = function(wc, mw, h)
-		return { width = mw, col = wc.width, row = wc.height - 1, row_offset = 1, height = h }
+	sidebar = function(_, mw, h)
+		return { width = mw, height = h }
 	end,
-	landing = function(wc, mw, h)
-		return { width = wc.width, col = wc.width, row = wc.height, height = h }
+	landing = function(wc, _, h)
+		return { width = wc.width, height = h }
 	end,
 }
 
@@ -369,7 +370,7 @@ local mount_panels = function(wrapper_win)
 		end
 		-- Bind only on focusable bodies; get_keymap would still report bindings as claimed on an unfocusable one.
 		if cfg.focusable then
-			menu_ui.bind_spec(state.windows.menu_buf, menu)
+			menu_ui.bind(state.windows.menu_buf, menu.keymaps)
 		end
 	end
 

@@ -68,7 +68,7 @@ header.recreate = function(menu_wrapper_win, buf)
 	style.apply_panel_style(win)
 	shared.apply_win_marker(win)
 
-	local title = "P◉PPY.NVIM"
+	local title = layout.HEADER_TITLE
 	local title_w = fn.strdisplaywidth(title)
 	local title_col = math.max(0, math.floor((width - title_w) / 2))
 	local sep = "  " .. string.rep("─", width - 4) .. "  "
@@ -195,6 +195,7 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	-- single-flag branches start from the `available` baseline and re-add what was
 	-- missing. Same values as the old least-specific-first order.
 	local available = wrapper_conf.height - hint_offset + (2 * inset)
+	local row = no_header and inset_inv or row_override - inset
 	if no_header and no_hints then
 		available = wrapper_conf.height + hint_offset - inset_inv + inset
 	elseif no_hints then
@@ -204,28 +205,10 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	end
 	if has_question then
 		available = math.max(1, available - row_override)
-	end
-	local width = menu_width - inset
-	local height = math.max(1, available - row_override) - inset
-	-- row_override counts every row above the body (header + question), so it *is* the start row.
-	-- When has_question, the +inset from header and the -inset from this branch cancel, leaving
-	-- `row_override + 2*inset_inv` (the question panel's bottom margin).
-	local row = no_header and inset_inv or row_override - inset
-	if has_question then
 		row = row_override + 2 * inset_inv
-	end
-	if has_question then
-		available = math.max(1, available - row_override)
 	end
 	local width = menu_width - inset
 	local height = math.max(1, math.max(1, available - row_override) - inset)
-	-- row_override counts every row above the body (header + question), so it *is* the start row.
-	-- When has_question, the +inset from header and the -inset from this branch cancel, leaving
-	-- `row_override + 2*inset_inv` (the question panel's bottom margin).
-	local row = no_header and inset_inv or row_override - inset
-	if has_question then
-		row = row_override + 2 * inset_inv
-	end
 	local col = wrapper_conf.width - inset
 
 	-- Sidebar list, or dialog rows when a dialog is overlaid.
