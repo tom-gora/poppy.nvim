@@ -122,28 +122,29 @@ local resolve_poppy = function(name, poppy)
 	end
 
 	if mode == "file" then
+		-- A list is not a path. Rejecting it here keeps fn.expand from raising E730.
+		if type(resolved) ~= "string" then
+			shared.notify_warn("poppy '%s' file value must be a string, got %s", tostring(name), type(resolved))
+			return nil
+		end
 		local expanded = fn.expand(resolved)
 		if expanded == "" then
 			shared.notify_warn("poppy '%s' file path resolved to empty: %s", tostring(name), tostring(resolved))
 			return nil
 		end
-		resolved = expanded
-	else
-		local check = mode == "shell" and resolved == "default" and shared.default_shell() or resolved
-		local argv = shared.argv0(check)
-		if argv and argv ~= "" and fn.executable(argv) == 0 then
-			shared.notify_warn("poppy '%s' binary '%s' not found on $PATH", tostring(name), argv)
-			return nil
-		end
+		return { mode = "file", value = declared, title = poppy.title or vim.fs.basename(expanded) }
+	end
+
+	local check = mode == "shell" and resolved == "default" and shared.default_shell() or resolved
+	local argv = shared.argv0(check)
+	if argv and argv ~= "" and fn.executable(argv) == 0 then
+		shared.notify_warn("poppy '%s' binary '%s' not found on $PATH", tostring(name), argv)
+		return nil
 	end
 
 	local title = poppy.title
 	if title == nil then
-		local head = mode == "file" and resolved
-			or type(resolved) == "table" and shared.argv0(resolved)
-			or shared.argv0(resolved)
-			or name
-		title = vim.fs.basename(head)
+		title = vim.fs.basename(shared.argv0(resolved) or name)
 	end
 
 	-- `value` keeps the declared form so a function is re-resolved at open, as documented.

@@ -52,10 +52,22 @@
 
 ---@alias PoppyBorder "none"|"solid"|"single"|"double"|"rounded"|"shadow"|string[]
 
----@class PoppyResolvedConfig
----@field mode "exec"|"file"|"shell"
+---@class PoppyResolvedFileConfig
+---@field mode "file"
+---@field value string|function
+---@field title string
+
+---@class PoppyResolvedExecConfig
+---@field mode "exec"
 ---@field value string|string[]|function
 ---@field title string
+
+---@class PoppyResolvedShellConfig
+---@field mode "shell"
+---@field value string|string[]|function
+---@field title string
+
+---@alias PoppyResolvedConfig PoppyResolvedFileConfig|PoppyResolvedExecConfig|PoppyResolvedShellConfig
 
 ---@class PoppyRuntimeState
 ---@field active boolean
@@ -69,10 +81,18 @@
 ---@field config PoppyResolvedConfig
 ---@field runtime_state PoppyRuntimeState?
 
+---@class PoppyHint
+---@field [1] string PoppyKeys field name
+---@field [2] string Description
+
+---@class PoppyHints
+---@field landing PoppyHint[]
+---@field body PoppyHint[]
+
 ---@class PoppyHintOpts
 ---@field width? integer
 ---@field height? integer
----@field hints? {string, string}[]
+---@field hints? PoppyHint[]
 
 ---@class MenuItem
 ---@field label string
@@ -95,5 +115,25 @@
 ---@field items (fun(panel_width: integer): MenuItem[])? Lazy row provider; `rows` is used when absent
 ---@field menu_header string[]? Question lines rendered above the body
 ---@field rows MenuItem[]
----@field hints {string, string}[]
+---@field hints PoppyHint[]
 ---@field keymaps PoppyMenuKeymap[]
+
+---@class PoppyMenuLayout
+---@field width_source "wrapper"|"menu"
+---@field focusable boolean
+---@field hints PoppyHint[]
+
+---@class PoppyKillDialog
+---@field kind "kill_confirm"
+---@field name string
+---@field resume fun()
+---@field buf? integer
+
+---@class PoppyMissingFileDialog
+---@field kind "missing_file"
+---@field name string
+---@field resume fun()
+---@field poppies string[]
+---@field index integer
+
+---@alias PoppyDialog PoppyKillDialog|PoppyMissingFileDialog

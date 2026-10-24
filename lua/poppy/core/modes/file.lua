@@ -69,6 +69,10 @@ end
 ---@param parent_win integer
 ---@return boolean ok
 M.run = function(poppy_name, poppy_opts, parent_win)
+	if poppy_opts.mode ~= "file" then
+		return false
+	end
+
 	local file_path = shared.expand_file_value(poppy_opts.value)
 	if file_path == "" then
 		shared.notify_warn("poppy '%s' file value resolved to empty at open; dropping", poppy_name)

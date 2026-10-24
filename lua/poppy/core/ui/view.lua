@@ -20,11 +20,6 @@ M.menu_wrapper = {}
 ---@param panel_h integer
 ---@return integer? win
 ---@return integer? buf
----@param wrapper_win integer
----@param panel_w integer
----@param panel_h integer
----@return integer? win
----@return integer? buf
 M.menu_wrapper.create = function(wrapper_win, panel_w, panel_h)
 	local buf = api.nvim_create_buf(false, true)
 	return M.menu_wrapper.recreate(wrapper_win, buf, panel_w, panel_h), buf
@@ -144,11 +139,11 @@ end
 ---@param b integer|nil
 ---@return boolean
 local valid_buf = function(b)
-	return b and api.nvim_buf_is_valid(b)
+	return b ~= nil and api.nvim_buf_is_valid(b)
 end
 
 ---@param win integer|nil
----@return void
+---@return nil
 local close_panel = function(win)
 	if win and api.nvim_win_is_valid(win) then
 		api.nvim_win_close(win, true)
@@ -172,7 +167,7 @@ end
 ---@param width integer
 ---@param height integer
 ---@param row? integer
----@return void
+---@return nil
 local resize_content = function(win, width, height, row)
 	if not win or not api.nvim_win_is_valid(win) then
 		return
@@ -379,25 +374,25 @@ local mount_panels = function(wrapper_win)
 end
 
 ---@param wrapper_win integer
----@return void
+---@return nil
 M.mount = function(wrapper_win)
 	M.unmount()
 	mount_panels(wrapper_win)
 end
 
----@return void
+---@return nil
 M.unmount = function()
 	close_all_panels()
 end
 
 ---@param visible boolean
----@param content_win integer
----@return void
+---@param content_win integer|nil
+---@return nil
 M.set_visible = function(visible, content_win)
-	if state.windows.is_landing or not state.windows.wrapper_win then
+	local wrapper_win = state.windows.wrapper_win
+	if state.windows.is_landing or not wrapper_win then
 		return
 	end
-	local wrapper_win = state.windows.wrapper_win
 	if not api.nvim_win_is_valid(wrapper_win) then
 		return
 	end
@@ -419,7 +414,7 @@ M.set_visible = function(visible, content_win)
 end
 
 ---@param focused boolean
----@return void
+---@return nil
 M.set_focused = function(focused)
 	local menu_win = state.windows.menu_win
 	if not menu_win or not api.nvim_win_is_valid(menu_win) then

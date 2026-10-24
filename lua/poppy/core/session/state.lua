@@ -24,7 +24,7 @@ local M = {}
 ---@field is_landing boolean Structural: no content pane; menu *is* the UI (landing geometry).
 ---@field menu_hidden boolean Presentation: sidebar unmounted by autohide_menu; only meaningful when not landing.
 ---@field opts PoppyMergedConfig?
----@field dialog {name: string, resume: fun(), buf: integer?}|nil A confirmation is up;
+---@field dialog PoppyDialog? A confirmation is up;
 --- teardown routes are inert while set, and any forced close of the dialog's panels resolves the question.
 ---@field recovering boolean True while a recovery routine is mid-flight; WinClosed watcher bails when set.
 ---@field retrying_after_failure boolean Guards switch_by_name against infinite recover() recursion on a second failure.

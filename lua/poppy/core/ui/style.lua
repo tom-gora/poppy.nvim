@@ -12,6 +12,10 @@ local LIST_CURSOR = "a:block-blinkon0"
 
 -- M.setup() re-runs on every ColorScheme and setup() call. Clearing `overridden` while still
 -- owning the global would discard the user's saved value.
+---@class CursorMode
+---@field saved string?
+---@field overridden boolean
+---@field menu_win integer?
 local cursor_mode = {
 	saved = nil,
 	overridden = false,
@@ -56,7 +60,7 @@ local apply_list_guicursor = function(win)
 		local ok, current = pcall(function()
 			return vim.o.guicursor
 		end)
-		if ok then
+		if ok and type(current) == "string" then
 			cursor_mode.saved = current
 			cursor_mode.overridden = true
 		end
@@ -145,7 +149,7 @@ local define_confirm_signs = function()
 end
 
 ---@param icons? PoppyIcons
----@return void
+---@return nil
 M.define_icon_signs = function(icons)
 	---@param icon string
 	---@return string
@@ -181,7 +185,7 @@ local set_winhl_deferred = function(win, mappings)
 	end)
 end
 
----@return void
+---@return nil
 M.setup = function()
 	-- A colorscheme change can land while the list holds focus, leaving our override installed.
 	restore_cursor_mode()
@@ -278,7 +282,7 @@ end
 
 -- SignColumn pinned to the panel background so cursorline never bleeds into it.
 ---@param win integer
----@return void
+---@return nil
 M.apply_body_style = function(win)
 	vim.schedule(function()
 		if not api.nvim_win_is_valid(win) then

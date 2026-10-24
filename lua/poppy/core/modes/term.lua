@@ -62,6 +62,9 @@ M.run = function(poppy_name, poppy_opts, parent_win)
 	if not poppy_opts or not parent_win then
 		return false
 	end
+	if poppy_opts.mode == "file" then
+		return false
+	end
 
 	-- Pre-check $PATH synchronously: jobstart/termopen return a job id even for missing binaries
 	-- (fork succeeds, exec fails async), so without this the drop only happens after typing.

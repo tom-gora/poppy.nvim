@@ -254,7 +254,7 @@ local max_index_width = function(count)
 end
 
 ---@param idx_width integer
----@param title string
+---@param label string
 ---@return integer
 M.measure_item = function(idx_width, label)
 	return SIGN_COL + 2 + idx_width + 1 + fn.strdisplaywidth(label)
@@ -291,7 +291,7 @@ local hard_cut_to_width = function(s, width)
 	return kept
 end
 
----@param title string
+---@param label string
 ---@param max_width integer
 ---@return string
 local fit_text = function(label, max_width)
@@ -464,13 +464,13 @@ M.items_for_poppies = poppy_items
 
 ---@param buf integer
 ---@param spec MenuItems
----@return void
+---@return nil
 body.paint_items = function(buf, spec)
 	api.nvim_buf_clear_namespace(buf, body_ns, 0, -1)
 
 	local idx_width = spec.idx_width
 	local lines = {}
-	---@type fn.sign_placelist.list.item[]
+	---@type vim.fn.sign_placelist.list.item[]
 	local placelist = {}
 
 	for display_idx, e in ipairs(spec.rows) do
@@ -479,7 +479,7 @@ body.paint_items = function(buf, spec)
 		for mark_idx, name in ipairs(e.marks or {}) do
 			-- Sign id = row*10 + (mark_idx-1). Stable per row, so repaints replace, not accumulate.
 			local sign_id = mark_idx == 1 and display_idx * 10 or (display_idx * 10 + mark_idx - 1)
-			---@type fn.sign_placelist.list.item
+			---@type vim.fn.sign_placelist.list.item
 			placelist[#placelist + 1] = {
 				buffer = buf,
 				group = sign_group,
@@ -651,10 +651,10 @@ hints.recreate = function(wrapper_win, buf, opts)
 end
 
 ---@param buf integer
----@param keys PoppyKeys
----@param spec {string, string}[]|nil Explicit hint rows: PoppyKeys field name, label.
+---@param keys PoppyKeys? Nil when setup has not run; nothing is written.
+---@param spec PoppyHint[]|nil Explicit hint rows: PoppyKeys field name, label.
 ---@param wrapper_width integer
----@return void
+---@return nil
 hints.write_spec = function(buf, keys, spec, wrapper_width)
 	if not keys or not spec then
 		return

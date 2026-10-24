@@ -36,7 +36,7 @@ end
 ---A dialog binds select and nothing else, so the other three are simply absent rather than
 ---bound to a no-op -- keeps get_keymap honest.
 ---@param buf integer
----@param keymaps {string, string, function}[]
+---@param keymaps PoppyMenuKeymap[]
 ---@return integer bound
 M.bind = function(buf, keymaps)
 	local keys = shared.keys()
@@ -78,6 +78,7 @@ M.set_row = function(win, row)
 	return pcall(api.nvim_win_set_cursor, win, { math.max(1, row), 0 }) == true
 end
 
+---@type PoppyHints
 M.HINTS = {
 	landing = {
 		{ "select", "Select" },
@@ -92,10 +93,12 @@ M.HINTS = {
 }
 
 ---`width_source` decides both body and legend width (same panel); view adds geometry.
+---@type PoppyMenuLayout
 M.LANDING = { width_source = "wrapper", focusable = true, hints = M.HINTS.landing }
+---@type PoppyMenuLayout
 M.SIDEBAR = { width_source = "menu", focusable = false, hints = M.HINTS.body }
 
----@return table
+---@return PoppyMenuLayout
 M.current_cfg = function()
 	return state.windows.is_landing and M.LANDING or M.SIDEBAR
 end
@@ -116,7 +119,7 @@ M.menu_header_lines = function(menu, panel_width)
 end
 
 ---Legend lines a menu renders, including the separator and trailing blank.
----@param hints {string, string}[]
+---@param hints PoppyHint[]
 ---@return integer
 M.legend_height = function(hints)
 	return #hints + 2
@@ -126,7 +129,7 @@ end
 ---@type table
 local session = nil
 
----@param cfg table One of M.LANDING / M.SIDEBAR.
+---@param cfg PoppyMenuLayout One of M.LANDING / M.SIDEBAR.
 ---@return PoppyMenuSpec
 M.spec_poppy_list = function(cfg)
 	session = session or require("poppy.core.session")

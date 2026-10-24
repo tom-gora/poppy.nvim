@@ -45,10 +45,14 @@ end
 ---@return string Absolute path of the poppy's file, or empty if not file-mode.
 local function file_path_for(name)
 	local configured = state.poppy_configured(name)
-	if not configured or configured.config.mode ~= "file" then
+	if not configured then
 		return ""
 	end
-	return shared.expand_file_value(configured.config.value)
+	local config = configured.config
+	if config.mode ~= "file" then
+		return ""
+	end
+	return shared.expand_file_value(config.value)
 end
 
 -- One binding only: poppy_action is trapped, so no kill/exit/toggle.
@@ -138,7 +142,8 @@ local ROW_TO_OUTCOME_MISSING = {
 ---@return string
 M.answer = function()
 	local count = vim.v.count
-	local is_missing = state.windows.dialog and state.windows.dialog.kind == "missing_file"
+	local dialog = state.windows.dialog
+	local is_missing = dialog ~= nil and dialog.kind == "missing_file"
 	local table_used = is_missing and ROW_TO_OUTCOME_MISSING or ROW_TO_OUTCOME_KILL
 	if count > 0 then
 		local picked = table_used[count]
@@ -160,8 +165,8 @@ end
 ---Guarded on the dialog still being live so a later remount cannot settle an answered question.
 local function watch_panels()
 	api.nvim_create_augroup(DIALOG_GROUP, { clear = true })
-	local destructive = state.windows.dialog and state.windows.dialog.kind == "missing_file" and OUTCOME_DROP
-		or OUTCOME_DISCARD
+	local dialog = state.windows.dialog
+	local destructive = dialog and dialog.kind == "missing_file" and OUTCOME_DROP or OUTCOME_DISCARD
 	for _, key in ipairs({ "menu_win", "menu_header_win", "hints_win", "header_win" }) do
 		local win = state.windows[key]
 		if win then
@@ -182,13 +187,26 @@ end
 ---@param name string
 ---@param kind "kill_confirm"|"missing_file"
 ---@param resume fun()
----@param extra? table Extra fields stored on dialog state (e.g. {poppies, index, on_complete}).
-local function install_dialog(name, kind, resume, extra)
-	state.windows.dialog = vim.tbl_extend("force", {
+---@param buf? integer
+---@param poppies? string[]
+---@param index? integer
+local function install_dialog(name, kind, resume, buf, poppies, index)
+	if kind == "missing_file" then
+		state.windows.dialog = {
+			kind = kind,
+			name = name,
+			resume = resume,
+			poppies = poppies or {},
+			index = index or 1,
+		}
+		return
+	end
+	state.windows.dialog = {
 		kind = kind,
 		name = name,
 		resume = resume,
-	}, extra or {})
+		buf = buf,
+	}
 end
 
 ---First call shows the kill-confirm dialog; the spec is reflowed in place for subsequent missing-file entries.
@@ -200,7 +218,7 @@ M.open = function(name, resume)
 		return
 	end
 	local rt = state.runtime(name)
-	install_dialog(name, "kill_confirm", resume, { buf = rt and rt.bufnr })
+	install_dialog(name, "kill_confirm", resume, rt and rt.bufnr)
 	menu_ui.set_override(spec_for(name))
 	show_or_mount()
 	view.set_focused(true)
@@ -224,7 +242,7 @@ M.open_missing_file = function(poppies, on_complete)
 		end
 		return
 	end
-	install_dialog(poppies[1], "missing_file", on_complete, { poppies = poppies, index = 1 })
+	install_dialog(poppies[1], "missing_file", on_complete, nil, poppies, 1)
 	menu_ui.set_override(spec_for_missing(poppies[1]))
 	show_or_mount()
 	view.set_focused(true)
@@ -271,7 +289,6 @@ local function restore_content()
 	shared.try_focus_win(state.windows.content_win)
 end
 
----@param outcome string One of the OUTCOME_* values.
 ---@param name string
 ---@param reason? string
 local function drop_poppy(name, reason)
@@ -285,6 +302,7 @@ end
 
 -- Dialog state is still set when this runs (we're inside finish); the spec override is
 -- replaced in place so the same float re-renders with the next question.
+---@param dialog PoppyMissingFileDialog
 local function advance_missing_file_queue(dialog)
 	local poppies = dialog.poppies
 	-- Clear the override before re-installing so the spec text actually changes.
@@ -302,56 +320,52 @@ local function advance_missing_file_queue(dialog)
 	watch_panels()
 end
 
-M.resolve = function(outcome)
-	local dialog = state.windows.dialog
-	if not dialog then
-		return
+---@param dialog PoppyMissingFileDialog
+---@param outcome string One of the OUTCOME_* values.
+local function resolve_missing_file(dialog, outcome)
+	local function finish(after)
+		menu_ui.clear_override()
+		pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
+		drop_question()
+		-- Clear the trap before the continuation so M.open's drain can re-run.
+		state.windows.dialog = nil
+		local ok, err = pcall(after)
+		if not ok then
+			error(err, 0)
+		end
 	end
 
-	-- Dispatch on dialog kind.
-	if dialog.kind == "missing_file" then
-		local function finish(after)
-			menu_ui.clear_override()
-			pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
-			drop_question()
-			-- Clear the trap before the continuation so M.open's drain can re-run.
-			state.windows.dialog = nil
-			local ok, err = pcall(after)
-			if not ok then
-				error(err, 0)
-			end
-		end
-
-		local function handle_one()
-			local name = dialog.name
-			if outcome == OUTCOME_CREATE then
-				local configured = state.poppy_configured(name)
-				local expanded = shared.expand_file_value(configured and configured.config.value)
-				if expanded ~= "" then
-					local ok, err = require("poppy.core.modes.file").create_file_with_parents(expanded)
-					if not ok then
-						drop_poppy(name, "could not create " .. expanded .. ": " .. tostring(err))
-						shared.notify_warn("poppy '%s' not created: %s", name, tostring(err))
-					end
+	local function handle_one()
+		local name = dialog.name
+		if outcome == OUTCOME_CREATE then
+			local expanded = file_path_for(name)
+			if expanded ~= "" then
+				local ok, err = require("poppy.core.modes.file").create_file_with_parents(expanded)
+				if not ok then
+					drop_poppy(name, "could not create " .. expanded .. ": " .. tostring(err))
+					shared.notify_warn("poppy '%s' not created: %s", name, tostring(err))
 				end
-			elseif outcome == OUTCOME_DROP then
-				drop_poppy(name)
 			end
-			dialog.index = dialog.index + 1
-			if dialog.index > #dialog.poppies then
-				return false
-			end
-			advance_missing_file_queue(dialog)
-			return true
+		elseif outcome == OUTCOME_DROP then
+			drop_poppy(name)
 		end
-
-		if handle_one() then
-			return
+		dialog.index = dialog.index + 1
+		if dialog.index > #dialog.poppies then
+			return false
 		end
-		finish(dialog.resume)
-		return
+		advance_missing_file_queue(dialog)
+		return true
 	end
 
+	if handle_one() then
+		return
+	end
+	finish(dialog.resume)
+end
+
+---@param dialog PoppyKillDialog
+---@param outcome string One of the OUTCOME_* values.
+local function resolve_kill_confirm(dialog, outcome)
 	local function finish(after)
 		menu_ui.clear_override()
 		pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
@@ -386,6 +400,20 @@ M.resolve = function(outcome)
 		end
 		finish(dialog.resume)
 	end)
+end
+
+M.resolve = function(outcome)
+	local dialog = state.windows.dialog
+	if not dialog then
+		return
+	end
+
+	if dialog.kind == "missing_file" then
+		resolve_missing_file(dialog, outcome)
+		return
+	end
+
+	resolve_kill_confirm(dialog, outcome)
 end
 
 return M

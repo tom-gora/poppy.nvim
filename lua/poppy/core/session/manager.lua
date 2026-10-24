@@ -33,6 +33,9 @@ end
 ---@param name_or_index string|integer|nil
 ---@return string?
 local resolve_poppy_name = function(name_or_index)
+	if type(name_or_index) == "string" then
+		return name_or_index
+	end
 	if type(name_or_index) == "number" then
 		local configured = state.poppies_configured[name_or_index]
 		if not configured then
@@ -40,7 +43,7 @@ local resolve_poppy_name = function(name_or_index)
 		end
 		return configured.name
 	end
-	return name_or_index
+	return nil
 end
 
 ---@param name? string nil is always fine
@@ -240,8 +243,9 @@ M.open = function(poppy_name)
 
 	local last_poppy = state.windows.current_poppy_name
 	local last_runtime = last_poppy and state.runtime(last_poppy)
-	local has_content = poppy_name or (last_runtime ~= nil)
-	local should_land = not has_content
+	-- A named open always has a target; a bare open falls back to the last opened poppy.
+	local target = poppy_name or (last_runtime and last_poppy)
+	local should_land = target == nil
 	local landing_w
 	if should_land then
 		landing_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
@@ -258,9 +262,9 @@ M.open = function(poppy_name)
 		return state.windows.wrapper_win
 	end
 
-	if has_content then
+	if target then
 		M.transition_to_content()
-		M.switch_by_name(poppy_name or last_poppy)
+		M.switch_by_name(target)
 	else
 		enter_landing()
 	end
