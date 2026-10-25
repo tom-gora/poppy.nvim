@@ -114,10 +114,15 @@ M.content.create = function(wrapper_win, list_panel_width)
 	local ext_nu = vim.o.number
 	local ext_rnu = vim.o.relativenumber
 
+	-- With the sidebar unmounted (autohide) nothing occupies the right edge, so the
+	-- content spans the whole wrapper instead of reserving room for a menu that is
+	-- not on screen.
+	local reserved = state.windows.menu_hidden and 0 or list_panel_width
+
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
-		width = math.max(1, math.min(wrapper_conf.width - list_panel_width - 2, wrapper_conf.width - 2)),
+		width = math.max(1, math.min(wrapper_conf.width - reserved - 2, wrapper_conf.width - 2)),
 		height = wrapper_conf.height - 2,
 		anchor = "NW",
 		col = 0,
@@ -394,9 +399,6 @@ M.set_visible = function(visible, content_win)
 		return
 	end
 	if not api.nvim_win_is_valid(wrapper_win) then
-		return
-	end
-	if state.windows.menu_hidden == not visible then
 		return
 	end
 
