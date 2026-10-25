@@ -11,7 +11,7 @@ local menu = require("poppy.core.session.menu")
 local dialog = require("poppy.core.session.dialog")
 
 ---@return table session
-local function session()
+local session = function()
 	local mod = require("poppy.core.session")
 	return mod
 end

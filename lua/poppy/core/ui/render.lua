@@ -15,7 +15,7 @@ local COL_GAP = "  "
 local SIGN_COL = 4
 local SIGN_COL_OPT = "yes:2"
 
-local function create_unmodifiable_buf()
+local create_unmodifiable_buf = function()
 	local buf = api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
 	return buf
@@ -325,7 +325,7 @@ M.wrap_text = function(text, width)
 
 	---@param paragraph string
 	---@return string[]
-	local function wrap_paragraph(paragraph)
+	local wrap_paragraph = function(paragraph)
 		if paragraph == "" then
 			return { "" }
 		end

@@ -9,7 +9,7 @@ local shared = require("poppy.core.shared")
 
 ---@param spec table
 ---@return PoppyMenuSpec
-local function normalize(spec)
+local normalize = function(spec)
 	spec = spec or {}
 	local known = {
 		id = true, focusable = true, trap = true,

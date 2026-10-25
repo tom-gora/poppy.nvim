@@ -11,7 +11,7 @@ M.bind_poppy_action = function(buf)
 	end
 	local bound, _ = shared.resolve_key(keys.poppy_action)
 
-	local function opts_for(desc)
+	local opts_for = function(desc)
 		return { buffer = buf, desc = desc }
 	end
 

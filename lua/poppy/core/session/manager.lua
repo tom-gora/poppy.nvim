@@ -146,7 +146,7 @@ local open_wrapper = function(width_override)
 end
 
 ---Returns true when the queue is empty (caller proceeds) or false when a dialog is now up.
-local function drain_missing_file_queue(on_complete)
+local drain_missing_file_queue = function(on_complete)
 	if dialog.trapped() then
 		return false
 	end
@@ -371,7 +371,7 @@ M.switch_by_name = function(poppy_name)
 
 	-- A dead content pane is recoverable: rebuild rather than bail. Skipped on landing
 	-- because do_switch creates it.
-	local function rebuild_content_pane()
+	local rebuild_content_pane = function()
 		if not shared.session_is_open() then
 			return false
 		end

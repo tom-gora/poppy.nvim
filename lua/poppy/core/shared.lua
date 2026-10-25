@@ -9,7 +9,7 @@ local MULTIPLEXER_FALLBACKS = {
 	["<C-/>"] = "<C-_>",
 }
 
-local function in_multiplexer()
+local in_multiplexer = function()
 	return os.getenv("TMUX") ~= nil or os.getenv("STY") ~= nil
 end
 
