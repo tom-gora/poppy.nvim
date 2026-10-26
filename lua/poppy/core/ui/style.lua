@@ -158,7 +158,7 @@ M.define_icon_signs = function(icons)
 		if w >= 2 then
 			return icon
 		end
-		return icon .. string.rep(" ", 2 - w)
+		return "?" .. icon .. string.rep(" ", 2 - w)
 	end
 
 	local map = {

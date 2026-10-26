@@ -103,17 +103,26 @@ local resolve_poppy = function(name, poppy)
 		return nil
 	end
 
-	local mode, declared
-	if poppy.exec then
-		mode, declared = "exec", poppy.exec
-	elseif poppy.file then
-		mode, declared = "file", poppy.file
-	elseif poppy.shell then
-		mode, declared = "shell", poppy.shell
-	else
+	local declared_modes = {}
+	if poppy.exec then declared_modes[#declared_modes + 1] = "exec" end
+	if poppy.file then declared_modes[#declared_modes + 1] = "file" end
+	if poppy.shell then declared_modes[#declared_modes + 1] = "shell" end
+
+	if #declared_modes == 0 then
 		shared.notify_error("poppy '%s' must have exactly one of 'exec', 'file', or 'shell'", tostring(name))
 		return nil
 	end
+
+	if #declared_modes > 1 then
+		shared.notify_warn(
+			"poppy '%s' declares multiple modes (%s); using '%s'. Remove the others.",
+			tostring(name),
+			table.concat(declared_modes, ", "),
+			declared_modes[1]
+		)
+	end
+
+	local mode, declared = declared_modes[1], poppy[declared_modes[1]]
 
 	local resolved, ok, err = resolve_and_validate_value(name, declared)
 	if not ok then
