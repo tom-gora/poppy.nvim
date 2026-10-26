@@ -73,12 +73,21 @@ M.setup = function(opts)
 					if dialog.trapped() then
 						return
 					end
-					-- Cmdline and floats are transient UI, not a return to the editor:
-					-- closing on either yanks the session mid-command or mid-lookup
-					-- (diagnostic quickfix popups, hover windows, pickers).
+					-- Cmdline, location/quickfix lists, and preview windows are Neovim-owned
+					-- transient UI; closing on any of them yanks the session mid-flow.
 					local kind = vim.fn.win_gettype(win)
-					if kind == "command" or kind == "popup" then
+					if kind == "command" or kind == "loclist" or kind == "quickfix" or kind == "preview" then
 						return
+					end
+					-- Floating windows split into transient UI (pum, hover, notification,
+					-- diagnostic quickfix) and user floats (terminal, picker, chat, oil).
+					-- Transient ones live on ephemeral `nofile` buffers; user floats own a
+					-- real buffer or a terminal buffer. Skip only the former.
+					if kind == "popup" then
+						local buftype = vim.bo[vim.api.nvim_win_get_buf(win)].buftype
+						if buftype == "nofile" then
+							return
+						end
 					end
 					session().toggle()
 				end)
