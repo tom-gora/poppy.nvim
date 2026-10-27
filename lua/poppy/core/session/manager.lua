@@ -140,10 +140,24 @@ local cleanup = function(drop_poppies)
 		state.windows.is_landing = false
 		state.windows.menu_hidden = false
 		state.windows.retrying_after_failure = false
+		state.windows.current_poppy_name = nil
+		state.windows.last_poppy_name = nil
 	end)
 	if not ok then
 		shared.notify_error("cleanup failed: %s", tostring(err))
 		state.windows.recovering = false
+	end
+end
+
+-- Drain dropped every poppy (or setup was misconfigured empty). Warn once, tear down so
+-- the user isn't left looking at an empty wrapper.
+local bail_empty = function()
+	if not state.windows.notified_empty then
+		shared.notify_warn("no poppies available; configure poppies in setup({poppies = {...}})")
+		state.windows.notified_empty = true
+	end
+	if shared.session_is_open() then
+		cleanup(true)
 	end
 end
 
@@ -185,6 +199,9 @@ M.close = function()
 	if not shared.ensure_setup() then
 		return
 	end
+	if dialog.trapped() then
+		return
+	end
 	cleanup(true)
 end
 
@@ -220,13 +237,18 @@ M.open = function(poppy_name)
 	if not shared.ensure_setup() then
 		return nil
 	end
+	-- Bail rather than mount an empty picker.
+	if #state.poppies_configured == 0 then
+		bail_empty()
+		return nil
+	end
 	-- Checked here rather than only in switch_by_name: by the time M.open delegates, it has
 	-- already transitioned to content mode with no current poppy.
 	if not is_known_poppy(poppy_name) then
 		return nil
 	end
-	-- on_complete is the missing-file queue's continuation; re-invoke M.open so a
-	-- named open lands on its poppy after a decision.
+	-- A live missing-file question owns the session; the resume callback re-invokes
+	-- M.open with state ready.
 	if shared.session_is_open() then
 		if not drain_missing_file_queue(function()
 			M.open(poppy_name)
@@ -262,6 +284,8 @@ M.open = function(poppy_name)
 	state.set_current_poppy_name(nil)
 	state.windows.is_landing = should_land
 
+	-- Closed-session entry point had no earlier drain; this one catches a bare open
+	-- where the only poppy is missing. Live-session callers already drained above.
 	if not drain_missing_file_queue(function()
 		M.open(poppy_name)
 	end) then

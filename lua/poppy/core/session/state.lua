@@ -55,6 +55,7 @@ M.default_state = function()
 		opts = nil,
 		recovering = false,
 		retrying_after_failure = false,
+		notified_empty = false,
 		dialog = nil,
 	}
 end

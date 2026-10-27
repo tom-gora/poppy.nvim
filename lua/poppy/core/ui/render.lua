@@ -184,17 +184,14 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	local insets = shared.get_insets()
 	local inset, inset_inv = insets.inset, insets.inset_inv
 	local hint_offset = hint_height or 5
-	-- In bordered mode, body sits below the header. Available rows = menu_wrapper content
-	-- height - 3 (header) - hints_height. row_override is the dialog question panel above.
 	local header_offset = layout.get_header_height(state.windows.opts)
-	-- A question exists only when row_override exceeds the header height alone.
 	local has_question = row_override and row_override > header_offset
 	local no_header = header_offset == 0 and not has_question
 	local no_hints = shared.opts_field("hints_footer") ~= true
-	-- Most-specific branch first: the no_header/no_hints combination starts from
-	-- `wrapper_conf.height + hint_offset` (no header or hints ever subtracted). The two
-	-- single-flag branches start from the `available` baseline and re-add what was
-	-- missing. Same values as the old least-specific-first order.
+
+	-- Cases: no chrome | no header only | no hints only | header+hints | header+hints+question.
+	-- Baseline subtracts hint_offset (hints) and adds 2*inset (borderless edge compensation).
+	-- Each branch undoes the subtraction it doesn't need.
 	local available = wrapper_conf.height - hint_offset + (2 * inset)
 	local row = no_header and inset_inv or row_override - inset
 	if no_header and no_hints then
@@ -208,13 +205,13 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 		available = math.max(1, available - row_override)
 		row = row_override + 2 * inset_inv
 	end
-	-- Extra -1 to account for preceeding left padding col.
+
+	-- Anchor NE: align right edge to parent, top edge to `row` of parent. Inset 1L/2R
+	-- clears the rounded border; borderless anchors flush.
 	local width = menu_width - inset - 1
 	local height = math.max(1, math.max(1, available - row_override) - inset)
 	local col = wrapper_conf.width - inset
 
-	-- body window: sidebar list, or dialog rows when a dialog is overlaid.
-	-- Bordered: inset 1L/2R to clear the rounded border. Borderless: anchor flush right.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
