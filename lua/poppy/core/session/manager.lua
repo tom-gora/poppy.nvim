@@ -225,10 +225,8 @@ M.open = function(poppy_name)
 	if not is_known_poppy(poppy_name) then
 		return nil
 	end
-	-- on_complete is the missing-file queue's continuation; re-invoke M.open with the
-	-- requested name so a named open lands on its poppy after a decision. Bare opens
-	-- are not possible here (session_is_open + non-nil name checks below), so the name
-	-- is always set.
+	-- on_complete is the missing-file queue's continuation; re-invoke M.open so a
+	-- named open lands on its poppy after a decision.
 	if shared.session_is_open() then
 		if not drain_missing_file_queue(function()
 			M.open(poppy_name)

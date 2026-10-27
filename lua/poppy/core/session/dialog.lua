@@ -320,21 +320,35 @@ local advance_missing_file_queue = function(dialog)
 	dialog.index = dialog.index + 1
 end
 
----@param dialog PoppyMissingFileDialog
----@param outcome string One of the OUTCOME_* values.
-local resolve_missing_file = function(dialog, outcome)
-	local finish = function(after)
-		menu_ui.clear_override()
-		pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
-		drop_question()
-		-- Clear the trap before the continuation so M.open's drain can re-run.
+---Tear the dialog down and invoke `after`. `release_after = true` releases the
+---trap before the continuation runs (the default — needed for paths that re-enter
+---M.open's drain); `release_after = false` keeps the trap across the continuation
+---so a content-window close fired by `after`'s teardown can't re-arm the question.
+---@param after fun()
+---@param release_after? boolean Default true.
+local finish_dialog = function(after, release_after)
+	release_after = release_after ~= false
+	menu_ui.clear_override()
+	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
+	drop_question()
+	if release_after then
 		state.windows.dialog = nil
 		local ok, err = pcall(after)
 		if not ok then
 			error(err, 0)
 		end
+	else
+		local ok, err = pcall(after)
+		state.windows.dialog = nil
+		if not ok then
+			error(err, 0)
+		end
 	end
+end
 
+---@param dialog PoppyMissingFileDialog
+---@param outcome string One of the OUTCOME_* values.
+local resolve_missing_file = function(dialog, outcome)
 	local handle_one = function()
 		local name = dialog.name
 		if outcome == OUTCOME_CREATE then
@@ -360,33 +374,19 @@ local resolve_missing_file = function(dialog, outcome)
 	if handle_one() then
 		return
 	end
-	finish(dialog.resume)
+	finish_dialog(dialog.resume)
 end
 
 ---@param dialog PoppyKillDialog
 ---@param outcome string One of the OUTCOME_* values.
 local resolve_kill_confirm = function(dialog, outcome)
-	local finish = function(after)
-		menu_ui.clear_override()
-		pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
-		drop_question()
-		-- Trap stays engaged across the continuation: the resume deletes the poppy's buffer while
-		-- the content pane shows it, firing WinClosed. Releasing earlier would let the watcher
-		-- rebuild the pane and re-show the question for a poppy that's already gone.
-		local ok, err = pcall(after)
-		state.windows.dialog = nil
-		if not ok then
-			error(err, 0)
-		end
-	end
-
 	if outcome == OUTCOME_GO_BACK then
-		finish(restore_content)
+		finish_dialog(restore_content)
 		return
 	end
 
 	if outcome ~= OUTCOME_SAVE then
-		finish(dialog.resume)
+		finish_dialog(dialog.resume, false)
 		return
 	end
 
@@ -398,7 +398,7 @@ local resolve_kill_confirm = function(dialog, outcome)
 				vim.cmd("write")
 			end)
 		end
-		finish(dialog.resume)
+		finish_dialog(dialog.resume, false)
 	end)
 end
 

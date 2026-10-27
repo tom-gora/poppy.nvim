@@ -136,6 +136,10 @@ require("poppy").get_poppy_by_index(1..N)
 require("poppy").get_current_poppy()
 require("poppy").get_current_poppy_name()
 require("poppy").is_open()
+
+-- Less commonly needed
+require("poppy").recover()             -- re-pick a fallback poppy or land on the picker
+require("poppy").transition_to_content() -- grow the wrapper from landing to sidebar+content
 ```
 
 `setup` may be re-called; a second call tears down any live session before re-initializing.
@@ -145,7 +149,7 @@ never-opened poppy has no session to kill and is left alone.
 
 ## How it works
 
-`lua/poppy/core/session/state.lua` holds the mutable state. `session/init.lua` is the orchestrator (setup, open/close/toggle, switch/kill, `:Poppy` command, recovery). `session/{menu,dialog,keymaps,autocommands}.lua` own the user-facing surface. `ui/{layout,render,view,style}.lua` own the windows and chrome. `modes/{term,file}.lua` are the per-poppy backends. `_types.lua` holds the LuaCATS annotations.
+`lua/poppy/core/session/state.lua` holds the mutable state. `session/manager.lua` is the orchestrator (open/close/toggle, switch/kill, recovery); `session/init.lua` is the public API entry that wires the `:Poppy` command, global keymap, and re-exports the manager's API. `session/{menu,dialog,keymaps,autocommands}.lua` own the user-facing surface. `ui/{layout,render,view,style}.lua` own the windows and chrome. `modes/{term,file}.lua` are the per-poppy backends. `_types.lua` holds the LuaCATS annotations.
 
 ## License
 

@@ -139,10 +139,12 @@ M.setup_float_sweep = function()
 		callback = function()
 			vim.schedule(function()
 				for _, w in ipairs(api.nvim_list_wins()) do
-					if api.nvim_win_is_valid(w) and not shared.is_poppy_window(w) then
-						if api.nvim_win_get_config(w).relative ~= "" then
-							api.nvim_win_close(w, true)
-						end
+					if
+						api.nvim_win_is_valid(w)
+						and not shared.is_poppy_window(w)
+						and api.nvim_win_get_config(w).relative ~= ""
+					then
+						api.nvim_win_close(w, true)
 					end
 				end
 			end)
