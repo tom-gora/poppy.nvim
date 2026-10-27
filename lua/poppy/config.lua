@@ -253,7 +253,7 @@ M.merge = function(user_opts)
 		end
 	end
 
-	if merged.menu_width ~= nil and type(merged.menu_width) ~= "number" and type(merged.menu_width) ~= "function" then
+	if type(merged.menu_width) ~= "number" and type(merged.menu_width) ~= "function" then
 		warns[#warns + 1] = string.format("'menu_width' expected number or function, got %s; falling back to %s", type(merged.menu_width), tostring(default_opts.menu_width))
 		merged.menu_width = default_opts.menu_width
 	end

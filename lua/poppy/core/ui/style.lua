@@ -196,11 +196,10 @@ M.setup = function()
 			bg = adjust_brightness(nf.bg, PANEL_BG_DARKEN_FACTOR),
 			fg = nf.fg,
 		})
-		api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
 	else
 		api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "NormalFloat" })
-		api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
 	end
+	api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
 	local panel_hl = api.nvim_get_hl(0, { name = "NormalPoppyUIPanel" })
 	local err = api.nvim_get_hl(0, { name = "ErrorMsg" })
 	api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = panel_hl.bg })

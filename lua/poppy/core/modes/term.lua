@@ -43,15 +43,17 @@ end
 ---@param command string|string[]
 ---@param opts table
 ---@return integer|nil job_id
----@return boolean ok  false when jobstart refused; command was resolvable but failed to spawn
+---@return boolean ok  false when the spawn call returned 0 or nil (job table full, malformed argv, etc.)
 local term_spawn = function(command, opts)
+	local job_id
 	if fn.has("nvim-0.11") == 1 then
 		opts.term = true
-		return fn.jobstart(command, opts), true
+		job_id = fn.jobstart(command, opts)
 	else
 		---@diagnostic disable-next-line: deprecated
-		return fn.termopen(command, opts), true
+		job_id = fn.termopen(command, opts)
 	end
+	return job_id, job_id ~= nil and job_id ~= 0
 end
 
 ---@param poppy_name string

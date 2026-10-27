@@ -395,10 +395,7 @@ end
 ---@return nil
 M.set_visible = function(visible, content_win)
 	local wrapper_win = state.windows.wrapper_win
-	if state.windows.is_landing or not wrapper_win then
-		return
-	end
-	if not api.nvim_win_is_valid(wrapper_win) then
+	if state.windows.is_landing or not wrapper_win or not api.nvim_win_is_valid(wrapper_win) then
 		return
 	end
 

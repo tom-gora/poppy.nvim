@@ -186,7 +186,7 @@ end
 
 ---@return boolean
 M.ensure_setup = function()
-	if state and state.windows and state.windows.opts then
+	if state.windows.opts then
 		return true
 	end
 	M.notify_error("setup() must be called before using poppy.nvim")

@@ -13,23 +13,21 @@ local manager = require("poppy.core.session.manager")
 
 local CATEGORY_ORDER = { exec = 0, file = 1, shell = 2 }
 
----@param opts? PoppyMergedConfig
+---@param opts PoppyMergedConfig
 ---@return {name: string, config: PoppyResolvedConfig}[]
 local sort_config = function(opts)
 	local sorted = {}
-	if opts and opts.poppies_resolved then
-		for name, p_resolved in pairs(opts.poppies_resolved) do
-			table.insert(sorted, { name = name, config = p_resolved })
-		end
-		table.sort(sorted, function(a, b)
-			local ord_a = CATEGORY_ORDER[a.config.mode] or 99
-			local ord_b = CATEGORY_ORDER[b.config.mode] or 99
-			if ord_a ~= ord_b then
-				return ord_a < ord_b
-			end
-			return a.name < b.name
-		end)
+	for name, p_resolved in pairs(opts.poppies_resolved) do
+		table.insert(sorted, { name = name, config = p_resolved })
 	end
+	table.sort(sorted, function(a, b)
+		local ord_a = CATEGORY_ORDER[a.config.mode] or 99
+		local ord_b = CATEGORY_ORDER[b.config.mode] or 99
+		if ord_a ~= ord_b then
+			return ord_a < ord_b
+		end
+		return a.name < b.name
+	end)
 	return sorted
 end
 

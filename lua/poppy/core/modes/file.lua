@@ -102,7 +102,7 @@ M.run = function(poppy_name, poppy_opts, parent_win)
 	if reused then
 		-- Clean + file still exists: re-read so external edits show up.
 		-- Modified: reattach untouched. Vanished: leave alone, :w recreates at the same path.
-		if not file_missing and not vim.bo[reused].modified then
+		if not vim.bo[reused].modified then
 			api.nvim_buf_set_lines(reused, 0, -1, false, fn.readfile(file_path))
 			api.nvim_set_option_value("modified", false, { buf = reused })
 		end
