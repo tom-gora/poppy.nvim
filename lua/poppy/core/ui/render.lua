@@ -44,11 +44,12 @@ header.recreate = function(menu_wrapper_win, buf)
 	local insets = shared.get_insets()
 	local inset, inset_inv = insets.inset, insets.inset_inv
 	-- Inset 1 on left, 2 on right (clears the rounded border).
-	local width = wc.width - 2 * inset
+	local width = (wc.width - 2 * inset)
 	local col = inset
 	-- Anchored to the top border; the buffer's empty first line gives the visual gap.
 	local row = inset_inv
 
+	-- header window: title bar sitting above the sidebar.
 	-- zindex +1 above menu_wrapper so the title draws over the bordered panel area.
 	---@type vim.api.keyset.win_config
 	local config = {
@@ -207,11 +208,12 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 		available = math.max(1, available - row_override)
 		row = row_override + 2 * inset_inv
 	end
-	local width = menu_width - inset
+	-- Extra -1 to account for preceeding left padding col.
+	local width = menu_width - inset - 1
 	local height = math.max(1, math.max(1, available - row_override) - inset)
 	local col = wrapper_conf.width - inset
 
-	-- Sidebar list, or dialog rows when a dialog is overlaid.
+	-- body window: sidebar list, or dialog rows when a dialog is overlaid.
 	-- Bordered: inset 1L/2R to clear the rounded border. Borderless: anchor flush right.
 	---@type vim.api.keyset.win_config
 	local config = {
@@ -585,7 +587,7 @@ hints.create_bottom_right = function(parent_win, keys)
 	local row = math.max(0, win_conf.height) + 1
 	local col = math.max(0, win_conf.width) + 1
 
-	-- 1-line "<C-/> Menu" badge shown by autohide_menu.
+	-- corner hint window: 1-line "<C-/> Menu" badge shown by autohide_menu.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -625,6 +627,7 @@ hints.recreate = function(wrapper_win, buf, opts)
 	-- +2 covers separator + trailing blank.
 	local height = (opts.height or #opts.hints) + 2
 
+	-- hints panel: key-binding legend at the bottom of the sidebar (or below the body).
 	-- SW anchor puts the row at parent NW (0) or parent's bottom row (height-1).
 	---@type vim.api.keyset.win_config
 	local config = {
