@@ -33,19 +33,13 @@ local validate_string_field = function(v, max_display_width, reject_pct)
 	return true, nil
 end
 
-local sanitize_string_fields = function(defaults, user, keys, max_display_width, reject_pct)
+local sanitize_string_fields = function(defaults, user, keys, max_display_width, reject_pct, warns)
 	local out = {}
 	for _, k in ipairs(keys) do
 		local v = (type(user) == "table") and user[k] or nil
 		local ok, reason = validate_string_field(v, max_display_width, reject_pct)
 		if not ok and v ~= nil then
-			shared.notify_warn(
-				"ignoring invalid %s.%s (%s); falling back to default '%s'",
-				"config",
-				k,
-				reason,
-				tostring(defaults[k])
-			)
+			warns[#warns + 1] = string.format("%s.%s: %s; falling back to default '%s'", "config", k, reason, tostring(defaults[k]))
 		end
 		out[k] = ok and v or defaults[k]
 	end
@@ -216,6 +210,12 @@ M.merge = function(user_opts)
 		user = {}
 	end
 
+	-- Batched: every "fall back to default" reason collected here, emitted as
+	-- a single warning at the end of merge so a misconfigured setup() produces
+	-- one notification rather than a flood.
+	---@type string[]
+	local warns = {}
+
 	-- Leading {} keeps default_opts and user untouched (deep_extend mutates its first arg).
 	local merged = vim.tbl_deep_extend("force", {}, default_opts, user)
 
@@ -248,22 +248,13 @@ M.merge = function(user_opts)
 	local bool_keys = { "autohide_menu", "title_header", "hints_footer", "close_on_focus_lost", "close_other_floats_on_open", "assume_multiplexer" }
 	for _, k in ipairs(bool_keys) do
 		if merged[k] ~= nil and type(merged[k]) ~= "boolean" then
-			shared.notify_warn(
-				"config key '%s' expected boolean, got %s. Falling back to default %s.",
-				k,
-				type(merged[k]),
-				tostring(default_opts[k])
-			)
+			warns[#warns + 1] = string.format("'%s' expected boolean, got %s; falling back to %s", k, type(merged[k]), tostring(default_opts[k]))
 			merged[k] = default_opts[k]
 		end
 	end
 
 	if merged.menu_width ~= nil and type(merged.menu_width) ~= "number" and type(merged.menu_width) ~= "function" then
-		shared.notify_warn(
-			"config key 'menu_width' expected number or function, got %s. Falling back to default %s.",
-			type(merged.menu_width),
-			tostring(default_opts.menu_width)
-		)
+		warns[#warns + 1] = string.format("'menu_width' expected number or function, got %s; falling back to %s", type(merged.menu_width), tostring(default_opts.menu_width))
 		merged.menu_width = default_opts.menu_width
 	end
 
@@ -275,26 +266,20 @@ M.merge = function(user_opts)
 		merged.poppies = {}
 	end
 
-	local keys = sanitize_string_fields(default_opts.keys, merged.keys, DEFAULT_KEYS)
+	local keys = sanitize_string_fields(default_opts.keys, merged.keys, DEFAULT_KEYS, nil, nil, warns)
 	for field, value in pairs(keys) do
 		local alias = shared.key_alias(value)
 		if alias then
-			shared.notify_warn(
-				"configured bind '%s' for keys.%s will conflict with %s. Falling back to default '%s'.",
-				value,
-				field,
-				alias,
-				tostring(default_opts.keys[field])
-			)
+			warns[#warns + 1] = string.format("bind '%s' for keys.%s conflicts with %s; falling back to '%s'", value, field, alias, tostring(default_opts.keys[field]))
 			keys[field] = default_opts.keys[field]
 		end
 	end
-	local icons = sanitize_string_fields(default_opts.icons, merged.icons, DEFAULT_ICONS, 2, true)
+	local icons = sanitize_string_fields(default_opts.icons, merged.icons, DEFAULT_ICONS, 2, true, warns)
 
 	local valid_locations = { center = true, top = true, bottom = true }
 	local win_location = merged.win_location
 	if not valid_locations[win_location] then
-		shared.notify_warn("invalid win_location '%s'. Falling back to 'center'.", tostring(win_location))
+		warns[#warns + 1] = string.format("invalid win_location '%s'; falling back to 'center'", tostring(win_location))
 		win_location = default_opts.win_location
 	end
 
@@ -316,6 +301,13 @@ M.merge = function(user_opts)
 end
 
 	local use_borders, border_style = resolve_border(merged.border, "none", "using borderless")
+
+	if #warns > 0 then
+		shared.notify_warn(
+			"the following config entries were misconfigured; defaults applied:\n  - %s",
+			table.concat(warns, "\n  - ")
+		)
+	end
 
 	return {
 		keys = keys,

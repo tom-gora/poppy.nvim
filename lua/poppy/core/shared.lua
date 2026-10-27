@@ -275,7 +275,7 @@ M.drop_poppy = function(name, reason)
 	end
 	if M.session_is_open() then
 		local view = require("poppy.core.ui.view")
-		view.refresh_poppies()
+		view.refresh_menu_when_visible()
 	end
 	return was_active
 end

@@ -12,8 +12,14 @@ local shared = require("poppy.core.shared")
 local normalize = function(spec)
 	spec = spec or {}
 	local known = {
-		id = true, focusable = true, trap = true,
-		items = true, rows = true, hints = true, keymaps = true, menu_header = true,
+		id = true,
+		focusable = true,
+		trap = true,
+		items = true,
+		rows = true,
+		hints = true,
+		keymaps = true,
+		menu_header = true,
 	}
 	local out = {
 		id = tostring(spec.id or "menu"),
@@ -141,23 +147,35 @@ M.spec_poppy_list = function(cfg)
 		end,
 		hints = cfg.hints or M.HINTS.body,
 		keymaps = {
-			{ "select", "Select", function()
-				if vim.v.count > 0 then
-					session.switch_by_index(vim.v.count)
-				else
-					session.switch_by_cursor()
-				end
-			end },
-			{ "kill", "Kill", function()
-				if vim.v.count > 0 then
-					session.kill_by_index(vim.v.count)
-				else
-					session.kill_by_cursor()
-				end
-			end },
-			{ "exit_menu", "Exit menu", function()
-				M.exit_menu()
-			end },
+			{
+				"select",
+				"Select",
+				function()
+					if vim.v.count > 0 then
+						session.switch_by_index(vim.v.count)
+					else
+						session.switch_by_cursor()
+					end
+				end,
+			},
+			{
+				"kill",
+				"Kill",
+				function()
+					if vim.v.count > 0 then
+						session.kill_by_index(vim.v.count)
+					else
+						session.kill_by_cursor()
+					end
+				end,
+			},
+			{
+				"exit_menu",
+				"Exit menu",
+				function()
+					M.exit_menu()
+				end,
+			},
 		},
 	})
 end
@@ -219,7 +237,7 @@ M.toggle_menu = function()
 
 	view.set_focused(want_focus)
 
-	view.refresh_poppies()
+	view.refresh_menu_when_visible()
 
 	if not want_focus then
 		shared.try_focus_win(state.windows.content_win)
@@ -242,7 +260,7 @@ M.exit_menu = function()
 		view.set_focused(false)
 	end
 
-	view.refresh_poppies()
+	view.refresh_menu_when_visible()
 	shared.focus_content_in_insert()
 end
 

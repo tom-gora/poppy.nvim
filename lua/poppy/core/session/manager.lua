@@ -69,12 +69,20 @@ local clear_poppies = function()
 	state.poppies_runtime = {}
 end
 
--- `recovering` and the augroup clear both belong at the top: clear_poppies() deletes poppy
--- buffers while the content window is showing one, so WinClosed fires from inside that loop.
--- Without these, the watcher re-creates the content window and overwrites content_buf.
-local cleanup = function(drop_poppies)
+-- Paired: clearing `poppy_ui` alone would let the WinClosed watcher fire on the
+-- windows cleanup closes below and rebuild the content pane; `recovering` alone
+-- would let an already-armed callback run. Both together are the teardown signal;
+-- keep them together so a refactor can't split them.
+local begin_teardown = function()
 	state.windows.recovering = true
 	api.nvim_create_augroup("poppy_ui", { clear = true })
+end
+
+-- `begin_teardown` belongs at the top: clear_poppies() deletes poppy buffers while
+-- the content window is showing one, so WinClosed fires from inside that loop.
+-- Without the gate, the watcher re-creates the content window and overwrites content_buf.
+local cleanup = function(drop_poppies)
+	begin_teardown()
 
 	if drop_poppies then
 		clear_poppies()
@@ -340,7 +348,7 @@ local do_switch = function(configured, poppy_name)
 		view.set_focused(false)
 	end
 
-	view.refresh_poppies()
+	view.refresh_menu_when_visible()
 	-- The fresh sidebar buffer starts its cursor on row 1; park it on the active poppy so
 	-- the highlight and the active dot agree before the menu ever takes focus. No-op under
 	-- autohide, which has already unmounted the menu window.
@@ -494,7 +502,7 @@ local kill_live_poppy = function(name)
 		if kill_now(name) then
 			M.recover()
 		elseif shared.session_is_open() and not state.windows.is_landing then
-			view.refresh_poppies()
+			view.refresh_menu_when_visible()
 		end
 	end)
 end

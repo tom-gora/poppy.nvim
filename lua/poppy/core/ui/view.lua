@@ -232,7 +232,7 @@ end
 
 local warned_widths = {}
 
--- Centralised so mount_panels, set_visible, and refresh_poppies agree on one width.
+-- Centralised so mount_panels, set_visible, and refresh_menu_when_visible agree on one width.
 ---@param wrapper_width? integer
 ---@return integer
 local menu_width = function(wrapper_width)
@@ -440,7 +440,7 @@ end
 
 M.menu_width = menu_width
 
-M.refresh_poppies = function()
+M.refresh_menu_when_visible = function()
 	if state.windows.menu_hidden then
 		return
 	end

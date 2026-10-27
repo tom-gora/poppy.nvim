@@ -209,6 +209,18 @@ local install_dialog = function(name, kind, resume, buf, poppies, index)
 	}
 end
 
+---Show (or re-show) the menu_wrapper, focus the answer body, park the cursor on row 1,
+---and arm WinClosed watchers for the current dialog. Called by every dialog entry point
+---after the spec override is installed.
+---@return nil
+local present_dialog = function()
+	show_or_mount()
+	view.set_focused(true)
+	menu_ui.focus_body()
+	menu_ui.set_row(state.windows.menu_win, 1)
+	watch_panels()
+end
+
 ---First call shows the kill-confirm dialog; the spec is reflowed in place for subsequent missing-file entries.
 ---@param name string
 ---@param resume fun() Carries out the interrupted close once answered.
@@ -220,11 +232,7 @@ M.open = function(name, resume)
 	local rt = state.runtime(name)
 	install_dialog(name, "kill_confirm", resume, rt and rt.bufnr)
 	menu_ui.set_override(spec_for(name))
-	show_or_mount()
-	view.set_focused(true)
-	menu_ui.focus_body()
-	menu_ui.set_row(state.windows.menu_win, 1)
-	watch_panels()
+	present_dialog()
 end
 
 ---Mount the missing-file question for the first entry in the list, then loop through
@@ -244,11 +252,7 @@ M.open_missing_file = function(poppies, on_complete)
 	end
 	install_dialog(poppies[1], "missing_file", on_complete, nil, poppies, 1)
 	menu_ui.set_override(spec_for_missing(poppies[1]))
-	show_or_mount()
-	view.set_focused(true)
-	menu_ui.focus_body()
-	menu_ui.set_row(state.windows.menu_win, 1)
-	watch_panels()
+	present_dialog()
 end
 
 -- Must run before the next mount: recovery resolves by switching (refreshes body) or landing (remounts), and either way the panel would survive as a reference to a closed window.
@@ -311,11 +315,7 @@ local advance_missing_file_queue = function(dialog)
 	-- Clear WinClosed watchers before view.mount: closing old panels would re-enter
 	-- M.resolve on the old dialog state. watch_panels() below installs new ones.
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
-	show_or_mount()
-	view.set_focused(true)
-	menu_ui.focus_body()
-	menu_ui.set_row(state.windows.menu_win, 1)
-	watch_panels()
+	present_dialog()
 	dialog.name = next_name
 	dialog.index = dialog.index + 1
 end
