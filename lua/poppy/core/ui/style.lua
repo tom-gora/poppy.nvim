@@ -255,6 +255,7 @@ M.setup = function()
 
 	define_poppy_signs()
 	define_confirm_signs()
+	M.define_icon_signs(state.windows.opts and state.windows.opts.icons)
 
 	api.nvim_create_augroup("poppy_style", { clear = true })
 	api.nvim_create_autocmd("ColorScheme", {

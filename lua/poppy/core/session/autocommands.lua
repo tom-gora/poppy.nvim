@@ -21,6 +21,21 @@ end
 M.setup = function(opts)
 	api.nvim_create_augroup("poppy_group", { clear = true })
 
+	-- Re-resolve poppy_action on every content-window focus so a tmux state change
+	-- doesn't strand the buffer with a stale <C-/> vs <C-_> binding.
+	api.nvim_create_autocmd("BufEnter", {
+		group = "poppy_group",
+		callback = function()
+			if not shared.session_is_open() then
+				return
+			end
+			local cb = state.windows.content_buf
+			if cb and api.nvim_buf_is_valid(cb) then
+				require("poppy.core.session.keymaps").bind_poppy_action(cb)
+			end
+		end,
+	})
+
 	api.nvim_create_autocmd("BufUnload", {
 		group = "poppy_group",
 		callback = function(e)

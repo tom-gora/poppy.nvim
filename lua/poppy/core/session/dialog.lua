@@ -305,11 +305,9 @@ end
 ---@param dialog PoppyMissingFileDialog
 local advance_missing_file_queue = function(dialog)
 	local poppies = dialog.poppies
-	-- Clear the override before re-installing so the spec text actually changes.
+	local next_name = poppies[dialog.index]
 	menu_ui.clear_override()
-	dialog.name = poppies[dialog.index]
-	dialog.index = dialog.index + 1
-	menu_ui.set_override(spec_for_missing(dialog.name))
+	menu_ui.set_override(spec_for_missing(next_name))
 	-- Clear WinClosed watchers before view.mount: closing old panels would re-enter
 	-- M.resolve on the old dialog state. watch_panels() below installs new ones.
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
@@ -318,6 +316,8 @@ local advance_missing_file_queue = function(dialog)
 	menu_ui.focus_body()
 	menu_ui.set_row(state.windows.menu_win, 1)
 	watch_panels()
+	dialog.name = next_name
+	dialog.index = dialog.index + 1
 end
 
 ---@param dialog PoppyMissingFileDialog

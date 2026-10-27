@@ -23,23 +23,24 @@ require("poppy").setup({
 ```lua
 require("poppy").setup({
     keys = {
-        poppy_action = "<C-/>",  -- default; remap if your terminal drops Ctrl+/
+        poppy_action = "<C-/>",  -- remap if it doesn't fire (see "Key bindings" below)
         select       = "<CR>",
         kill         = "d",
         exit_menu    = "<Esc>",
     },
     icons                  = { exec = "🛠", shell = "$", file = "🗋" },
-    autohide_menu          = false, -- hide sidebar after selecting; corner hint shows the binding
+    autohide_menu          = false,   -- hide sidebar after selecting; corner hint shows the binding
     title_header           = true,
     hints_footer           = true,
-    close_on_focus_lost    = true,  -- close when focus returns to a normal editor window
-                                   -- (cmdline and floats such as hovers/diagnostic
-                                   --  popups do not trigger it)
+    close_on_focus_lost    = true,    -- close when focus returns to a normal editor window
+                                       -- (cmdline, loclist, quickfix, preview, and transient
+                                       --  nofile popups such as hovers and diagnostic floats
+                                       --  do not trigger it)
     close_other_floats_on_open = true, -- close other floating windows when poppy opens
-    assume_multiplexer     = false, -- force the mux fallback when env detection misses
+    assume_multiplexer     = false,   -- set true inside tmux/screen when <C-/> never reaches nvim
     border                 = "rounded", -- "none" | "single" | "double" | "rounded" | "shadow" | border spec
     menu_width             = 25,
-    win_height             = 0.75, -- ratio (0.2..1.0), absolute cells (>1), or function
+    win_height             = 0.75,    -- ratio (0.2..1.0), absolute cells (>1), or function
     win_width              = 0.8,
     win_location           = "center", -- "center" | "top" | "bottom"
 
@@ -66,6 +67,19 @@ require("poppy").setup({
 `border` takes `"none"`, `"single"`, `"double"`, `"rounded"`, `"shadow"`, or an
 `nvim_open_win` border spec table. `"none"` (and `"solid"`) means borderless. Leave it
 out and poppy follows your global `winborder`, falling back to borderless.
+
+### Key bindings
+
+`keys.poppy_action` is the one binding you press constantly, so it deserves a moment
+of attention. Inside tmux or screen, some terminals drop `<C-/>` (or any Ctrl
+combination whose underlying byte is consumed by the multiplexer) before it reaches
+nvim — the keymap is then bound but never fires. If that happens to you, either:
+
+- bind a key your terminal forwards cleanly (`<C-_>`, `<C-\>`, etc.), or
+- set `assume_multiplexer = true` and poppy will rebind `<C-/>` to `<C-_>` automatically when `$TMUX`/`$STY` are set.
+
+On modern terminals (kitty/wezterm/foot with `extkeys`, ghostty) inside tmux, `<C-/>`
+usually works as-is — `assume_multiplexer` is only needed when it doesn't.
 
 ### Dialogs
 
