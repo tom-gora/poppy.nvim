@@ -223,9 +223,9 @@ local legend_floor = function()
 		return layout.MIN_MENU_WIDTH
 	end
 	return math.max(
-		render.measure_hint_line(keys.select, "Select") + 1,
-		render.measure_hint_line(keys.kill, "Kill") + 1,
-		render.measure_hint_line(keys.exit_menu, "Exit menu") + 1,
+		render.measure_hint_line(shared.permanent_key("select") or keys.select, "Select") + 1,
+		render.measure_hint_line(shared.permanent_key("kill") or keys.kill, "Kill") + 1,
+		render.measure_hint_line(shared.permanent_key("exit_menu") or keys.exit_menu, "Exit menu") + 1,
 		render.measure_hint_line(keys.poppy_action, "Toggle off") + 1
 	)
 end

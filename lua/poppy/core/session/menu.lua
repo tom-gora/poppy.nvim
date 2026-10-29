@@ -50,24 +50,40 @@ M.bind = function(buf, keymaps)
 		return 0
 	end
 	local poppy_action_bound = (shared.resolve_key(keys.poppy_action))
+	local configured_lhs = {}
+	for _, km in ipairs(keymaps or {}) do
+		local lhs = km[1] == "poppy_action" and poppy_action_bound or keys[km[1]]
+		if lhs and lhs ~= "" then
+			configured_lhs[lhs] = true
+		end
+	end
 	-- vim.keymap.set replaces only on matching lhs; re-binding a narrower spec would leave the
 	-- previous keys live and get_keymap would still report them as claimed.
 	for _, field in ipairs({ "poppy_action", "select", "kill", "exit_menu" }) do
 		local lhs = field == "poppy_action" and poppy_action_bound or keys[field]
-		if lhs and lhs ~= "" then
-			pcall(vim.api.nvim_buf_del_keymap, buf, "n", lhs)
-			pcall(vim.api.nvim_buf_del_keymap, buf, "t", lhs)
+		local permanent = shared.permanent_key(field)
+		for _, candidate in ipairs({ lhs, permanent }) do
+			if candidate and candidate ~= "" then
+				pcall(vim.api.nvim_buf_del_keymap, buf, "n", candidate)
+				pcall(vim.api.nvim_buf_del_keymap, buf, "t", candidate)
+			end
 		end
 	end
 	local bound = 0
 	for _, km in ipairs(keymaps or {}) do
 		local lhs = km[1] == "poppy_action" and poppy_action_bound or keys[km[1]]
-		if lhs and lhs ~= "" and type(km[3]) == "function" then
-			vim.keymap.set(shared.NORM_TERM_MODES, lhs, km[3], {
-				buffer = buf,
-				desc = "Poppy: " .. km[2],
-			})
-			bound = bound + 1
+		if type(km[3]) == "function" then
+			for _, candidate in ipairs({ lhs, shared.permanent_key(km[1]) }) do
+				-- A configured key owns its lhs outright: a permanent key standing on the same
+				-- lhs would silently steal the action.
+				if candidate and candidate ~= "" and not (candidate ~= lhs and configured_lhs[candidate]) then
+					vim.keymap.set(shared.NORM_TERM_MODES, candidate, km[3], {
+						buffer = buf,
+						desc = "Poppy: " .. km[2],
+					})
+					bound = bound + 1
+				end
+			end
 		end
 	end
 	return bound

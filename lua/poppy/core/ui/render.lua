@@ -664,7 +664,7 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	local lines = { sep }
 
 	for _, kp in ipairs(spec) do
-		local hint_text = fmt_hint(keys[kp[1]], kp[2])
+		local hint_text = fmt_hint(shared.permanent_key(kp[1]) or keys[kp[1]], kp[2])
 		table.insert(lines, hint_text .. string.rep(" ", math.max(1, wrapper_width - #hint_text)))
 	end
 

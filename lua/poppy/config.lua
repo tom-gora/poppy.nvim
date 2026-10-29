@@ -47,7 +47,7 @@ local sanitize_string_fields = function(defaults, user, keys, max_display_width,
 end
 
 local default_opts = {
-	keys = { poppy_action = "<C-/>", select = "<CR>", kill = "d", exit_menu = "<Esc>" },
+	keys = { poppy_action = "<C-/>", select = "l", kill = "d", exit_menu = "h" },
 	icons = { exec = "🛠", shell = "$", file = "🗋" },
 	autohide_menu = false,
 	title_header = true,
@@ -297,8 +297,8 @@ M.merge = function(user_opts)
 			else
 				table.insert(dropped_names, name)
 			end
+		end
 	end
-end
 
 	local use_borders, border_style = resolve_border(merged.border, "none", "using borderless")
 

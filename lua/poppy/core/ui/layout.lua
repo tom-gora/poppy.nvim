@@ -52,7 +52,7 @@ M.landing_min_width = function(opts, poppies)
 
 	local keys = (opts and opts.keys) or { poppy_action = "<C-_>", select = "<CR>" }
 	local widest_hint = math.max(
-		render.measure_hint_line(keys.select, "Select"),
+		render.measure_hint_line(shared.permanent_key("select") or keys.select, "Select"),
 		render.measure_hint_line(keys.poppy_action, "Toggle Off")
 	)
 

@@ -42,6 +42,20 @@ M.key_alias = function(key)
 	return ALIASED_KEYS[key]
 end
 
+-- Always-on keys on the menu/list/dialog buffer, independent of the user's config.
+-- Completions-style: <C-y> accepts, <C-e> aborts, <C-x> cancels the pending action.
+M.PERMANENT_KEYS = {
+	select = "<C-y>",
+	exit_menu = "<C-e>",
+	kill = "<C-x>",
+}
+
+---@param field string A PoppyKeys field name.
+---@return string? key
+M.permanent_key = function(field)
+	return M.PERMANENT_KEYS[field]
+end
+
 ---@param win integer|nil
 ---@return boolean
 M.try_focus_win = function(win)
