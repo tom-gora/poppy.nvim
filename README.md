@@ -1,11 +1,29 @@
 # poppy.nvim
 
-A floating-window manager for a small set of named "poppies" (TUIs, files, shells) you reach for constantly. One binding, one menu.
+A neovim popup scratchads manager for a small set of named "poppies" (TUIs, files, shells, repls...) you reach for constantly. Custom ui build to allow constrol over tools without setting up a bind per each. Every tool or file remains static during session a- declared once in config to keep it simple and still powerful enough. One binding, one menu. Access, toggle on, enter the managament menu and toggle off in one easy repeatable cycle.
 
 ## Installation
 
 ```
-git clone https://github.com/tomeczku/poppy.nvim ~/.config/nvim/pack/plugins/start/poppy.nvim
+```
+
+```lua
+-- native
+vim.pack.add({
+    "https://git.tomgora.online/tomeczku/poppy.nvim",
+})
+
+require("poppy").setup({
+    --config
+})
+
+-- lazy
+{
+    "https://git.tomgora.online/tomeczku/poppy.nvim",
+    lazy = false,
+    config = true,
+},
+
 ```
 
 ```lua
@@ -16,6 +34,7 @@ require("poppy").setup({
         scratch = { shell = "default", title = "Terminal" },
     },
 })
+
 ```
 
 ## Configuration
@@ -23,10 +42,9 @@ require("poppy").setup({
 ```lua
 require("poppy").setup({
     keys = {
-        poppy_action = "<C-/>",  -- remap if it doesn't fire (see "Key bindings" below)
+        poppy_action = "<C-/>",  -- remap if it doesn't work in your terminal (see "Key bindings" below)
         select       = "<CR>",
         kill         = "d",
-        exit_menu    = "<Esc>",
     },
     icons                  = { exec = "🛠", shell = "$", file = "🗋" },
     autohide_menu          = false,   -- hide sidebar after selecting; corner hint shows the binding
@@ -56,19 +74,23 @@ require("poppy").setup({
 
 | Key | Type | Behavior |
 | --- | --- | --- |
-| `exec` | `string\|string[]\|function` | Spawns a terminal buffer running the command. First token must be on `$PATH` at setup. |
-| `file` | `string\|function` | Opens the path. A missing file is offered for creation before the UI appears. |
-| `shell` | `string\|function` | Spawns a terminal buffer with the shell. `"default"` resolves to `$SHELL`. |
+| `exec` | `string\|string[]\|function` | Spawns a terminal buffer running the command. Command must be on `$PATH`. |
+| `file` | `string\|function` | Opens the file at provided path as a txt buffer. If missing a dialog is displayed with option to create it. |
+| `shell` | `string\|function` | Spawns a terminal buffer with the shell. Set to `"default"` to use `$SHELL` variable. |
 
-`exec`/`file`/`shell` functions are called at setup (validation + title) and at first open. They must be safe to call at setup time. `title` is optional; the default is the file basename or the first whitespace-delimited token.
+`exec`/`file`/`shell` keys are validates during setup and must be declared and correct to work. `title` is optional. The default is file basename or command name.
 
 ### Borders
 
-`border` takes `"none"`, `"single"`, `"double"`, `"rounded"`, `"shadow"`, or an
-`nvim_open_win` border spec table. `"none"` (and `"solid"`) means borderless. Leave it
-out and poppy follows your global `winborder`, falling back to borderless.
+`border` takes `"none"`, `"single"`, `"double"`, `"rounded"`, `"shadow"`, or the border table of chars. `"none"` (and `"solid"`) means custom borderless design. If not defined poppy will try to use `winborder` with the borderless style as last fallback.
 
 ### Key bindings
+
+\<-- TODO: Section on why cycle design and on sticking to native first
+Idea: act something like mini.files with "l" to accept and "h" to exit menu which are affected by configuration but even more native completion-like \<C-y> and \<C-e> are permabound in menu buffer and \<C-x> serves as default kill action
+
+BTW: BIG REGRESSION TO RESOLVE!
+-->
 
 `keys.poppy_action` is the one binding you press constantly, so it deserves a moment
 of attention. Inside tmux or screen, some terminals drop `<C-/>` (or any Ctrl
@@ -154,3 +176,4 @@ never-opened poppy has no session to kill and is left alone.
 ## License
 
 Public domain; see [UNLICENSE](./UNLICENSE).
+

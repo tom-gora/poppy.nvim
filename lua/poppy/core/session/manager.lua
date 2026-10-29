@@ -140,8 +140,8 @@ local cleanup = function(drop_poppies)
 		state.windows.is_landing = false
 		state.windows.menu_hidden = false
 		state.windows.retrying_after_failure = false
+		state.windows.last_poppy_name = state.windows.current_poppy_name
 		state.windows.current_poppy_name = nil
-		state.windows.last_poppy_name = nil
 	end)
 	if not ok then
 		shared.notify_error("cleanup failed: %s", tostring(err))
@@ -269,7 +269,7 @@ M.open = function(poppy_name)
 		autocommands.setup_float_sweep()
 	end
 
-	local last_poppy = state.windows.current_poppy_name
+	local last_poppy = state.windows.last_poppy_name or state.windows.current_poppy_name
 	local last_runtime = last_poppy and state.runtime(last_poppy)
 	-- A named open always has a target; a bare open falls back to the last opened poppy.
 	local target = poppy_name or (last_runtime and last_poppy)
