@@ -66,6 +66,14 @@ M.try_focus_win = function(win)
 	return false
 end
 
+---Close a window if it's currently valid. No-op for nil or already-closed handles.
+---@param win integer|nil
+M.close_win_if_valid = function(win)
+	if win and api.nvim_win_is_valid(win) then
+		api.nvim_win_close(win, true)
+	end
+end
+
 ---Focus the content pane and enter insert mode if it shows a terminal buffer.
 M.focus_content_in_insert = function()
 	if not M.try_focus_win(state.windows.content_win) then
@@ -110,9 +118,7 @@ M.show_menu_hint = function()
 end
 
 M.close_menu_hint = function()
-	if state.windows.menu_hint_win and api.nvim_win_is_valid(state.windows.menu_hint_win) then
-		api.nvim_win_close(state.windows.menu_hint_win, true)
-	end
+	M.close_win_if_valid(state.windows.menu_hint_win)
 	state.windows.menu_hint_win = nil
 	state.windows.menu_hint_buf = nil
 end
@@ -196,15 +202,6 @@ M.get_insets = function()
 		insets_cache_value = { inset = inset, inset_inv = inset == 0 and 1 or 0 }
 	end
 	return insets_cache_value
-end
-
----@return boolean
-M.ensure_setup = function()
-	if state.windows.opts then
-		return true
-	end
-	M.notify_error("setup() must be called before using poppy.nvim")
-	return false
 end
 
 ---@param template string

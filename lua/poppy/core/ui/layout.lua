@@ -170,9 +170,13 @@ M.natural_landing_height = function(opts, spec, panel_width)
 	end
 	local hints_on = opts and opts.hints_footer ~= false
 	local hints_h = hints_on and menu_ui.legend_height(spec.hints) or 0
-	local breathing = 2
-	local total = inset + header_h + q_h + body_rows + breathing + hints_h + inset
-	return math.max(M.MIN_LINES, total)
+	local offset_for_hints = hints_on and 2 or 0
+	-- In borderless, the body needs 1 row of breathing top/bottom since there's no border
+	-- to provide it. In bordered, the menu_wrapper's own border gives that visual padding.
+	local has_chrome = header_h > 0 or hints_on or q_h > 0
+	local chrome_padding = (has_chrome or shared.use_borders()) and 0 or 2
+	local total = inset + header_h + q_h + body_rows + chrome_padding + offset_for_hints + hints_h + inset
+	return has_chrome and math.max(M.MIN_LINES, total) or total
 end
 
 ---@param opts? PoppyMergedConfig

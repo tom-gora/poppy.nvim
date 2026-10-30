@@ -3,23 +3,34 @@ local session = require("poppy.core.session")
 
 M.setup = session.setup
 
-M.toggle = session.toggle
-M.open = session.open
-M.close = session.close
-M.switch_by_name = session.switch_by_name
-M.switch_by_index = session.switch_by_index
-M.switch_by_cursor = session.switch_by_cursor
-M.kill_active = session.kill_active
-M.kill_by_name = session.kill_by_name
-M.kill_by_index = session.kill_by_index
-M.kill_by_cursor = session.kill_by_cursor
+-- Lazy wrappers: ensure_loaded on first call, then delegate. Lets the plugin load
+-- cheaply without side effects; the first API call or :Poppy command bootstraps it.
+local lazy = function(name)
+	return function(...)
+		session.ensure_loaded()
+		return session[name](...)
+	end
+end
 
-M.get_poppies = session.get_poppies
-M.get_poppy_by_name = session.get_poppy_by_name
-M.get_poppy_by_index = session.get_poppy_by_index
-M.get_current_poppy = session.get_current_poppy
-
-M.get_current_poppy_name = session.get_current_poppy_name
-M.is_open = session.is_open
+for _, name in ipairs({
+	"toggle",
+	"open",
+	"close",
+	"switch_by_name",
+	"switch_by_index",
+	"switch_by_cursor",
+	"kill_active",
+	"kill_by_name",
+	"kill_by_index",
+	"kill_by_cursor",
+	"get_poppies",
+	"get_poppy_by_name",
+	"get_poppy_by_index",
+	"get_current_poppy",
+	"get_current_poppy_name",
+	"is_open",
+}) do
+	M[name] = lazy(name)
+end
 
 return M

@@ -245,17 +245,26 @@ M.merge = function(user_opts)
 		end
 	end
 
-	local bool_keys = { "autohide_menu", "title_header", "hints_footer", "close_on_focus_lost", "close_other_floats_on_open", "assume_multiplexer" }
-	for _, k in ipairs(bool_keys) do
-		if merged[k] ~= nil and type(merged[k]) ~= "boolean" then
-			warns[#warns + 1] = string.format("'%s' expected boolean, got %s; falling back to %s", k, type(merged[k]), tostring(default_opts[k]))
-			merged[k] = default_opts[k]
+	-- Table-driven validators: key -> expected type(s). Each entry resets merged[k] to its
+	-- default on mismatch and records a warning.
+	local validators = {
+		{ "autohide_menu", "boolean" },
+		{ "title_header", "boolean" },
+		{ "hints_footer", "boolean" },
+		{ "close_on_focus_lost", "boolean" },
+		{ "close_other_floats_on_open", "boolean" },
+		{ "assume_multiplexer", "boolean" },
+		{ "menu_width", { "number", "function" } },
+	}
+	for _, v in ipairs(validators) do
+		local key, expected = v[1], v[2]
+		local got = type(merged[key])
+		local ok = type(expected) == "table" and vim.tbl_contains(expected, got) or got == expected
+		if merged[key] ~= nil and not ok then
+			local expected_str = type(expected) == "table" and table.concat(expected, " or ") or expected
+			warns[#warns + 1] = string.format("'%s' expected %s, got %s; falling back to %s", key, expected_str, got, tostring(default_opts[key]))
+			merged[key] = default_opts[key]
 		end
-	end
-
-	if type(merged.menu_width) ~= "number" and type(merged.menu_width) ~= "function" then
-		warns[#warns + 1] = string.format("'menu_width' expected number or function, got %s; falling back to %s", type(merged.menu_width), tostring(default_opts.menu_width))
-		merged.menu_width = default_opts.menu_width
 	end
 
 	if merged.poppies ~= nil and type(merged.poppies) ~= "table" then

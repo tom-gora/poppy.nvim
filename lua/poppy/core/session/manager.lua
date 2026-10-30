@@ -69,25 +69,16 @@ local clear_poppies = function()
 	state.poppies_runtime = {}
 end
 
--- Paired: clearing `poppy_ui` alone would let the WinClosed watcher fire on the
--- windows cleanup closes below and rebuild the content pane; `recovering` alone
--- would let an already-armed callback run. Both together are the teardown signal;
--- keep them together so a refactor can't split them.
+-- Both halves are the teardown signal: `recovering` gates in-flight recover() callbacks,
+-- clearing `poppy_ui` stops the WinClosed watcher from rebuilding the content pane.
 local begin_teardown = function()
 	state.windows.recovering = true
 	api.nvim_create_augroup("poppy_ui", { clear = true })
 end
 
--- `begin_teardown` belongs at the top: clear_poppies() deletes poppy buffers while
--- the content window is showing one, so WinClosed fires from inside that loop.
--- Without the gate, the watcher re-creates the content window and overwrites content_buf.
-local cleanup = function(drop_poppies)
-	begin_teardown()
-
-	if drop_poppies then
-		clear_poppies()
-	end
-
+-- `begin_teardown` runs first: clear_poppies deletes poppy buffers while the content
+-- window still shows one, firing WinClosed; without the gate the watcher re-mounts content.
+local teardown_panels = function()
 	local ok, err = pcall(function()
 		require("poppy.core.ui.style").restore_cursor_mode()
 
@@ -101,16 +92,13 @@ local cleanup = function(drop_poppies)
 		view.unmount()
 
 		for _, win in ipairs({ state.windows.wrapper_win, state.windows.content_win }) do
-			if win and api.nvim_win_is_valid(win) then
-				api.nvim_win_close(win, true)
-			end
+			shared.close_win_if_valid(win)
 		end
 
 		state.windows.recovering = false
 
-		-- File poppies reuse content_buf as the live file buffer, so protect it.
-		-- Panel scratch buffers aren't in `in_use` and must be deleted even when a live
-		-- poppy remains; the toggle path skips `clear_poppies` so without this they'd leak.
+		-- File poppies reuse content_buf as their live file buffer; the in_use set keeps
+		-- that alive while letting panel scratch buffers get deleted.
 		local in_use = {}
 		for _, rt in pairs(state.poppies_runtime) do
 			if rt and rt.bufnr then
@@ -149,15 +137,22 @@ local cleanup = function(drop_poppies)
 	end
 end
 
--- Drain dropped every poppy (or setup was misconfigured empty). Warn once, tear down so
--- the user isn't left looking at an empty wrapper.
+local cleanup = function()
+	begin_teardown()
+	clear_poppies()
+	teardown_panels()
+end
+
+local cleanup_partial = function()
+	begin_teardown()
+	teardown_panels()
+end
+
+-- Warn every attempt so the user gets loud feedback while misconfigured.
 local bail_empty = function()
-	if not state.windows.notified_empty then
-		shared.notify_warn("no poppies available; configure poppies in setup({poppies = {...}})")
-		state.windows.notified_empty = true
-	end
+	shared.notify_warn("no poppies available; configure poppies in setup({poppies = {...}})")
 	if shared.session_is_open() then
-		cleanup(true)
+		cleanup()
 	end
 end
 
@@ -196,25 +191,19 @@ local enter_landing = function()
 end
 
 M.close = function()
-	if not shared.ensure_setup() then
-		return
-	end
 	if dialog.trapped() then
 		return
 	end
-	cleanup(true)
+	cleanup()
 end
 
 M.toggle = function()
-	if not shared.ensure_setup() then
-		return
-	end
 	-- A live question owns the session: toggling off would tear down the buffer it asks about.
 	if dialog.trapped() then
 		return
 	end
 	if shared.session_is_open() then
-		cleanup()
+		cleanup_partial()
 	else
 		M.open()
 	end
@@ -234,9 +223,6 @@ M.open = function(poppy_name)
 		)
 		return nil
 	end
-	if not shared.ensure_setup() then
-		return nil
-	end
 	-- Bail rather than mount an empty picker.
 	if #state.poppies_configured == 0 then
 		bail_empty()
@@ -247,8 +233,7 @@ M.open = function(poppy_name)
 	if not is_known_poppy(poppy_name) then
 		return nil
 	end
-	-- A live missing-file question owns the session; the resume callback re-invokes
-	-- M.open with state ready.
+	-- Live missing-file dialog owns the session; the resume callback re-invokes M.open.
 	if shared.session_is_open() then
 		if not drain_missing_file_queue(function()
 			M.open(poppy_name)
@@ -256,9 +241,8 @@ M.open = function(poppy_name)
 			return state.windows.wrapper_win
 		end
 		if poppy_name == nil then
-			-- Bare open on a live session means "show me the list". Partial teardown, not close():
-			-- drop_poppies stays false so live poppies and their buffers survive.
-			cleanup(false)
+			-- Bare open on a live session: "show me the list". Partial teardown keeps live poppies.
+			cleanup_partial()
 			state.set_current_poppy_name(nil)
 			M.open()
 			return state.windows.wrapper_win
@@ -286,8 +270,7 @@ M.open = function(poppy_name)
 	state.set_current_poppy_name(nil)
 	state.windows.is_landing = should_land
 
-	-- Closed-session entry point had no earlier drain; this one catches a bare open
-	-- where the only poppy is missing. Live-session callers already drained above.
+	-- Catches a bare open where the only poppy is missing (live-session callers already drained above).
 	if not drain_missing_file_queue(function()
 		M.open(poppy_name)
 	end) then
@@ -373,9 +356,7 @@ local do_switch = function(configured, poppy_name)
 	end
 
 	view.refresh_menu_when_visible()
-	-- The fresh sidebar buffer starts its cursor on row 1; park it on the active poppy so
-	-- the highlight and the active dot agree before the menu ever takes focus. No-op under
-	-- autohide, which has already unmounted the menu window.
+	-- Park the sidebar cursor on the active poppy so highlight and active dot agree (no-op under autohide).
 	local active_index = state.poppy_index(poppy_name)
 	if active_index then
 		menu.set_row(state.windows.menu_win, active_index)
@@ -386,9 +367,6 @@ end
 ---@param poppy_name string
 ---@return nil
 M.switch_by_name = function(poppy_name)
-	if not shared.ensure_setup() then
-		return
-	end
 	if poppy_name == state.windows.current_poppy_name then
 		return
 	end
@@ -401,8 +379,7 @@ M.switch_by_name = function(poppy_name)
 		return
 	end
 
-	-- A dead content pane is recoverable: rebuild rather than bail. Skipped on landing
-	-- because do_switch creates it.
+	-- Rebuild a dead content pane rather than bail (skipped on landing; do_switch creates it).
 	local rebuild_content_pane = function()
 		if not shared.session_is_open() then
 			return false
@@ -428,13 +405,11 @@ M.switch_by_name = function(poppy_name)
 		return
 	end
 
-	-- Session is half-switched: current_poppy_name names a poppy whose sidebar row, focus,
-	-- and hints were never settled.
+	-- Switch failed mid-flight: sidebar row, focus, and hints were never settled for the target.
 	shared.notify_error("switch to '%s' failed: %s", tostring(poppy_name), tostring(err))
 	state.set_current_poppy_name(nil)
 
-	-- One retry, no more. recover() switches to a fallback; if that throws too, it would
-	-- re-enter recover() and walk fallbacks forever.
+	-- Cap at one retry: a failing recover() would otherwise re-enter and loop forever.
 	if state.windows.retrying_after_failure then
 		shared.notify_error("switch failed again; not retrying")
 		return
@@ -446,9 +421,6 @@ end
 ---@param index integer
 ---@return nil
 M.switch_by_index = function(index)
-	if not shared.ensure_setup() then
-		return
-	end
 	local name = resolve_poppy_name(index)
 	if name then
 		M.switch_by_name(name)
@@ -457,9 +429,6 @@ end
 
 ---@return nil
 M.switch_by_cursor = function()
-	if not shared.ensure_setup() then
-		return
-	end
 	local idx = cursor_to_poppy_index()
 	if idx then
 		M.switch_by_index(idx)
@@ -503,9 +472,6 @@ end
 
 ---@return nil
 M.kill_active = function()
-	if not shared.ensure_setup() then
-		return
-	end
 	local name = state.windows.current_poppy_name
 	if not name then
 		return
@@ -534,9 +500,6 @@ end
 ---@param name string
 ---@return nil
 M.kill_by_name = function(name)
-	if not shared.ensure_setup() then
-		return
-	end
 	if not is_known_poppy(name) then
 		return
 	end
@@ -546,9 +509,6 @@ end
 ---@param index integer
 ---@return nil
 M.kill_by_index = function(index)
-	if not shared.ensure_setup() then
-		return
-	end
 	local name = resolve_poppy_name(index)
 	if name then
 		return kill_live_poppy(name)
@@ -557,9 +517,6 @@ end
 
 ---@return nil
 M.kill_by_cursor = function()
-	if not shared.ensure_setup() then
-		return
-	end
 	local idx = cursor_to_poppy_index()
 	if idx then
 		local name = resolve_poppy_name(idx)
@@ -593,9 +550,7 @@ local recover_goto_landing = function()
 
 	api.nvim_create_augroup("poppy_ui", { clear = true })
 
-	if state.windows.content_win and api.nvim_win_is_valid(state.windows.content_win) then
-		api.nvim_win_close(state.windows.content_win, true)
-	end
+	shared.close_win_if_valid(state.windows.content_win)
 
 	local landing_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
 	local landing_h = layout.natural_landing_height(

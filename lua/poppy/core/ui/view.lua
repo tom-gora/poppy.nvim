@@ -117,9 +117,7 @@ M.content.create = function(wrapper_win, list_panel_width)
 	local ext_nu = vim.o.number
 	local ext_rnu = vim.o.relativenumber
 
-	-- With the sidebar unmounted (autohide) nothing occupies the right edge, so the
-	-- content spans the whole wrapper instead of reserving room for a menu that is
-	-- not on screen.
+	-- With autohide, the menu isn't on screen: skip the sidebar's reserved width.
 	local reserved = state.windows.menu_hidden and 0 or list_panel_width
 
 	---@type vim.api.keyset.win_config
@@ -150,20 +148,12 @@ local valid_buf = function(b)
 	return b ~= nil and api.nvim_buf_is_valid(b)
 end
 
----@param win integer|nil
----@return nil
-local close_panel = function(win)
-	if win and api.nvim_win_is_valid(win) then
-		api.nvim_win_close(win, true)
-	end
-end
-
 local close_all_panels = function()
-	close_panel(state.windows.hints_win)
-	close_panel(state.windows.menu_win)
-	close_panel(state.windows.menu_header_win)
-	close_panel(state.windows.header_win)
-	close_panel(state.windows.menu_wrapper_win)
+	shared.close_win_if_valid(state.windows.hints_win)
+	shared.close_win_if_valid(state.windows.menu_win)
+	shared.close_win_if_valid(state.windows.menu_header_win)
+	shared.close_win_if_valid(state.windows.header_win)
+	shared.close_win_if_valid(state.windows.menu_wrapper_win)
 	state.windows.hints_win = nil
 	state.windows.menu_win = nil
 	state.windows.menu_header_win = nil
@@ -285,9 +275,8 @@ local GEOMETRY = {
 	end,
 }
 
--- A present panel contributes its height to everything below it; an absent one contributes nothing.
--- That lets `title_header = false` drop the title bar and a dialog's menu_header sit directly on
--- top of the body with no per-case arithmetic.
+-- Present panels stack from top, each contributing its height to everything below; absent ones
+-- contribute nothing. Lets `title_header = false` and dialog question panels compose without per-case arithmetic.
 local mount_panels = function(wrapper_win)
 	local wc = api.nvim_win_get_config(wrapper_win)
 	local hh = header_height()
@@ -306,8 +295,15 @@ local mount_panels = function(wrapper_win)
 	local q_lines, q_h = menu_ui.menu_header_lines(menu, panel_w)
 	local above_body = hh + q_h
 
-	-- menu_wrapper is a quiet sizing container in borderless mode; in bordered mode it grows the
-	-- rounded border and sub-panels inset 1 cell via shared.get_insets().
+	-- Resolve body row count: items may be a lazy provider (poppy list) or a direct rows table.
+	local body_rows
+	if type(menu.items) == "function" then
+		body_rows = #(menu.items(panel_w) or {})
+	else
+		body_rows = #(menu.rows or {})
+	end
+
+	-- menu_wrapper: quiet sizing container in borderless mode; in bordered mode it grows the rounded border.
 	ensure_panel("menu_wrapper_buf", "menu_wrapper_win", function()
 		return M.menu_wrapper.create(wrapper_win, panel_w, panel_h)
 	end, function(buf)
@@ -321,9 +317,9 @@ local mount_panels = function(wrapper_win)
 	end
 
 	ensure_panel("menu_buf", "menu_win", function()
-		return render.body.create(menu_wrapper, panel_w, cfg.focusable, effective_legend_h, above_body)
+		return render.body.create(menu_wrapper, panel_w, cfg.focusable, effective_legend_h, above_body, body_rows, hints_on)
 	end, function(buf)
-		return render.body.recreate(menu_wrapper, buf, panel_w, cfg.focusable, effective_legend_h, above_body)
+		return render.body.recreate(menu_wrapper, buf, panel_w, cfg.focusable, effective_legend_h, above_body, body_rows, hints_on)
 	end)
 
 	ensure_panel("hints_buf", "hints_win", function()
@@ -332,11 +328,10 @@ local mount_panels = function(wrapper_win)
 		return render.hints.recreate(menu_wrapper, buf, hint_geom(wc, mw, #menu.hints))
 	end, not hints_on)
 
-	-- focusable = false on the question panel so cursor stays in the answers buffer.
-	-- wrap + linebreak stay on as a safety net for narrower-than-wrapped widths.
+	-- Question panel: unfocusable so the cursor stays in answers; wrap+linebreak as a safety net.
 	if q_h == 0 and state.windows.menu_header_buf then
 		-- Stale question panel from a prior dialog or re-render.
-		close_panel(state.windows.menu_header_win)
+		shared.close_win_if_valid(state.windows.menu_header_win)
 		api.nvim_buf_delete(state.windows.menu_header_buf, { force = true })
 		state.windows.menu_header_win = nil
 		state.windows.menu_header_buf = nil

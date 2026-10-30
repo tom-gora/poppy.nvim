@@ -141,17 +141,14 @@ local ROW_TO_OUTCOME_MISSING = {
 ---A count prefix picks the row; out-of-range counts fall back to the cursor.
 ---@return string
 M.answer = function()
-	local count = vim.v.count
 	local dialog = state.windows.dialog
 	local is_missing = dialog ~= nil and dialog.kind == "missing_file"
 	local table_used = is_missing and ROW_TO_OUTCOME_MISSING or ROW_TO_OUTCOME_KILL
-	if count > 0 then
-		local picked = table_used[count]
-		if picked then
-			return picked
-		end
-	end
 	local fallback = is_missing and OUTCOME_DROP or OUTCOME_GO_BACK
+
+	if vim.v.count > 0 then
+		return table_used[vim.v.count] or fallback
+	end
 	local win = state.windows.menu_win
 	if not win or not api.nvim_win_is_valid(win) then
 		return fallback
@@ -161,8 +158,8 @@ M.answer = function()
 	return table_used[row] or fallback
 end
 
----Force-closing a panel counts as the destructive answer: Discard for kill-confirm, Drop for missing-file.
----Guarded on the dialog still being live so a later remount cannot settle an answered question.
+---Force-closing a panel = destructive answer (Discard for kill-confirm, Drop for missing-file);
+---guarded on the dialog still being live so a remount can't settle an answered question.
 local watch_panels = function()
 	api.nvim_create_augroup(DIALOG_GROUP, { clear = true })
 	local dialog = state.windows.dialog
@@ -214,8 +211,7 @@ end
 ---after the spec override is installed.
 ---@return nil
 local present_dialog = function()
-	-- Dialogs add a question panel that the landing-height wrapper cannot host.
-	-- Restore the full wrapper height so the dialog renders with full chrome.
+	-- Restore the full wrapper height: dialogs add a question panel the landing-height wrapper can't host.
 	local layout = require("poppy.core.ui.layout")
 	local view_mod = require("poppy.core.ui.view")
 	local ww = state.windows.wrapper_win
@@ -259,8 +255,7 @@ M.open = function(name, resume)
 	present_dialog()
 end
 
----Mount the missing-file question for the first entry in the list, then loop through
----the rest in place. After the last answer, calls on_complete.
+---Mount the missing-file question for the first entry; loop through the rest in place, then call on_complete.
 ---@param poppies string[] Names in declaration order.
 ---@param on_complete fun() Called once the queue drains and the dialog is dismissed.
 ---@return nil
@@ -291,8 +286,7 @@ local drop_question = function()
 	state.windows.menu_header_win = nil
 	state.windows.menu_header_buf = nil
 
-	-- Binding an empty set clears body keys without installing any. Inert while not focusable,
-	-- but get_keymap would still report them as claimed.
+	-- Empty keymap set: clears prior binds without installing new ones (keeps get_keymap honest).
 	local body = state.windows.menu_buf
 	if body and api.nvim_buf_is_valid(body) then
 		menu_ui.bind(body, {})
@@ -309,8 +303,7 @@ local restore_content = function()
 		view.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	end
-	-- Dropping the question changes how much room the body has; a repaint alone leaves the body
-	-- sitting below the gap it left (body is sized by what's above it).
+	-- Remount: dropping the question shrinks the body's allotted space and a repaint alone leaves it stranded.
 	if not (autohide and state.windows.menu_hidden) then
 		view.mount(state.windows.wrapper_win)
 	end
@@ -328,26 +321,22 @@ local drop_poppy = function(name, reason)
 	shared.drop_poppy(name, reason or ("poppy '" .. name .. "' not created: " .. tostring(path)))
 end
 
--- Dialog state is still set when this runs (we're inside finish); the spec override is
--- replaced in place so the same float re-renders with the next question.
+-- Replaces the spec override in place so the same float re-renders with the next question.
 ---@param dialog PoppyMissingFileDialog
 local advance_missing_file_queue = function(dialog)
 	local poppies = dialog.poppies
 	local next_name = poppies[dialog.index]
 	menu_ui.clear_override()
 	menu_ui.set_override(spec_for_missing(next_name))
-	-- Clear WinClosed watchers before view.mount: closing old panels would re-enter
-	-- M.resolve on the old dialog state. watch_panels() below installs new ones.
+	-- Clear old WinClosed watchers: closing old panels would re-enter M.resolve on stale state.
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 	present_dialog()
 	dialog.name = next_name
 	dialog.index = dialog.index + 1
 end
 
----Tear the dialog down and invoke `after`. `release_after = true` releases the
----trap before the continuation runs (the default — needed for paths that re-enter
----M.open's drain); `release_after = false` keeps the trap across the continuation
----so a content-window close fired by `after`'s teardown can't re-arm the question.
+---Tear the dialog down and invoke `after`. `release_after` defaults true so the trap is cleared
+---before M.open's drain re-entry; false keeps it through `after`'s teardown to prevent re-arming.
 ---@param after fun()
 ---@param release_after? boolean Default true.
 local finish_dialog = function(after, release_after)

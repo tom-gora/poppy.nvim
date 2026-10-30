@@ -233,9 +233,6 @@ M.focus_body = function()
 end
 
 M.toggle_menu = function()
-	if not shared.ensure_setup() then
-		return
-	end
 	local view = require("poppy.core.ui.view")
 	if state.windows.is_landing or not shared.session_is_open() then
 		return
@@ -261,9 +258,6 @@ M.toggle_menu = function()
 end
 
 M.exit_menu = function()
-	if not shared.ensure_setup() then
-		return
-	end
 	local view = require("poppy.core.ui.view")
 	if not view.is_menu_focused() or state.windows.is_landing then
 		return

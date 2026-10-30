@@ -49,8 +49,7 @@ header.recreate = function(menu_wrapper_win, buf)
 	-- Anchored to the top border; the buffer's empty first line gives the visual gap.
 	local row = inset_inv
 
-	-- header window: title bar sitting above the sidebar.
-	-- zindex +1 above menu_wrapper so the title draws over the bordered panel area.
+	-- Header: title bar above the sidebar; zindex +1 above menu_wrapper so it draws over the border.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
@@ -144,7 +143,7 @@ end
 ---@param row_override? integer
 ---@return integer? win
 ---@return integer? buf
-body.create = function(wrapper_win, menu_width, focusable, hint_height, row_override)
+body.create = function(wrapper_win, menu_width, focusable, hint_height, row_override, body_rows, hints_on)
 	local buf = create_unmodifiable_buf()
 	api.nvim_clear_autocmds({ group = body_autocmd_group, buffer = buf })
 	api.nvim_create_autocmd("InsertEnter", {
@@ -169,7 +168,7 @@ body.create = function(wrapper_win, menu_width, focusable, hint_height, row_over
 			end
 		end,
 	})
-	return body.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override), buf
+	return body.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override, body_rows, hints_on), buf
 end
 
 ---@param wrapper_win integer
@@ -178,8 +177,10 @@ end
 ---@param focusable boolean
 ---@param hint_height? integer
 ---@param row_override? integer
+---@param body_rows? integer Row count of the spec; lets the body size to content when no header and no hints.
+---@param hints_on? boolean When true, body adds 2 rows of breathing above the hints panel.
 ---@return integer? win
-body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override)
+body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override, body_rows, hints_on)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local insets = shared.get_insets()
 	local inset, inset_inv = insets.inset, insets.inset_inv
@@ -189,27 +190,35 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	local no_header = header_offset == 0 and not has_question
 	local no_hints = shared.opts_field("hints_footer") ~= true
 
-	-- Cases: no chrome | no header only | no hints only | header+hints | header+hints+question.
-	-- Baseline subtracts hint_offset (hints) and adds 2*inset (borderless edge compensation).
-	-- Each branch undoes the subtraction it doesn't need.
-	local available = wrapper_conf.height - hint_offset + (2 * inset)
-	local row = no_header and inset_inv or row_override - inset
-	if no_header and no_hints then
-		available = wrapper_conf.height + hint_offset - inset_inv + inset
-	elseif no_hints then
-		available = available + hint_offset
-	elseif no_header then
-		available = available - inset_inv - inset
-	end
-	if has_question then
-		available = math.max(1, available - row_override)
-		row = row_override + 2 * inset_inv
+	-- When the spec has no header and no hints, size the body to actual content rows so
+	-- the panel doesn't render blank rows below the list.
+	local height
+	local row
+	if body_rows and no_header and no_hints then
+		row = inset_inv
+		height = body_rows + (hints_on and 2 or 0)
+	else
+		-- Cases: no chrome | no header only | no hints only | header+hints | header+hints+question.
+		-- Baseline subtracts hint_offset (hints) and adds 2*inset (borderless edge compensation).
+		-- Each branch undoes the subtraction it doesn't need.
+		local available = wrapper_conf.height - hint_offset + (2 * inset)
+		row = no_header and inset_inv or row_override - inset
+		if no_header and no_hints then
+			available = wrapper_conf.height + hint_offset - inset_inv + inset
+		elseif no_hints then
+			available = available + hint_offset
+		elseif no_header then
+			available = available - inset_inv - inset
+		end
+		if has_question then
+			available = math.max(1, available - row_override)
+			row = row_override + 2 * inset_inv
+		end
+		height = math.max(1, math.max(1, available - row_override) - inset)
 	end
 
-	-- Anchor NE: align right edge to parent, top edge to `row` of parent. Inset 1L/2R
-	-- clears the rounded border; borderless anchors flush.
+	-- Anchor NE (right + top edges to parent); 1L/2R inset clears the rounded border in bordered mode.
 	local width = menu_width - inset - 1
-	local height = math.max(1, math.max(1, available - row_override) - inset)
 	local col = wrapper_conf.width - inset
 
 	---@type vim.api.keyset.win_config
@@ -313,8 +322,7 @@ local fit_text = function(label, max_width)
 	return fn.strdisplaywidth(result .. "…") <= max_width and (result .. "…") or result
 end
 
----Wrap text to `width` on word boundaries. Differs from 'wrap'/'linebreak' (display-only,
----no height back) so the caller knows the line count before the window exists.
+---Wrap text to `width` on word boundaries. Returns line count (window options 'wrap'/'linebreak' are display-only).
 ---@param text string
 ---@param width integer
 ---@return string[]
@@ -625,8 +633,7 @@ hints.recreate = function(wrapper_win, buf, opts)
 	-- +2 covers separator + trailing blank.
 	local height = (opts.height or #opts.hints) + 2
 
-	-- hints panel: key-binding legend at the bottom of the sidebar (or below the body).
-	-- SW anchor puts the row at parent NW (0) or parent's bottom row (height-1).
+	-- hints panel: key-binding legend below the sidebar body (or below landing body). SW anchor pins to parent's bottom row.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",

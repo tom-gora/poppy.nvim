@@ -107,11 +107,18 @@ local init_or_reset_state = function()
 	state.poppies_runtime = {}
 end
 
--- Tearing down through manager.close() keeps one teardown path. The opts check keeps a
--- first call silent: manager.close would otherwise trip ensure_setup's "must be called first".
+-- Tearing down through manager.close() keeps one teardown path.
 local teardown_live_session = function()
 	if state.windows.opts and shared.session_is_open() then
 		manager.close()
+	end
+end
+
+---Lazy bootstrap used by lazy API stubs. Runs setup({}) if no config has been set,
+---landing the plugin in the empty/misconfigured state. Subsequent open attempts warn.
+M.ensure_loaded = function()
+	if not state.windows.opts then
+		M.setup({})
 	end
 end
 
@@ -124,9 +131,7 @@ M.setup = function(user_opts)
 	api.nvim_create_augroup("poppy_ui", { clear = true })
 	state.windows.opts = config.merge(user_opts)
 	view.define_icon_signs(state.windows.opts.icons)
-	if next(state.windows.opts.poppies_resolved or {}) == nil then
-		shared.notify_warn("no poppies declared in setup({poppies = {...}}); the manager will open empty.")
-	elseif #state.windows.opts.dropped_names > 0 then
+	if #state.windows.opts.dropped_names > 0 then
 		shared.notify_warn(
 			"%d poppy(s) had no exec/file/shell and were dropped: %s",
 			#state.windows.opts.dropped_names,
@@ -149,25 +154,27 @@ M.setup = function(user_opts)
 	})
 end
 
-M.open = manager.open
-M.close = manager.close
-M.toggle = manager.toggle
-M.transition_to_content = manager.transition_to_content
-M.recover = manager.recover
-
-M.switch_by_name = manager.switch_by_name
-M.switch_by_index = manager.switch_by_index
-M.switch_by_cursor = manager.switch_by_cursor
-
-M.kill_active = manager.kill_active
-M.kill_by_name = manager.kill_by_name
-M.kill_by_index = manager.kill_by_index
-M.kill_by_cursor = manager.kill_by_cursor
-
-M.get_poppy_by_name = manager.get_poppy_by_name
-M.get_poppy_by_index = manager.get_poppy_by_index
-M.get_current_poppy = manager.get_current_poppy
-M.get_poppies = manager.get_poppies
+-- Re-export manager API surface. Names mirrored in init.lua's lazy stub list.
+for _, name in ipairs({
+	"open",
+	"close",
+	"toggle",
+	"transition_to_content",
+	"recover",
+	"switch_by_name",
+	"switch_by_index",
+	"switch_by_cursor",
+	"kill_active",
+	"kill_by_name",
+	"kill_by_index",
+	"kill_by_cursor",
+	"get_poppy_by_name",
+	"get_poppy_by_index",
+	"get_current_poppy",
+	"get_poppies",
+}) do
+	M[name] = manager[name]
+end
 M.get_current_poppy_name = shared.session_get_current_poppy_name
 M.is_open = shared.session_is_open
 
