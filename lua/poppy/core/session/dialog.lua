@@ -67,6 +67,7 @@ local spec_for = function(name)
 			("%s has unsaved changes."):format(label_for(name)),
 			"Save before closing?",
 			"",
+			"",
 		},
 		rows = {
 			{ label = "Save", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
@@ -109,6 +110,7 @@ local spec_for_missing = function(name)
 			"Create it?",
 			"",
 			path,
+			"",
 		},
 		rows = {
 			{ label = "Yes", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
@@ -211,27 +213,24 @@ end
 ---after the spec override is installed.
 ---@return nil
 local present_dialog = function()
-	-- Restore the full wrapper height: dialogs add a question panel the landing-height wrapper can't host.
-	local layout = require("poppy.core.ui.layout")
-	local view_mod = require("poppy.core.ui.view")
-	local ww = state.windows.wrapper_win
-	if ww and vim.api.nvim_win_is_valid(ww) then
-		local wc = vim.api.nvim_win_get_config(ww)
-		local full_width, full_height, full_row = layout.compute_wrapper_dimensions(
-			state.windows.opts,
-			vim.o.columns,
-			layout.editor_height(),
-			nil,
-			view_mod.min_wrapper_width()
-		)
-		if wc.height ~= full_height then
-			vim.api.nvim_win_set_config(ww, {
-				relative = wc.relative,
-				width = full_width,
-				height = full_height,
-				col = math.floor((vim.o.columns - full_width) / 2),
-				row = full_row,
-			})
+	-- The startup dialog owns a narrow column of its own; the sidebar dialog leaves the
+	-- wrapper alone and renders in the sidebar column beside the content pane.
+	if state.windows.dialog and state.windows.dialog.kind == "missing_file" then
+		local layout = require("poppy.core.ui.layout")
+		local ww = state.windows.wrapper_win
+		if ww and vim.api.nvim_win_is_valid(ww) then
+			local wc = vim.api.nvim_win_get_config(ww)
+			local column_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
+			local column_h = layout.natural_landing_height(state.windows.opts, menu_ui.current_spec(), column_w)
+			if wc.width ~= column_w or wc.height ~= column_h then
+				vim.api.nvim_win_set_config(ww, {
+					relative = wc.relative,
+					width = column_w,
+					height = column_h,
+					col = math.floor((vim.o.columns - column_w) / 2),
+					row = math.floor((layout.editor_height() - column_h) / 2),
+				})
+			end
 		end
 	end
 	show_or_mount()

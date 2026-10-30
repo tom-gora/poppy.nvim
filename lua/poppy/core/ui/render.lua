@@ -141,9 +141,19 @@ end
 ---@param focusable boolean
 ---@param hint_height? integer
 ---@param row_override? integer
+---@param height_override? integer Explicit body height; the dialog owns its own geometry.
 ---@return integer? win
 ---@return integer? buf
-body.create = function(wrapper_win, menu_width, focusable, hint_height, row_override, body_rows, hints_on)
+body.create = function(
+	wrapper_win,
+	menu_width,
+	focusable,
+	hint_height,
+	row_override,
+	body_rows,
+	hints_on,
+	height_override
+)
 	local buf = create_unmodifiable_buf()
 	api.nvim_clear_autocmds({ group = body_autocmd_group, buffer = buf })
 	api.nvim_create_autocmd("InsertEnter", {
@@ -179,7 +189,18 @@ body.create = function(wrapper_win, menu_width, focusable, hint_height, row_over
 			end,
 		})
 	end
-	return body.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override, body_rows, hints_on), buf
+	return body.recreate(
+		wrapper_win,
+		buf,
+		menu_width,
+		focusable,
+		hint_height,
+		row_override,
+		body_rows,
+		hints_on,
+		height_override
+	),
+		buf
 end
 
 ---@param wrapper_win integer
@@ -190,8 +211,19 @@ end
 ---@param row_override? integer
 ---@param body_rows? integer Row count of the spec; lets the body size to content when no header and no hints.
 ---@param hints_on? boolean When true, body adds 2 rows of breathing above the hints panel.
+---@param height_override? integer Explicit body height. Callers that own their own geometry (the dialog) pass it in.
 ---@return integer? win
-body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, row_override, body_rows, hints_on)
+body.recreate = function(
+	wrapper_win,
+	buf,
+	menu_width,
+	focusable,
+	hint_height,
+	row_override,
+	body_rows,
+	hints_on,
+	height_override
+)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
 	local insets = shared.get_insets()
 	local inset, inset_inv = insets.inset, insets.inset_inv
@@ -205,7 +237,10 @@ body.recreate = function(wrapper_win, buf, menu_width, focusable, hint_height, r
 	-- the panel doesn't render blank rows below the list.
 	local height
 	local row
-	if body_rows and no_header and no_hints then
+	if height_override then
+		row = row_override - inset
+		height = height_override
+	elseif body_rows and no_header and no_hints then
 		row = inset_inv
 		height = body_rows + (hints_on and 2 or 0)
 	else
@@ -680,7 +715,9 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	end
 	local inset = shared.get_insets().inset
 	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - (4 - inset))) .. "  "
-	local lines = { sep }
+	local is_missing_file_dialog = state.windows.dialog and state.windows.dialog.kind == "missing_file"
+
+	local lines = is_missing_file_dialog and { "", "", sep } or { sep }
 
 	for _, kp in ipairs(spec) do
 		local hint_text = fmt_hint(keys[kp[1]] or shared.permanent_key(kp[1]), kp[2])

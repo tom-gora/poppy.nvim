@@ -119,9 +119,18 @@ M.HINTS = {
 M.LANDING = { width_source = "wrapper", focusable = true, hints = M.HINTS.landing }
 ---@type PoppyMenuLayout
 M.SIDEBAR = { width_source = "menu", focusable = false, hints = M.HINTS.body }
+-- The startup dialog owns a standalone narrow column, so it sizes to the wrapper
+-- the way landing does. The sidebar dialog keeps the sidebar layout: it renders in
+-- the sidebar column beside the content pane.
+---@type PoppyMenuLayout
+M.DIALOG = { width_source = "wrapper", focusable = true, hints = M.HINTS.landing }
 
 ---@return PoppyMenuLayout
 M.current_cfg = function()
+	local dialog = state.windows.dialog
+	if dialog and dialog.kind == "missing_file" then
+		return M.DIALOG
+	end
 	return state.windows.is_landing and M.LANDING or M.SIDEBAR
 end
 
@@ -144,7 +153,9 @@ end
 ---@param hints PoppyHint[]
 ---@return integer
 M.legend_height = function(hints)
-	return #hints + 2
+	local is_missing_file_dialog = state.windows.dialog and state.windows.dialog.kind == "missing_file"
+	local offset = is_missing_file_dialog and 3 or 2
+	return #hints + offset
 end
 
 ---Session required lazily at call time to keep the cycle open.

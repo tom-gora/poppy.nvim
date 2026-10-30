@@ -60,8 +60,14 @@ end
 ---@param height_override? integer
 ---@return integer? win
 local wrapper_open_with = function(buf, poppy_opts, width_override, height_override)
-	local width, height, row =
-		layout.compute_wrapper_dimensions(poppy_opts, vim.o.columns, layout.editor_height(), width_override, M.min_wrapper_width(), height_override)
+	local width, height, row = layout.compute_wrapper_dimensions(
+		poppy_opts,
+		vim.o.columns,
+		layout.editor_height(),
+		width_override,
+		M.min_wrapper_width(),
+		height_override
+	)
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "editor",
@@ -303,6 +309,14 @@ local mount_panels = function(wrapper_win)
 		body_rows = #(menu.rows or {})
 	end
 
+	-- The startup dialog owns its own geometry: its body fills the space between the
+	-- question panel above it and the hints panel below it. Landing, the sidebar and
+	-- the sidebar dialog keep the shared derivation in render.body.recreate.
+	local body_height_override
+	if cfg.width_source == "wrapper" and q_h > 0 then
+		body_height_override = math.max(1, panel_h - above_body - effective_legend_h)
+	end
+
 	-- menu_wrapper: quiet sizing container in borderless mode; in bordered mode it grows the rounded border.
 	ensure_panel("menu_wrapper_buf", "menu_wrapper_win", function()
 		return M.menu_wrapper.create(wrapper_win, panel_w, panel_h)
@@ -317,13 +331,32 @@ local mount_panels = function(wrapper_win)
 	end
 
 	ensure_panel("menu_buf", "menu_win", function()
-		return render.body.create(menu_wrapper, panel_w, cfg.focusable, effective_legend_h, above_body, body_rows, hints_on)
+		return render.body.create(
+			menu_wrapper,
+			panel_w,
+			cfg.focusable,
+			effective_legend_h,
+			above_body,
+			body_rows,
+			hints_on,
+			body_height_override
+		)
 	end, function(buf)
-		return render.body.recreate(menu_wrapper, buf, panel_w, cfg.focusable, effective_legend_h, above_body, body_rows, hints_on)
+		return render.body.recreate(
+			menu_wrapper,
+			buf,
+			panel_w,
+			cfg.focusable,
+			effective_legend_h,
+			above_body,
+			body_rows,
+			hints_on,
+			body_height_override
+		)
 	end)
 
 	ensure_panel("hints_buf", "hints_win", function()
-		return render.hints.create(menu_wrapper, hint_geom(wc, mw, #menu.hints))
+		return render.hints.create(menu_wrapper, hint_geom(wc, mw, #menu.hints + 2))
 	end, function(buf)
 		return render.hints.recreate(menu_wrapper, buf, hint_geom(wc, mw, #menu.hints))
 	end, not hints_on)
