@@ -262,6 +262,11 @@ M.exit_menu = function()
 	if not view.is_menu_focused() or state.windows.is_landing then
 		return
 	end
+	-- A live question owns the menu: hiding it would close the question panel and
+	-- resolve the dialog destructively (discarding unsaved changes).
+	if require("poppy.core.session.dialog").trapped() then
+		return
+	end
 
 	if shared.opts_field("autohide_menu") then
 		view.set_visible(false, state.windows.content_win)

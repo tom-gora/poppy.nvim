@@ -168,6 +168,17 @@ body.create = function(wrapper_win, menu_width, focusable, hint_height, row_over
 			end
 		end,
 	})
+	-- Buffer-scoped to menu only
+	if shared.opts_field("autohide_menu") then
+		api.nvim_create_autocmd("CursorHold", {
+			group = body_autocmd_group,
+			buffer = buf,
+			callback = function()
+				-- Lazy require: session.menu requires this module at load time.
+				require("poppy.core.session.menu").exit_menu()
+			end,
+		})
+	end
 	return body.recreate(wrapper_win, buf, menu_width, focusable, hint_height, row_override, body_rows, hints_on), buf
 end
 

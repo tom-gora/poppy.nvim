@@ -7,7 +7,6 @@ local state = require("poppy.core.session.state")
 local view = require("poppy.core.ui.view")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
-local menu = require("poppy.core.session.menu")
 local dialog = require("poppy.core.session.dialog")
 
 ---@return table session
@@ -53,17 +52,6 @@ M.setup = function(opts)
 			end
 		end,
 	})
-
-	if opts and opts.autohide_menu then
-		api.nvim_create_autocmd("CursorHold", {
-			group = "poppy_group",
-			callback = function()
-				if vim.bo.filetype == "poppy_menu" then
-					menu.exit_menu()
-				end
-			end,
-		})
-	end
 
 	if opts and opts.close_on_focus_lost then
 		api.nvim_create_autocmd({ "WinLeave", "TermEnter" }, {
