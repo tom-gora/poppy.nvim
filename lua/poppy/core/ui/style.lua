@@ -208,7 +208,7 @@ M.setup = function()
 	api.nvim_set_hl(0, "PoppyBorder", { fg = str.fg, bg = nf.bg })
 
 	local fb = api.nvim_get_hl(0, { name = "FloatBorder" })
-	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg or str.fg, bg = nf.bg })
+	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg or str.fg, bg = panel_hl.bg })
 
 	local comment = api.nvim_get_hl(0, { name = "Comment" })
 	api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = nf.bg })
