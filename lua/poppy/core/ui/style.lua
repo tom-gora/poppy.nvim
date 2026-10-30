@@ -99,7 +99,7 @@ local setup_cursor_autocmds = function()
 	})
 end
 
-local PANEL_BG_DARKEN_FACTOR = -0.3
+local PANEL_BG_DARKEN_FACTOR = -0.35
 
 ---@param color integer
 ---@param factor number

@@ -405,8 +405,9 @@ M.rowset = function(menu, panel_width)
 		idx_width = #tostring(math.max(#rows, 1)),
 		rows = rows,
 	}
-	-- -1 reserves a one-cell trailing margin so a truncated label never runs flush to the edge.
-	local budget = panel_width - M.measure_item(set.idx_width, "") - 1
+	-- Landing leaves an extra cell of right padding so the longest row doesn't kiss the edge.
+	local trailing_reserve = state.windows.is_landing and 2 or 1
+	local budget = panel_width - M.measure_item(set.idx_width, "") - trailing_reserve
 	for i, row in ipairs(set.rows) do
 		set.rows[i] = {
 			label = fit_text(row.label, budget),
@@ -664,7 +665,7 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	local lines = { sep }
 
 	for _, kp in ipairs(spec) do
-		local hint_text = fmt_hint(shared.permanent_key(kp[1]) or keys[kp[1]], kp[2])
+		local hint_text = fmt_hint(keys[kp[1]] or shared.permanent_key(kp[1]), kp[2])
 		table.insert(lines, hint_text .. string.rep(" ", math.max(1, wrapper_width - #hint_text)))
 	end
 

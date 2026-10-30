@@ -214,6 +214,30 @@ end
 ---after the spec override is installed.
 ---@return nil
 local present_dialog = function()
+	-- Dialogs add a question panel that the landing-height wrapper cannot host.
+	-- Restore the full wrapper height so the dialog renders with full chrome.
+	local layout = require("poppy.core.ui.layout")
+	local view_mod = require("poppy.core.ui.view")
+	local ww = state.windows.wrapper_win
+	if ww and vim.api.nvim_win_is_valid(ww) then
+		local wc = vim.api.nvim_win_get_config(ww)
+		local full_width, full_height, full_row = layout.compute_wrapper_dimensions(
+			state.windows.opts,
+			vim.o.columns,
+			layout.editor_height(),
+			nil,
+			view_mod.min_wrapper_width()
+		)
+		if wc.height ~= full_height then
+			vim.api.nvim_win_set_config(ww, {
+				relative = wc.relative,
+				width = full_width,
+				height = full_height,
+				col = math.floor((vim.o.columns - full_width) / 2),
+				row = full_row,
+			})
+		end
+	end
 	show_or_mount()
 	view.set_focused(true)
 	menu_ui.focus_body()

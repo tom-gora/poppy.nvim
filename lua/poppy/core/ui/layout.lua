@@ -27,6 +27,13 @@ M.below_floor = function()
 	return vim.o.columns < M.MIN_COLS or vim.o.lines < M.MIN_LINES
 end
 
+-- Editor area height: the actual current-window editor rows, excluding tabline and
+-- statusline (which nvim manages outside the editor grid).
+---@return integer
+M.editor_height = function()
+	return vim.fn.winheight(0)
+end
+
 local HEADER_HEIGHT = 3
 
 local fn = vim.fn
@@ -52,14 +59,16 @@ M.landing_min_width = function(opts, poppies)
 
 	local keys = (opts and opts.keys) or { poppy_action = "<C-_>", select = "<CR>" }
 	local widest_hint = math.max(
-		render.measure_hint_line(shared.permanent_key("select") or keys.select, "Select"),
+		render.measure_hint_line(keys.select or shared.permanent_key("select"), "Select"),
 		render.measure_hint_line(keys.poppy_action, "Toggle Off")
 	)
 
 	-- Each extent already includes its own left inset, so PANEL_PAD is added once on the trailing side.
 	local content = math.max(widest_row, widest_hint) + M.PANEL_PAD
 	local chrome = fn.strdisplaywidth(M.HEADER_TITLE) + (M.PANEL_PAD * 2)
-	return math.max(content, chrome) + 1
+	-- 2 trailing cells of right padding (always), plus 1 cell per side in bordered mode
+	-- so the inner panel width matches borderless.
+	return math.max(content, chrome) + 2 + (2 * shared.get_insets().inset)
 end
 
 ---@param opts? PoppyMergedConfig
@@ -142,14 +151,40 @@ local resolve_dimension = function(value, total, name)
 end
 
 ---@param opts? PoppyMergedConfig
+---@param spec PoppyMenuSpec
+---@param panel_width integer
+---@return integer
+M.natural_landing_height = function(opts, spec, panel_width)
+	-- Lazy require: menu.lua depends on this module's HEADER_TITLE + friends at top-level.
+	local menu_ui = require("poppy.core.session.menu")
+	local inset = shared.get_insets().inset
+	local header_h = M.get_header_height(opts)
+	local _, q_h = menu_ui.menu_header_lines(spec, panel_width)
+	-- items may be a lazy provider (poppy list); resolve to count rows for the body height.
+	local body_rows
+	if type(spec.items) == "function" then
+		local items = spec.items(panel_width) or {}
+		body_rows = math.max(1, #items)
+	else
+		body_rows = math.max(1, #(spec.rows or {}))
+	end
+	local hints_on = opts and opts.hints_footer ~= false
+	local hints_h = hints_on and menu_ui.legend_height(spec.hints) or 0
+	local breathing = 2
+	local total = inset + header_h + q_h + body_rows + breathing + hints_h + inset
+	return math.max(M.MIN_LINES, total)
+end
+
+---@param opts? PoppyMergedConfig
 ---@param vim_cols integer
 ---@param vim_lines integer
 ---@param content_width? integer
 ---@param min_width? integer
+---@param content_height? integer Landing wrapper sized to fit content; ignored when nil.
 ---@return integer width
 ---@return integer height
 ---@return integer row
-M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width, min_width)
+M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width, min_width, content_height)
 	opts = opts or {}
 
 	local raw_w = evaluate_dimension(opts.win_width or 0.8, 0.8, "win_width")
@@ -163,7 +198,7 @@ M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width
 		width = math.min(min_width, vim_cols)
 	end
 
-	local height = resolve_dimension(raw_h, vim_lines, "win_height")
+	local height = content_height or resolve_dimension(raw_h, vim_lines, "win_height")
 
 	local location = opts.win_location or "center"
 	local row

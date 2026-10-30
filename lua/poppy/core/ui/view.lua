@@ -57,10 +57,11 @@ end
 ---@param buf integer
 ---@param poppy_opts? PoppyMergedConfig
 ---@param width_override? integer
+---@param height_override? integer
 ---@return integer? win
-local wrapper_open_with = function(buf, poppy_opts, width_override)
+local wrapper_open_with = function(buf, poppy_opts, width_override, height_override)
 	local width, height, row =
-		layout.compute_wrapper_dimensions(poppy_opts, vim.o.columns, vim.o.lines, width_override, M.min_wrapper_width())
+		layout.compute_wrapper_dimensions(poppy_opts, vim.o.columns, layout.editor_height(), width_override, M.min_wrapper_width(), height_override)
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "editor",
@@ -81,11 +82,12 @@ end
 
 ---@param poppy_opts? PoppyMergedConfig
 ---@param width_override? integer
+---@param height_override? integer
 ---@return integer? win
 ---@return integer? buf
-M.wrapper.create = function(poppy_opts, width_override)
+M.wrapper.create = function(poppy_opts, width_override, height_override)
 	local buf = api.nvim_create_buf(false, true)
-	local win = wrapper_open_with(buf, poppy_opts, width_override)
+	local win = wrapper_open_with(buf, poppy_opts, width_override, height_override)
 	return win, buf
 end
 
@@ -94,13 +96,14 @@ M.wrapper.recreate = wrapper_open_with
 ---@param buf integer|nil
 ---@param poppy_opts? PoppyMergedConfig
 ---@param width_override? integer
+---@param height_override? integer
 ---@return integer? win
 ---@return integer? buf
-M.wrapper.ensure = function(buf, poppy_opts, width_override)
+M.wrapper.ensure = function(buf, poppy_opts, width_override, height_override)
 	if buf and api.nvim_buf_is_valid(buf) then
-		return M.wrapper.recreate(buf, poppy_opts, width_override), buf
+		return M.wrapper.recreate(buf, poppy_opts, width_override, height_override), buf
 	end
-	local win, wbuf = M.wrapper.create(poppy_opts, width_override)
+	local win, wbuf = M.wrapper.create(poppy_opts, width_override, height_override)
 	return win, wbuf
 end
 
@@ -223,9 +226,9 @@ local legend_floor = function()
 		return layout.MIN_MENU_WIDTH
 	end
 	return math.max(
-		render.measure_hint_line(shared.permanent_key("select") or keys.select, "Select") + 1,
-		render.measure_hint_line(shared.permanent_key("kill") or keys.kill, "Kill") + 1,
-		render.measure_hint_line(shared.permanent_key("exit_menu") or keys.exit_menu, "Exit menu") + 1,
+		render.measure_hint_line(keys.select or shared.permanent_key("select"), "Select") + 1,
+		render.measure_hint_line(keys.kill or shared.permanent_key("kill"), "Kill") + 1,
+		render.measure_hint_line(keys.exit_menu or shared.permanent_key("exit_menu"), "Exit menu") + 1,
 		render.measure_hint_line(keys.poppy_action, "Toggle off") + 1
 	)
 end

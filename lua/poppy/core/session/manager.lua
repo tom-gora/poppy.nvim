@@ -161,8 +161,8 @@ local bail_empty = function()
 	end
 end
 
-local open_wrapper = function(width_override)
-	local win, wbuf = view.wrapper.ensure(state.windows.wrapper_buf, state.windows.opts, width_override)
+local open_wrapper = function(width_override, height_override)
+	local win, wbuf = view.wrapper.ensure(state.windows.wrapper_buf, state.windows.opts, width_override, height_override)
 	state.windows.wrapper_buf = wbuf
 	return win
 end
@@ -274,12 +274,14 @@ M.open = function(poppy_name)
 	-- A named open always has a target; a bare open falls back to the last opened poppy.
 	local target = poppy_name or (last_runtime and last_poppy)
 	local should_land = target == nil
-	local landing_w
+	local landing_w, landing_h
 	if should_land then
 		landing_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
+		local spec = menu.spec_poppy_list(menu.LANDING)
+		landing_h = layout.natural_landing_height(state.windows.opts, spec, landing_w)
 	end
 
-	local win = open_wrapper(landing_w)
+	local win = open_wrapper(landing_w, landing_h)
 	state.windows.wrapper_win = win
 	state.set_current_poppy_name(nil)
 	state.windows.is_landing = should_land
@@ -306,19 +308,19 @@ M.transition_to_content = function()
 	if state.windows.is_landing then
 		view.unmount()
 		local wc = api.nvim_win_get_config(state.windows.wrapper_win)
-		local full_width = layout.compute_wrapper_dimensions(
+		local full_width, full_height, full_row = layout.compute_wrapper_dimensions(
 			state.windows.opts,
 			vim.o.columns,
-			vim.o.lines,
+			layout.editor_height(),
 			nil,
 			view.min_wrapper_width()
 		)
 		api.nvim_win_set_config(state.windows.wrapper_win, {
 			relative = wc.relative,
 			width = full_width,
-			height = wc.height,
+			height = full_height,
 			col = math.floor((vim.o.columns - full_width) / 2),
-			row = wc.row,
+			row = full_row,
 		})
 		state.windows.is_landing = false
 	end
@@ -596,13 +598,26 @@ local recover_goto_landing = function()
 	end
 
 	local landing_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
+	local landing_h = layout.natural_landing_height(
+		state.windows.opts,
+		menu.spec_poppy_list(menu.LANDING),
+		landing_w
+	)
+	local _, _, landing_row = layout.compute_wrapper_dimensions(
+		state.windows.opts,
+		vim.o.columns,
+		layout.editor_height(),
+		landing_w,
+		nil,
+		landing_h
+	)
 	local wc = api.nvim_win_get_config(state.windows.wrapper_win)
 	api.nvim_win_set_config(state.windows.wrapper_win, {
 		relative = wc.relative,
 		width = landing_w,
-		height = wc.height,
+		height = landing_h,
 		col = math.floor((vim.o.columns - landing_w) / 2),
-		row = wc.row,
+		row = landing_row,
 	})
 
 	enter_landing()
