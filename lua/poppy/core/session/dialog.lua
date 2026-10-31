@@ -70,17 +70,40 @@ local spec_for = function(name)
 			"",
 		},
 		rows = {
-			{ label = "Save", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
-			{ label = "Discard", marks = { "PoppyDotNone", "PoppyConfirmNo" } },
-			{ label = "Go back", marks = { "PoppyDotNone", "PoppyConfirmCancel" } },
+			{ label = "Save", prefix = "s", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
+			{ label = "Discard", prefix = "d", marks = { "PoppyDotNone", "PoppyConfirmNo" } },
+			{ label = "Go back", prefix = "x", marks = { "PoppyDotNone", "PoppyConfirmCancel" } },
 		},
-		hints = { { "select", "Select" } },
+		hints = {
+			{ "select", "Select" },
+		},
 		keymaps = {
 			{
 				"select",
 				"Select",
 				function()
 					M.resolve(M.answer())
+				end,
+			},
+			{
+				"s",
+				"Save",
+				function()
+					M.resolve(OUTCOME_SAVE)
+				end,
+			},
+			{
+				"d",
+				"Discard",
+				function()
+					M.resolve(OUTCOME_DISCARD)
+				end,
+			},
+			{
+				"x",
+				"Go back",
+				function()
+					M.resolve(OUTCOME_GO_BACK)
 				end,
 			},
 		},
@@ -113,16 +136,32 @@ local spec_for_missing = function(name)
 			"",
 		},
 		rows = {
-			{ label = "Yes", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
-			{ label = "No", marks = { "PoppyDotNone", "PoppyConfirmNo" } },
+			{ label = "Yes", prefix = "y", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
+			{ label = "No", prefix = "n", marks = { "PoppyDotNone", "PoppyConfirmNo" } },
 		},
-		hints = { { "select", "Select" } },
+		hints = {
+			{ "select", "Select" },
+		},
 		keymaps = {
 			{
 				"select",
 				"Select",
 				function()
 					M.resolve(M.answer())
+				end,
+			},
+			{
+				"y",
+				"Yes",
+				function()
+					M.resolve(OUTCOME_CREATE)
+				end,
+			},
+			{
+				"n",
+				"No",
+				function()
+					M.resolve(OUTCOME_DROP)
 				end,
 			},
 		},
@@ -140,7 +179,8 @@ local ROW_TO_OUTCOME_MISSING = {
 	[2] = OUTCOME_DROP,
 }
 
----A count prefix picks the row; out-of-range counts fall back to the cursor.
+---The answer under the cursor. Dialogs have no count prefix: the letter keys are the
+---direct path, and <CR> takes the highlighted row.
 ---@return string
 M.answer = function()
 	local dialog = state.windows.dialog
@@ -148,9 +188,6 @@ M.answer = function()
 	local table_used = is_missing and ROW_TO_OUTCOME_MISSING or ROW_TO_OUTCOME_KILL
 	local fallback = is_missing and OUTCOME_DROP or OUTCOME_GO_BACK
 
-	if vim.v.count > 0 then
-		return table_used[vim.v.count] or fallback
-	end
 	local win = state.windows.menu_win
 	if not win or not api.nvim_win_is_valid(win) then
 		return fallback
@@ -190,6 +227,7 @@ local create_body_buf = function()
 	local buf = api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
 	vim.bo[buf].filetype = "poppy_dialog"
+	shared.guard_insert_mode(buf)
 	return buf
 end
 

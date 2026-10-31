@@ -156,17 +156,11 @@ body.create = function(
 )
 	local buf = create_unmodifiable_buf()
 	api.nvim_clear_autocmds({ group = body_autocmd_group, buffer = buf })
-	api.nvim_create_autocmd("InsertEnter", {
-		group = body_autocmd_group,
-		buffer = buf,
-		callback = function()
-			vim.cmd("stopinsert")
-		end,
-	})
+	shared.guard_insert_mode(buf)
 	-- Window re-read because body is recreated on every mount.
 	api.nvim_create_autocmd("CursorMoved", {
-		group = body_autocmd_group,
 		buffer = buf,
+		group = body_autocmd_group,
 		callback = function()
 			local win = api.nvim_get_current_win()
 			if not api.nvim_win_is_valid(win) or api.nvim_win_get_buf(win) ~= buf then
@@ -455,8 +449,16 @@ M.rowset = function(menu, panel_width)
 		---@type MenuItem[]
 		rows = menu.items(panel_width) or { { label = "", marks = { "PoppyDotNone" }, hl = nil } }
 	end
+	-- Rows that carry a prefix (dialog answers) are as wide as that prefix; the rest
+	-- are numbered and as wide as the widest number.
+	local prefix_width = 0
+	for _, row in ipairs(rows) do
+		if row.prefix then
+			prefix_width = math.max(prefix_width, fn.strdisplaywidth(row.prefix))
+		end
+	end
 	local set = {
-		idx_width = #tostring(math.max(#rows, 1)),
+		idx_width = prefix_width > 0 and prefix_width or #tostring(math.max(#rows, 1)),
 		rows = rows,
 	}
 	-- Landing leaves an extra cell of right padding so the longest row doesn't kiss the edge.
@@ -467,6 +469,7 @@ M.rowset = function(menu, panel_width)
 			label = fit_text(row.label, budget),
 			marks = row.marks,
 			hl = row.hl,
+			prefix = row.prefix,
 		}
 	end
 	if #set.rows == 0 then
@@ -529,7 +532,8 @@ body.paint_items = function(buf, spec)
 
 	for display_idx, e in ipairs(spec.rows) do
 		-- Every row needs the leading cell so the text column stays fixed.
-		lines[display_idx] = "  " .. string.format("%" .. idx_width .. "d", display_idx) .. " " .. e.label
+		local prefix = e.prefix or string.format("%" .. idx_width .. "d", display_idx)
+		lines[display_idx] = "  " .. prefix .. " " .. e.label
 		for mark_idx, name in ipairs(e.marks or {}) do
 			-- Sign id = row*10 + (mark_idx-1). Stable per row, so repaints replace, not accumulate.
 			local sign_id = mark_idx == 1 and display_idx * 10 or (display_idx * 10 + mark_idx - 1)
@@ -720,7 +724,9 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	local lines = is_missing_file_dialog and { "", "", sep } or { sep }
 
 	for _, kp in ipairs(spec) do
-		local hint_text = fmt_hint(keys[kp[1]] or shared.permanent_key(kp[1]), kp[2])
+		-- A hint may name a config field or carry a literal lhs (dialog letters).
+		local hint_key = keys[kp[1]] or shared.permanent_key(kp[1]) or kp[1]
+		local hint_text = fmt_hint(hint_key, kp[2])
 		table.insert(lines, hint_text .. string.rep(" ", math.max(1, wrapper_width - #hint_text)))
 	end
 

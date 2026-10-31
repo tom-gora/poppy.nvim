@@ -39,6 +39,32 @@ local normalize = function(spec)
 	return out
 end
 
+-- The four config fields a keymap entry may name. Anything else is a literal lhs.
+local KEY_FIELDS = { "poppy_action", "select", "kill", "exit_menu" }
+
+---Resolve a keymap or hint entry's lhs. A named field resolves through the user's
+---config (plus its permanent key); anything else is a literal lhs.
+---@param field string
+---@return string? lhs
+---@return string? permanent
+local resolve_lhs = function(field)
+	local keys = shared.keys()
+	if not keys then
+		return nil, nil
+	end
+	for _, known in ipairs(KEY_FIELDS) do
+		if field == known then
+			local lhs = field == "poppy_action" and shared.resolve_key(keys.poppy_action) or keys[field]
+			return lhs, shared.permanent_key(field)
+		end
+	end
+	return field, nil
+end
+
+-- What the last bind installed on a buffer, so the next bind can remove exactly that
+-- and nothing else. A dialog's literal keys must not outlive the dialog's spec.
+local bound_lhs = {}
+
 ---A dialog binds select and nothing else, so the other three are simply absent rather than
 ---bound to a no-op -- keeps get_keymap honest.
 ---@param buf integer
@@ -49,31 +75,27 @@ M.bind = function(buf, keymaps)
 	if not keys then
 		return 0
 	end
-	local poppy_action_bound = (shared.resolve_key(keys.poppy_action))
 	local configured_lhs = {}
 	for _, km in ipairs(keymaps or {}) do
-		local lhs = km[1] == "poppy_action" and poppy_action_bound or keys[km[1]]
+		local lhs = resolve_lhs(km[1])
 		if lhs and lhs ~= "" then
 			configured_lhs[lhs] = true
 		end
 	end
+
 	-- vim.keymap.set replaces only on matching lhs; re-binding a narrower spec would leave the
 	-- previous keys live and get_keymap would still report them as claimed.
-	for _, field in ipairs({ "poppy_action", "select", "kill", "exit_menu" }) do
-		local lhs = field == "poppy_action" and poppy_action_bound or keys[field]
-		local permanent = shared.permanent_key(field)
-		for _, candidate in ipairs({ lhs, permanent }) do
-			if candidate and candidate ~= "" then
-				pcall(vim.api.nvim_buf_del_keymap, buf, "n", candidate)
-				pcall(vim.api.nvim_buf_del_keymap, buf, "t", candidate)
-			end
-		end
+	for _, lhs in ipairs(bound_lhs[buf] or {}) do
+		pcall(api.nvim_buf_del_keymap, buf, "n", lhs)
+		pcall(api.nvim_buf_del_keymap, buf, "t", lhs)
 	end
+	bound_lhs[buf] = {}
+
 	local bound = 0
 	for _, km in ipairs(keymaps or {}) do
-		local lhs = km[1] == "poppy_action" and poppy_action_bound or keys[km[1]]
+		local lhs, permanent = resolve_lhs(km[1])
 		if type(km[3]) == "function" then
-			for _, candidate in ipairs({ lhs, shared.permanent_key(km[1]) }) do
+			for _, candidate in ipairs({ lhs, permanent }) do
 				-- A configured key owns its lhs outright: a permanent key standing on the same
 				-- lhs would silently steal the action.
 				if candidate and candidate ~= "" and not (candidate ~= lhs and configured_lhs[candidate]) then
@@ -81,6 +103,7 @@ M.bind = function(buf, keymaps)
 						buffer = buf,
 						desc = "Poppy: " .. km[2],
 					})
+					bound_lhs[buf][#bound_lhs[buf] + 1] = candidate
 					bound = bound + 1
 				end
 			end

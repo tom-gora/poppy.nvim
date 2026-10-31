@@ -258,6 +258,20 @@ M.is_poppy_window = function(win)
 	return val == true
 end
 
+---Keep insert mode out of a buffer that cannot be edited.
+---Scoped to the buffer, so unrelated windows never trigger it.
+---@param buf integer
+M.guard_insert_mode = function(buf)
+	local group = api.nvim_create_augroup("no_insert_mode_in_menus_guard_group", { clear = false })
+	api.nvim_create_autocmd("BufWinEnter", {
+		group = group,
+		buffer = buf,
+		callback = function()
+			vim.cmd("stopinsert")
+		end,
+	})
+end
+
 ---@param name string
 ---@param reason? string
 ---@return boolean was_active

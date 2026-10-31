@@ -159,7 +159,8 @@ local bail_empty = function()
 end
 
 local open_wrapper = function(width_override, height_override)
-	local win, wbuf = view.wrapper.ensure(state.windows.wrapper_buf, state.windows.opts, width_override, height_override)
+	local win, wbuf =
+		view.wrapper.ensure(state.windows.wrapper_buf, state.windows.opts, width_override, height_override)
 	state.windows.wrapper_buf = wbuf
 	return win
 end
@@ -555,11 +556,7 @@ local recover_goto_landing = function()
 	shared.close_win_if_valid(state.windows.content_win)
 
 	local landing_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
-	local landing_h = layout.natural_landing_height(
-		state.windows.opts,
-		menu.spec_poppy_list(menu.LANDING),
-		landing_w
-	)
+	local landing_h = layout.natural_landing_height(state.windows.opts, menu.spec_poppy_list(menu.LANDING), landing_w)
 	local _, _, landing_row = layout.compute_wrapper_dimensions(
 		state.windows.opts,
 		vim.o.columns,

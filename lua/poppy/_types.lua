@@ -82,7 +82,7 @@
 ---@field runtime_state PoppyRuntimeState?
 
 ---@class PoppyHint
----@field [1] string PoppyKeys field name
+---@field [1] string A PoppyKeys field name or a literal lhs.
 ---@field [2] string Description
 
 ---@class PoppyHints
@@ -98,13 +98,14 @@
 ---@field label string
 ---@field marks string[]
 ---@field hl string|nil
+---@field prefix? string Drawn in place of the index number, e.g. "[y]". Absent means the row is numbered.
 
 ---@class MenuItems
 ---@field idx_width integer
 ---@field rows MenuItem[]
 
 ---@class PoppyMenuKeymap
----@field [1] string PoppyKeys field name ("poppy_action", "select", "kill", "exit_menu")
+---@field [1] string A PoppyKeys field name ("poppy_action", "select", "kill", "exit_menu") or a literal lhs.
 ---@field [2] string Description
 ---@field [3] fun() Handler
 
