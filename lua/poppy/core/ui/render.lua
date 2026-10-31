@@ -445,20 +445,15 @@ end
 ---@return MenuItems
 M.rowset = function(menu, panel_width)
 	local rows = menu.rows
+	local numbered = false
 	if type(menu.items) == "function" then
 		---@type MenuItem[]
 		rows = menu.items(panel_width) or { { label = "", marks = { "PoppyDotNone" }, hl = nil } }
-	end
-	-- Rows that carry a prefix (dialog answers) are as wide as that prefix; the rest
-	-- are numbered and as wide as the widest number.
-	local prefix_width = 0
-	for _, row in ipairs(rows) do
-		if row.prefix then
-			prefix_width = math.max(prefix_width, fn.strdisplaywidth(row.prefix))
-		end
+		numbered = true
 	end
 	local set = {
-		idx_width = prefix_width > 0 and prefix_width or #tostring(math.max(#rows, 1)),
+		idx_width = #tostring(math.max(#rows, 1)),
+		numbered = numbered,
 		rows = rows,
 	}
 	-- Landing leaves an extra cell of right padding so the longest row doesn't kiss the edge.
@@ -469,7 +464,6 @@ M.rowset = function(menu, panel_width)
 			label = fit_text(row.label, budget),
 			marks = row.marks,
 			hl = row.hl,
-			prefix = row.prefix,
 		}
 	end
 	if #set.rows == 0 then
@@ -532,8 +526,8 @@ body.paint_items = function(buf, spec)
 
 	for display_idx, e in ipairs(spec.rows) do
 		-- Every row needs the leading cell so the text column stays fixed.
-		local prefix = e.prefix or string.format("%" .. idx_width .. "d", display_idx)
-		lines[display_idx] = "  " .. prefix .. " " .. e.label
+		local num = spec.numbered and string.format("%" .. idx_width .. "d", display_idx) or ""
+		lines[display_idx] = "  " .. num .. (spec.numbered and " " or "") .. e.label
 		for mark_idx, name in ipairs(e.marks or {}) do
 			-- Sign id = row*10 + (mark_idx-1). Stable per row, so repaints replace, not accumulate.
 			local sign_id = mark_idx == 1 and display_idx * 10 or (display_idx * 10 + mark_idx - 1)

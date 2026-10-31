@@ -133,9 +133,11 @@ end
 
 -- Padded to 2 cells like the category icons so two stacked signs keep signcolumn=SIGN_COL.
 local CONFIRM_SIGNS = {
-	{ name = "PoppyConfirmYes", text = "\u{2714}" },
-	{ name = "PoppyConfirmNo", text = "\u{2717}" },
-	{ name = "PoppyConfirmCancel", text = "\u{25C0}" },
+	{ name = "PoppyConfirmYes", text = "Y" },
+	{ name = "PoppyConfirmNo", text = "N" },
+	{ name = "PoppyConfirmSave", text = "S" },
+	{ name = "PoppyConfirmDiscard", text = "D" },
+	{ name = "PoppyConfirmCancel", text = "X" },
 }
 
 local define_confirm_signs = function()

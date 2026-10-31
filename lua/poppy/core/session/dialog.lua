@@ -70,9 +70,9 @@ local spec_for = function(name)
 			"",
 		},
 		rows = {
-			{ label = "Save", prefix = "s", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
-			{ label = "Discard", prefix = "d", marks = { "PoppyDotNone", "PoppyConfirmNo" } },
-			{ label = "Go back", prefix = "x", marks = { "PoppyDotNone", "PoppyConfirmCancel" } },
+			{ label = "Save", marks = { "PoppyDotNone", "PoppyConfirmSave" } },
+			{ label = "Discard", marks = { "PoppyDotNone", "PoppyConfirmDiscard" } },
+			{ label = "Go back", marks = { "PoppyDotNone", "PoppyConfirmCancel" } },
 		},
 		hints = {
 			{ "select", "Select" },
@@ -136,8 +136,8 @@ local spec_for_missing = function(name)
 			"",
 		},
 		rows = {
-			{ label = "Yes", prefix = "y", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
-			{ label = "No", prefix = "n", marks = { "PoppyDotNone", "PoppyConfirmNo" } },
+			{ label = "Yes", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
+			{ label = "No", marks = { "PoppyDotNone", "PoppyConfirmNo" } },
 		},
 		hints = {
 			{ "select", "Select" },
@@ -179,8 +179,8 @@ local ROW_TO_OUTCOME_MISSING = {
 	[2] = OUTCOME_DROP,
 }
 
----The answer under the cursor. Dialogs have no count prefix: the letter keys are the
----direct path, and <CR> takes the highlighted row.
+---The answer under the cursor. Dialogs are lettered by a sign rather than numbered,
+---and <CR> takes the highlighted row.
 ---@return string
 M.answer = function()
 	local dialog = state.windows.dialog

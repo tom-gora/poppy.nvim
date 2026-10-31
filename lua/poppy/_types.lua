@@ -98,10 +98,10 @@
 ---@field label string
 ---@field marks string[]
 ---@field hl string|nil
----@field prefix? string Drawn in place of the index number, e.g. "[y]". Absent means the row is numbered.
 
 ---@class MenuItems
 ---@field idx_width integer
+---@field numbered boolean Whether rows carry an index number. Dialog rows are lettered by a sign instead.
 ---@field rows MenuItem[]
 
 ---@class PoppyMenuKeymap
