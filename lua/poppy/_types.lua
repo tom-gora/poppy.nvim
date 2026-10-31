@@ -92,7 +92,6 @@
 ---@class PoppyHintOpts
 ---@field width? integer
 ---@field height? integer
----@field hints? PoppyHint[]
 
 ---@class MenuItem
 ---@field label string

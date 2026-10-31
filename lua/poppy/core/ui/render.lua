@@ -672,10 +672,11 @@ end
 hints.recreate = function(wrapper_win, buf, opts)
 	opts = opts or {}
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local inset = shared.get_insets().inset
+	local insets = shared.get_insets()
+	local inset, inset_inv = insets.inset, insets.inset_inv
 	local width = (opts.width or wrapper_conf.width) - inset
-	-- +2 covers separator + trailing blank.
-	local height = (opts.height or #opts.hints) + 2
+	-- +2 covers separator + trailing blank ( 1 when border 2 when borderless)
+	local height = opts.height + inset + (2 * inset_inv)
 
 	-- hints panel: key-binding legend below the sidebar body (or below landing body). SW anchor pins to parent's bottom row.
 	---@type vim.api.keyset.win_config
@@ -713,18 +714,15 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 	end
 	local inset = shared.get_insets().inset
 	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - (4 - inset))) .. "  "
-	local is_missing_file_dialog = state.windows.dialog and state.windows.dialog.kind == "missing_file"
 
-	local lines = is_missing_file_dialog and { "", "", sep } or { sep }
+	local lines = { sep }
 
 	for _, kp in ipairs(spec) do
 		-- A hint may name a config field or carry a literal lhs (dialog letters).
 		local hint_key = keys[kp[1]] or shared.permanent_key(kp[1]) or kp[1]
 		local hint_text = fmt_hint(hint_key, kp[2])
-		table.insert(lines, hint_text .. string.rep(" ", math.max(1, wrapper_width - #hint_text)))
+		table.insert(lines, hint_text)
 	end
-
-	table.insert(lines, " ")
 
 	shared.with_modifiable(buf, function()
 		api.nvim_buf_set_lines(buf, 0, -1, false, lines)

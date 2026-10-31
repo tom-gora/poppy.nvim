@@ -373,7 +373,7 @@ local mount_panels = function(wrapper_win)
 	end)
 
 	ensure_panel("hints_buf", "hints_win", function()
-		return render.hints.create(menu_wrapper, hint_geom(wc, mw, #menu.hints + 2))
+		return render.hints.create(menu_wrapper, hint_geom(wc, mw, #menu.hints))
 	end, function(buf)
 		return render.hints.recreate(menu_wrapper, buf, hint_geom(wc, mw, #menu.hints))
 	end, not hints_on)
