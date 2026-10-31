@@ -127,7 +127,8 @@
 ---@field kind "kill_confirm"
 ---@field name string
 ---@field resume fun()
----@field buf? integer
+---@field buf? integer The file buffer being saved, not the dialog's own buffer.
+---@field body_buf? integer The dialog's answers buffer. Transient: deleted when the dialog resolves.
 
 ---@class PoppyMissingFileDialog
 ---@field kind "missing_file"
@@ -135,5 +136,6 @@
 ---@field resume fun()
 ---@field poppies string[]
 ---@field index integer
+---@field body_buf? integer The dialog's answers buffer. Transient: deleted when the dialog resolves.
 
 ---@alias PoppyDialog PoppyKillDialog|PoppyMissingFileDialog

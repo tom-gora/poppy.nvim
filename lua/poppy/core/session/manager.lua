@@ -111,6 +111,7 @@ local teardown_panels = function()
 			state.windows.wrapper_buf,
 			state.windows.hints_buf,
 			state.windows.menu_buf,
+			state.windows.dialog_body_buf,
 			state.windows.menu_header_buf,
 			state.windows.header_buf,
 			state.windows.menu_wrapper_buf,
@@ -125,6 +126,7 @@ local teardown_panels = function()
 		state.windows.content_win = nil
 		state.windows.content_buf = nil
 		state.windows.menu_wrapper_buf = nil
+		state.windows.dialog_body_buf = nil
 		state.windows.is_landing = false
 		state.windows.menu_hidden = false
 		state.windows.retrying_after_failure = false

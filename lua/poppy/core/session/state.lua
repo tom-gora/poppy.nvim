@@ -14,7 +14,8 @@ local M = {}
 ---@field hints_win integer|nil
 ---@field hints_buf integer|nil
 ---@field menu_win integer|nil
----@field menu_buf integer|nil
+---@field menu_buf integer|nil The list's body buffer. Persistent for the session.
+---@field dialog_body_buf integer|nil A dialog's body buffer. Transient: deleted when the dialog resolves.
 ---@field menu_header_win integer|nil A menu's question panel. Not the header panel.
 ---@field menu_header_buf integer|nil
 ---@field header_win integer|nil
@@ -44,6 +45,7 @@ M.default_state = function()
 		hints_buf = nil,
 		menu_win = nil,
 		menu_buf = nil,
+		dialog_body_buf = nil,
 		menu_header_win = nil,
 		menu_header_buf = nil,
 		header_win = nil,

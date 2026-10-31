@@ -281,6 +281,20 @@ local GEOMETRY = {
 	end,
 }
 
+---The buffer backing the body panel: the dialog's own while a question is up,
+---otherwise the list's. Dialogs own their buffer so their keymaps and settings
+---cannot leak into the list.
+---@return integer?
+local active_body_buf = function()
+	local dialog = state.windows.dialog
+	if dialog and dialog.body_buf and api.nvim_buf_is_valid(dialog.body_buf) then
+		return dialog.body_buf
+	end
+	return state.windows.menu_buf
+end
+
+M.active_body_buf = active_body_buf
+
 -- Present panels stack from top, each contributing its height to everything below; absent ones
 -- contribute nothing. Lets `title_header = false` and dialog question panels compose without per-case arithmetic.
 local mount_panels = function(wrapper_win)
@@ -330,7 +344,10 @@ local mount_panels = function(wrapper_win)
 		return
 	end
 
-	ensure_panel("menu_buf", "menu_win", function()
+	-- The body panel shows whichever surface is active. A dialog mounts its own
+	-- buffer; the list mounts the persistent one.
+	local body_buf_key = (state.windows.dialog and state.windows.dialog.body_buf) and "dialog_body_buf" or "menu_buf"
+	ensure_panel(body_buf_key, "menu_win", function()
 		return render.body.create(
 			menu_wrapper,
 			panel_w,
@@ -393,15 +410,16 @@ local mount_panels = function(wrapper_win)
 	end, hh == 0)
 
 	-- First-show under autohide would otherwise be stale (kill-then-show).
-	if valid_buf(state.windows.menu_buf) then
+	local body_buf = active_body_buf()
+	if valid_buf(body_buf) then
 		local inset = shared.get_insets().inset
-		render.body.paint_items(state.windows.menu_buf, render.rowset(menu, panel_w - inset))
+		render.body.paint_items(body_buf, render.rowset(menu, panel_w - inset))
 		if valid_buf(state.windows.hints_buf) then
 			render.hints.write_spec(state.windows.hints_buf, shared.keys(), menu.hints, panel_w - inset)
 		end
 		-- Bind only on focusable bodies; get_keymap would still report bindings as claimed on an unfocusable one.
 		if cfg.focusable then
-			menu_ui.bind(state.windows.menu_buf, menu.keymaps)
+			menu_ui.bind(body_buf, menu.keymaps)
 		end
 	end
 
@@ -478,12 +496,13 @@ M.refresh_menu_when_visible = function()
 	else
 		width = menu_width(state.windows.wrapper_win and api.nvim_win_get_width(state.windows.wrapper_win))
 	end
-	if not valid_buf(state.windows.menu_buf) then
+	local body_buf = active_body_buf()
+	if not valid_buf(body_buf) then
 		return
 	end
 	local inset = shared.get_insets().inset
 	local menu = menu_ui.current_spec()
-	render.body.paint_items(state.windows.menu_buf, render.rowset(menu, width - inset))
+	render.body.paint_items(body_buf, render.rowset(menu, width - inset))
 end
 
 M.setup_style = style.setup

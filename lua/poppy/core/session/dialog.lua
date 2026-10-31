@@ -183,6 +183,16 @@ local watch_panels = function()
 	end
 end
 
+---Create the dialog's own answers buffer. Transient: it is deleted when the dialog
+---resolves, so its keymaps and settings leave with it.
+---@return integer
+local create_body_buf = function()
+	local buf = api.nvim_create_buf(false, true)
+	vim.bo[buf].modifiable = false
+	vim.bo[buf].filetype = "poppy_dialog"
+	return buf
+end
+
 ---@param name string
 ---@param kind "kill_confirm"|"missing_file"
 ---@param resume fun()
@@ -190,6 +200,13 @@ end
 ---@param poppies? string[]
 ---@param index? integer
 local install_dialog = function(name, kind, resume, buf, poppies, index)
+	-- One buffer for the whole dialog flow: a row of questions repaints it.
+	local body_buf = state.windows.dialog and state.windows.dialog.body_buf
+	if not (body_buf and api.nvim_buf_is_valid(body_buf)) then
+		body_buf = create_body_buf()
+	end
+	state.windows.dialog_body_buf = body_buf
+
 	if kind == "missing_file" then
 		state.windows.dialog = {
 			kind = kind,
@@ -197,6 +214,7 @@ local install_dialog = function(name, kind, resume, buf, poppies, index)
 			resume = resume,
 			poppies = poppies or {},
 			index = index or 1,
+			body_buf = body_buf,
 		}
 		return
 	end
@@ -205,6 +223,7 @@ local install_dialog = function(name, kind, resume, buf, poppies, index)
 		name = name,
 		resume = resume,
 		buf = buf,
+		body_buf = body_buf,
 	}
 end
 
@@ -284,11 +303,19 @@ local drop_question = function()
 	end
 	state.windows.menu_header_win = nil
 	state.windows.menu_header_buf = nil
+end
 
-	-- Empty keymap set: clears prior binds without installing new ones (keeps get_keymap honest).
-	local body = state.windows.menu_buf
-	if body and api.nvim_buf_is_valid(body) then
-		menu_ui.bind(body, {})
+---Release the dialog's transient answers buffer. The list's buffer is untouched:
+---the dialog never borrowed it.
+---@return nil
+local release_body_buf = function()
+	local buf = state.windows.dialog_body_buf
+	if buf and api.nvim_buf_is_valid(buf) then
+		pcall(api.nvim_buf_delete, buf, { force = true })
+	end
+	state.windows.dialog_body_buf = nil
+	if state.windows.dialog then
+		state.windows.dialog.body_buf = nil
 	end
 end
 
@@ -327,11 +354,27 @@ local advance_missing_file_queue = function(dialog)
 	local next_name = poppies[dialog.index]
 	menu_ui.clear_override()
 	menu_ui.set_override(spec_for_missing(next_name))
+	-- Same buffer for the next question in the row: one continuous dialog flow.
+	dialog.body_buf = state.windows.dialog_body_buf
 	-- Clear old WinClosed watchers: closing old panels would re-enter M.resolve on stale state.
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 	present_dialog()
 	dialog.name = next_name
 	dialog.index = dialog.index + 1
+end
+
+---Release a trapped dialog without answering it. Used by a hard reset (setup) where the
+---session is being replaced and the question no longer has a subject.
+---@return nil
+M.force_release = function()
+	if not M.trapped() then
+		return
+	end
+	menu_ui.clear_override()
+	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
+	drop_question()
+	release_body_buf()
+	state.windows.dialog = nil
 end
 
 ---Tear the dialog down and invoke `after`. `release_after` defaults true so the trap is cleared
@@ -343,6 +386,7 @@ local finish_dialog = function(after, release_after)
 	menu_ui.clear_override()
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 	drop_question()
+	release_body_buf()
 	if release_after then
 		state.windows.dialog = nil
 		local ok, err = pcall(after)

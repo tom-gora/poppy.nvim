@@ -102,6 +102,12 @@ local setup_command = function(opts, callbacks)
 end
 
 local init_or_reset_state = function()
+	-- A trapped dialog blocks manager.close(), so its transient buffer would be
+	-- orphaned by the reset. Release it before the state is dropped.
+	local dialog = require("poppy.core.session.dialog")
+	if dialog.trapped() then
+		dialog.force_release()
+	end
 	state.windows = state.default_state()
 	state.poppies_configured = {}
 	state.poppies_runtime = {}
