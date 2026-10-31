@@ -65,6 +65,11 @@ M.setup = function(opts)
 					if not shared.session_is_open() then
 						return
 					end
+					-- A recovery in flight owns the session: its own window churn must
+					-- not be mistaken for the user leaving poppy for good.
+					if state.windows.recovering then
+						return
+					end
 					local win = api.nvim_get_current_win()
 					if not api.nvim_win_is_valid(win) then
 						return

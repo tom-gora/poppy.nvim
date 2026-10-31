@@ -425,19 +425,32 @@ local finish_dialog = function(after, release_after)
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 	drop_question()
 	release_body_buf()
+	-- Closing the dialog drops focus back to the editor window. The recovery that
+	-- follows is what puts poppy back, so the session must not be torn down in
+	-- between: hold the recovering gate across the whole teardown.
+	state.windows.recovering = true
 	if release_after then
 		state.windows.dialog = nil
 		local ok, err = pcall(after)
 		if not ok then
+			state.windows.recovering = false
 			error(err, 0)
 		end
 	else
 		local ok, err = pcall(after)
 		state.windows.dialog = nil
 		if not ok then
+			state.windows.recovering = false
 			error(err, 0)
 		end
 	end
+	-- The resume path may have started a recovery, which clears the flag itself
+	-- once the session is restored. Otherwise nothing will, so release it here.
+	vim.defer_fn(function()
+		if state.windows.recovering then
+			state.windows.recovering = false
+		end
+	end, 0)
 end
 
 ---@param dialog PoppyMissingFileDialog
