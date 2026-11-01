@@ -20,7 +20,7 @@ M.MIN_CONTENT_WIDTH = 35
 -- content floor and their gutter; height only has to fit the single-row picker, and
 -- header/hints can be turned off in anything tighter.
 M.MIN_COLS = M.MIN_MENU_WIDTH + M.MIN_CONTENT_WIDTH + 2
-M.MIN_LINES = 10
+M.MIN_LINES = 6
 
 ---@return boolean
 M.below_floor = function()
@@ -157,7 +157,9 @@ end
 M.natural_landing_height = function(opts, spec, panel_width)
 	-- Lazy require: menu.lua depends on this module's HEADER_TITLE + friends at top-level.
 	local menu_ui = require("poppy.core.session.menu")
-	local inset = shared.get_insets().inset
+	local insets = shared.get_insets()
+	local inset, inset_inv = insets.inset, insets.inset_inv
+
 	local header_h = M.get_header_height(opts)
 	local _, q_h = menu_ui.menu_header_lines(spec, panel_width)
 	-- items may be a lazy provider (poppy list); resolve to count rows for the body height.
@@ -170,13 +172,19 @@ M.natural_landing_height = function(opts, spec, panel_width)
 	end
 	local hints_on = opts and opts.hints_footer ~= false
 	local hints_h = hints_on and menu_ui.legend_height(spec.hints) or 0
-	local offset_for_hints = hints_on and 2 or 0
+	-- local offset_for_hints = hints_on and 2 or 0
 	-- In borderless, the body needs 1 row of breathing top/bottom since there's no border
 	-- to provide it. In bordered, the menu_wrapper's own border gives that visual padding.
 	local has_chrome = header_h > 0 or hints_on or q_h > 0
 	local chrome_padding = (has_chrome or shared.use_borders()) and 0 or 2
-	local total = inset + header_h + q_h + body_rows + chrome_padding + offset_for_hints + hints_h + inset
-	return has_chrome and math.max(M.MIN_LINES, total) or total
+	local total = header_h + q_h + body_rows + chrome_padding + hints_h + inset_inv
+	if hints_on then
+		total = total + 3 * inset_inv
+	end
+	if not hints_on and header_h == 0 then
+		total = total - 10
+	end
+	return math.max(M.MIN_LINES, total)
 end
 
 ---@param opts? PoppyMergedConfig

@@ -172,13 +172,12 @@ M.menu_header_lines = function(menu, panel_width)
 	return lines, #lines
 end
 
----Legend lines a menu renders, including the separator and trailing blank.
+---Legend lines a menu renders, including the separator and preceeding blank when question.
 ---@param hints PoppyHint[]
 ---@return integer
 M.legend_height = function(hints)
 	local is_missing_file_dialog = state.windows.dialog and state.windows.dialog.kind == "missing_file"
-	local offset = is_missing_file_dialog and 3 or 2
-	return #hints + offset
+	return #hints
 end
 
 ---Session required lazily at call time to keep the cycle open.

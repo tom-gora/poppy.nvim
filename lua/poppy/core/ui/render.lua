@@ -40,13 +40,13 @@ end
 ---@param buf integer
 ---@return integer? win
 header.recreate = function(menu_wrapper_win, buf)
-	local wc = api.nvim_win_get_config(menu_wrapper_win)
+	local wrapper_config = api.nvim_win_get_config(menu_wrapper_win)
 	local insets = shared.get_insets()
 	local inset, inset_inv = insets.inset, insets.inset_inv
-	-- Inset 1 on left, 2 on right (clears the rounded border).
-	local width = (wc.width - 2 * inset)
+	--  -2 if borders to account for borders columns
+	local width = wrapper_config.width - (2 * inset)
 	local col = inset
-	-- Anchored to the top border; the buffer's empty first line gives the visual gap.
+	-- if no borders leave 1 line on top of visual offset
 	local row = inset_inv
 
 	-- Header: title bar above the sidebar; zindex +1 above menu_wrapper so it draws over the border.
@@ -218,48 +218,34 @@ body.recreate = function(
 	hints_on,
 	height_override
 )
-	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
+	local wrapper_config = api.nvim_win_get_config(wrapper_win)
 	local insets = shared.get_insets()
 	local inset, inset_inv = insets.inset, insets.inset_inv
-	local hint_offset = hint_height or 5
+	local hint_offset = (hint_height and hint_height or 0)
 	local header_offset = layout.get_header_height(state.windows.opts)
-	local has_question = row_override and row_override > header_offset
-	local no_header = header_offset == 0 and not has_question
-	local no_hints = shared.opts_field("hints_footer") ~= true
+	local has_question = (state.windows.dialog and state.windows.dialog.body_buf ~= nil) and true or false
+	local has_header = shared.opts_field("title_header") == true
+	local has_hints = shared.opts_field("hints_footer") == true
 
 	-- When the spec has no header and no hints, size the body to actual content rows so
 	-- the panel doesn't render blank rows below the list.
-	local height
 	local row
-	if height_override then
-		row = row_override - inset
-		height = height_override
-	elseif body_rows and no_header and no_hints then
-		row = inset_inv
-		height = body_rows + (hints_on and 2 or 0)
-	else
-		-- Cases: no chrome | no header only | no hints only | header+hints | header+hints+question.
-		-- Baseline subtracts hint_offset (hints) and adds 2*inset (borderless edge compensation).
-		-- Each branch undoes the subtraction it doesn't need.
-		local available = wrapper_conf.height - hint_offset + (2 * inset)
-		row = no_header and inset_inv or row_override - inset
-		if no_header and no_hints then
-			available = wrapper_conf.height + hint_offset - inset_inv + inset
-		elseif no_hints then
-			available = available + hint_offset
-		elseif no_header then
-			available = available - inset_inv - inset
-		end
-		if has_question then
-			available = math.max(1, available - row_override)
-			row = row_override + 2 * inset_inv
-		end
-		height = math.max(1, math.max(1, available - row_override) - inset)
+	local available = wrapper_config.height - hint_offset
+	row = not has_header and inset_inv or header_offset - inset
+	local height = available - header_offset
+	if not has_header then
+		height = height - 1
 	end
-
-	-- Anchor NE (right + top edges to parent); 1L/2R inset clears the rounded border in bordered mode.
-	local width = menu_width - inset - 1
-	local col = wrapper_conf.width - inset
+	-- if not has_hints and has_header then
+	-- 	height = heightdd
+	-- end
+	-- use overrides from dialog path plus adjust for border with inset
+	if has_question then
+		height = body_rows
+		row = row_override - inset
+	end
+	local width = menu_width
+	local col = wrapper_config.width
 
 	---@type vim.api.keyset.win_config
 	local config = {
@@ -671,12 +657,13 @@ end
 ---@return integer? win
 hints.recreate = function(wrapper_win, buf, opts)
 	opts = opts or {}
-	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
+	local wrapper_config = api.nvim_win_get_config(wrapper_win)
 	local insets = shared.get_insets()
 	local inset, inset_inv = insets.inset, insets.inset_inv
-	local width = (opts.width or wrapper_conf.width) - inset
-	-- +2 covers separator + trailing blank ( 1 when border 2 when borderless)
-	local height = opts.height + inset + (2 * inset_inv)
+	local row = wrapper_config.height
+	local col = 0
+	local width = (opts.width or wrapper_config.width) - 2 * inset
+	local height = opts.height - inset
 
 	-- hints panel: key-binding legend below the sidebar body (or below landing body). SW anchor pins to parent's bottom row.
 	---@type vim.api.keyset.win_config
@@ -684,9 +671,9 @@ hints.recreate = function(wrapper_win, buf, opts)
 		relative = "win",
 		width = width,
 		height = height,
-		col = wrapper_conf.width - inset,
-		row = wrapper_conf.height,
-		anchor = "SE",
+		col = col,
+		row = row,
+		anchor = "SW",
 		style = "minimal",
 		border = "none",
 		zindex = layout.POPPY_Z_INDEX,

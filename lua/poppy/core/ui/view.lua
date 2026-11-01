@@ -27,13 +27,12 @@ end
 
 M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local outer_h = shared.use_borders() and (panel_h - 2) or panel_h
 
 	local win = api.nvim_open_win(buf, false, {
 		relative = "win",
 		win = wrapper_win,
 		width = panel_w,
-		height = outer_h,
+		height = panel_h,
 		col = wrapper_conf.width - panel_w,
 		row = 0,
 		style = "minimal",
@@ -373,9 +372,10 @@ local mount_panels = function(wrapper_win)
 	end)
 
 	ensure_panel("hints_buf", "hints_win", function()
-		return render.hints.create(menu_wrapper, hint_geom(wc, mw, #menu.hints))
+		-- +2 provides sensible breathing space
+		return render.hints.create(menu_wrapper, hint_geom(wc, mw, #menu.hints + 2))
 	end, function(buf)
-		return render.hints.recreate(menu_wrapper, buf, hint_geom(wc, mw, #menu.hints))
+		return render.hints.recreate(menu_wrapper, buf, hint_geom(wc, mw, #menu.hints + 2))
 	end, not hints_on)
 
 	-- Question panel: unfocusable so the cursor stays in answers; wrap+linebreak as a safety net.
