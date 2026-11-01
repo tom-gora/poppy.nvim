@@ -28,6 +28,11 @@ end
 
 M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)
 	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
+	local cfg = menu_ui.current_cfg()
+	local is_sidebar = cfg.width_source == "menu"
+	if is_sidebar and shared.use_borders() then
+		panel_h = panel_h - 2
+	end
 
 	local win = api.nvim_open_win(buf, false, {
 		relative = "win",

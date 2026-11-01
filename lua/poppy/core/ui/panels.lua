@@ -96,6 +96,7 @@ M.compute = function(spec, height)
 	-- (the border is the edge). The padding is a positional offset applied
 	-- on both ends, so `row` starts at `padding`.
 	local padding = spec.border and 0 or 1
+	local use_borders = shared.use_borders()
 
 	local header_height = spec.header and 2 or 0
 	local question_height = spec.question and #spec.question_lines or 0
@@ -120,18 +121,23 @@ M.compute = function(spec, height)
 	local gap_row
 	local hints_row
 	if spec.fill then
-		-- Sidebar fills the menu_wrapper: body takes the leftover height, hints
-		-- pin to the bottom (above the bottom padding), with the body ending on
-		-- the row immediately above the hints' top so they sit flush.
+		-- Sidebar (fill=true). The sidebar fills the wrapper window: header at
+		-- the top, body takes all available room down to the hints, hints flush
+		-- at the bottom (above the bottom padding for borderless).
+		--
 		-- `view.lua` opens the hints panel with anchor=SW and row=hints_row;
 		-- the SW corner lands at hints_row and the panel extends UP, occupying
-		-- rows `hints_row - hints_height + 1` to `hints_row`.
-		hints_row = height - padding - hints_height + 2
+		-- rows `hints_row - hints_height + 1` to `hints_row`. To pin the hints'
+		-- bottom row to the wrapper's last visible row, hints_row is set so
+		-- hints_row = height - padding - 1 (bordered: padding=0 so hints_row =
+		-- height - 1; borderless: padding=1 so hints_row = height - 2).
+
+		hints_row = use_borders and height - padding - 2 or height - padding
 		gap_row = hints_row - gap_height
-		-- body_row is the TOP of the body; for sidebar fill, body sits below
-		-- the padding, header, and any question, so it starts after all of them.
+		-- Body sits directly below the header (and any question) and fills
+		-- every row down to the one immediately above the hints' top.
 		local body_top = padding + header_height + question_height
-		local body_height = (hints_row - hints_height) - body_top + 1
+		body_height = hints_row - hints_height - body_top
 		return {
 			width = spec.width,
 			height = height,

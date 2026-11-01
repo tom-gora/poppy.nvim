@@ -274,7 +274,7 @@ end
 
 ---@param win integer
 M.apply_hints_panel_style = function(win)
-	set_winhl_deferred(win, "Normal:IncSearch")
+	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel")
 end
 
 ---@param win integer
@@ -292,7 +292,7 @@ M.apply_body_style = function(win)
 		end
 		api.nvim_set_option_value(
 			"winhl",
-			"Normal:Search,SignColumn:NormalPoppyUIPanel,CursorLine:PoppyCursorLine",
+			"Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel,CursorLine:PoppyCursorLine",
 			{ scope = "local", win = win }
 		)
 		api.nvim_set_option_value("cursorline", true, { win = win })
