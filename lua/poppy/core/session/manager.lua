@@ -265,7 +265,8 @@ M.open = function(poppy_name)
 	if should_land then
 		landing_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
 		local spec = menu.spec_poppy_list(menu.LANDING)
-		landing_h = layout.natural_landing_height(state.windows.opts, spec, landing_w)
+		local panels = require("poppy.core.ui.panels")
+		landing_h = panels.compute(panels.resolve_spec(spec, landing_w)).height
 	end
 
 	local win = open_wrapper(landing_w, landing_h)
@@ -556,7 +557,9 @@ local recover_goto_landing = function()
 	shared.close_win_if_valid(state.windows.content_win)
 
 	local landing_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
-	local landing_h = layout.natural_landing_height(state.windows.opts, menu.spec_poppy_list(menu.LANDING), landing_w)
+	local panels = require("poppy.core.ui.panels")
+	local landing_spec = menu.spec_poppy_list(menu.LANDING)
+	local landing_h = panels.compute(panels.resolve_spec(landing_spec, landing_w)).height
 	local _, _, landing_row = layout.compute_wrapper_dimensions(
 		state.windows.opts,
 		vim.o.columns,

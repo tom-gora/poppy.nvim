@@ -278,7 +278,8 @@ local present_dialog = function()
 		if ww and vim.api.nvim_win_is_valid(ww) then
 			local wc = vim.api.nvim_win_get_config(ww)
 			local column_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
-			local column_h = layout.natural_landing_height(state.windows.opts, menu_ui.current_spec(), column_w)
+			local panels = require("poppy.core.ui.panels")
+			local column_h = panels.compute(panels.resolve_spec(menu_ui.current_spec(), column_w)).height
 			if wc.width ~= column_w or wc.height ~= column_h then
 				vim.api.nvim_win_set_config(ww, {
 					relative = wc.relative,

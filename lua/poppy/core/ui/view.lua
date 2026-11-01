@@ -7,6 +7,7 @@ local state = require("poppy.core.session.state")
 local layout = require("poppy.core.ui.layout")
 local style = require("poppy.core.ui.style")
 local render = require("poppy.core.ui.render")
+local panels = require("poppy.core.ui.panels")
 local menu_ui = require("poppy.core.session.menu")
 
 local shared = require("poppy.core.shared")
@@ -210,10 +211,6 @@ local ensure_panel = function(buf_key, win_key, create, recreate, skip)
 	return win, buf
 end
 
-local header_height = function()
-	return layout.get_header_height(state.windows.opts)
-end
-
 -- Widest hint line the sidebar can ever need; +1 for the hints separator's lead space.
 local legend_floor = function()
 	local keys = shared.keys()
@@ -270,16 +267,6 @@ M.min_wrapper_width = function()
 	return menu_width() + layout.MIN_CONTENT_WIDTH + 2
 end
 
--- Only width and height reach the hints panel; the panel anchors itself.
-local GEOMETRY = {
-	sidebar = function(_, mw, h)
-		return { width = mw, height = h }
-	end,
-	landing = function(wc, _, h)
-		return { width = wc.width, height = h }
-	end,
-}
-
 ---The buffer backing the body panel: the dialog's own while a question is up,
 ---otherwise the list's. Dialogs own their buffer so their keymaps and settings
 ---cannot leak into the list.
@@ -298,43 +285,27 @@ M.active_body_buf = active_body_buf
 -- contribute nothing. Lets `title_header = false` and dialog question panels compose without per-case arithmetic.
 local mount_panels = function(wrapper_win)
 	local wc = api.nvim_win_get_config(wrapper_win)
-	local hh = header_height()
 	local mw = menu_width(wc.width)
 	local cfg = menu_ui.current_cfg()
 	local is_sidebar = cfg.width_source == "menu"
-	local hint_geom = is_sidebar and GEOMETRY.sidebar or GEOMETRY.landing
 
 	local panel_w = is_sidebar and mw or wc.width
-	local panel_h = wc.height
 
 	local menu = menu_ui.current_spec()
-	local legend_h = menu_ui.legend_height(menu.hints)
-	local hints_on = shared.opts_field("hints_footer") ~= false
-	local effective_legend_h = hints_on and legend_h or 0
-	local q_lines, q_h = menu_ui.menu_header_lines(menu, panel_w)
-	local above_body = hh + q_h
+	local q_lines = menu_ui.menu_header_lines(menu, panel_w)
 
-	-- Resolve body row count: items may be a lazy provider (poppy list) or a direct rows table.
-	local body_rows
-	if type(menu.items) == "function" then
-		body_rows = #(menu.items(panel_w) or {})
-	else
-		body_rows = #(menu.rows or {})
-	end
-
-	-- The startup dialog owns its own geometry: its body fills the space between the
-	-- question panel above it and the hints panel below it. Landing, the sidebar and
-	-- the sidebar dialog keep the shared derivation in render.body.recreate.
-	local body_height_override
-	if cfg.width_source == "wrapper" and q_h > 0 then
-		body_height_override = math.max(1, panel_h - above_body - effective_legend_h)
-	end
+	-- The sidebar is a full-height column beside the content pane; the landing
+	-- view is sized to fit its panels.
+	local fill = is_sidebar
+	local wrapper_h = wc.height
+	local spec = panels.resolve_spec(menu, panel_w, fill)
+	local placement = panels.compute(spec, wrapper_h)
 
 	-- menu_wrapper: quiet sizing container in borderless mode; in bordered mode it grows the rounded border.
 	ensure_panel("menu_wrapper_buf", "menu_wrapper_win", function()
-		return M.menu_wrapper.create(wrapper_win, panel_w, panel_h)
+		return M.menu_wrapper.create(wrapper_win, panel_w, wrapper_h)
 	end, function(buf)
-		return M.menu_wrapper.recreate(wrapper_win, buf, panel_w, panel_h)
+		return M.menu_wrapper.recreate(wrapper_win, buf, panel_w, wrapper_h)
 	end)
 
 	local menu_wrapper = state.windows.menu_wrapper_win
@@ -343,43 +314,73 @@ local mount_panels = function(wrapper_win)
 		return
 	end
 
+	local mw_cfg = api.nvim_win_get_config(menu_wrapper)
+	local inset, inset_inv = shared.get_insets().inset, shared.get_insets().inset_inv
+
+	---@param width integer
+	---@param height integer
+	---@param row integer
+	---@param col integer
+	---@param anchor "NW"|"NE"|"SW"|"SE"
+	---@param zindex integer
+	---@param focusable boolean
+	---@return vim.api.keyset.win_config
+	local function config_for(width, height, row, col, anchor, zindex, focusable)
+		return {
+			relative = "win",
+			win = menu_wrapper,
+			width = width,
+			height = height,
+			row = row,
+			col = col,
+			anchor = anchor,
+			style = "minimal",
+			border = "none",
+			zindex = zindex,
+			focusable = focusable,
+		}
+	end
+
 	-- The body panel shows whichever surface is active. A dialog mounts its own
 	-- buffer; the list mounts the persistent one.
 	local body_buf_key = (state.windows.dialog and state.windows.dialog.body_buf) and "dialog_body_buf" or "menu_buf"
+	-- The sidebar's body is the full width of the column and hangs off its right
+	-- edge, so the sign column never touches the border. The landing view and the
+	-- dialog put it inside the column instead.
+	local body_width = is_sidebar and mw_cfg.width or mw_cfg.width - 2 * inset
+	local body_config = config_for(
+		body_width,
+		placement.body_height,
+		placement.body_row,
+		is_sidebar and mw_cfg.width or inset,
+		is_sidebar and "NE" or "NW",
+		layout.POPPY_Z_INDEX,
+		cfg.focusable
+	)
 	ensure_panel(body_buf_key, "menu_win", function()
-		return render.body.create(
-			menu_wrapper,
-			panel_w,
-			cfg.focusable,
-			effective_legend_h,
-			above_body,
-			body_rows,
-			hints_on,
-			body_height_override
-		)
+		return render.body.create(menu_wrapper, body_config, cfg.focusable)
 	end, function(buf)
-		return render.body.recreate(
-			menu_wrapper,
-			buf,
-			panel_w,
-			cfg.focusable,
-			effective_legend_h,
-			above_body,
-			body_rows,
-			hints_on,
-			body_height_override
-		)
+		return render.body.recreate(menu_wrapper, buf, body_config, cfg.focusable)
 	end)
 
+	-- The hints sit on the column's left edge, against its bottom.
+	local hints_config = config_for(
+		mw_cfg.width - 2 * inset,
+		placement.hints_height,
+		placement.hints_row,
+		0,
+		"SW",
+		layout.POPPY_Z_INDEX,
+		false
+	)
 	ensure_panel("hints_buf", "hints_win", function()
-		-- +2 provides sensible breathing space
-		return render.hints.create(menu_wrapper, hint_geom(wc, mw, #menu.hints + 2))
+		return render.hints.create(menu_wrapper, hints_config)
 	end, function(buf)
-		return render.hints.recreate(menu_wrapper, buf, hint_geom(wc, mw, #menu.hints + 2))
-	end, not hints_on)
+		return render.hints.recreate(menu_wrapper, buf, hints_config)
+	end, not spec.hints)
 
 	-- Question panel: unfocusable so the cursor stays in answers; wrap+linebreak as a safety net.
-	if q_h == 0 and state.windows.menu_header_buf then
+	if not spec.question and state.windows.menu_header_buf then
 		-- Stale question panel from a prior dialog or re-render.
 		shared.close_win_if_valid(state.windows.menu_header_win)
 		api.nvim_buf_delete(state.windows.menu_header_buf, { force = true })
@@ -387,11 +388,18 @@ local mount_panels = function(wrapper_win)
 		state.windows.menu_header_buf = nil
 	end
 
-	if q_h > 0 then
-		-- menu_header_buf occupies the rows the body yields to it: the body's own start row.
-		local q_row = shared.use_borders() and (hh - 1) or hh
+	if spec.question then
+		local q_config = config_for(
+			mw_cfg.width - 2 * inset,
+			placement.question_height,
+			placement.question_row,
+			inset,
+			"NW",
+			layout.POPPY_QUESTION_Z_INDEX,
+			false
+		)
 		ensure_panel("menu_header_buf", "menu_header_win", function()
-			local win, buf = render.body.create_plain(menu_wrapper, panel_w, q_h, q_row)
+			local win, buf = render.body.create_plain(menu_wrapper, q_config)
 			vim.wo[win].wrap = true
 			vim.wo[win].linebreak = true
 			shared.with_modifiable(buf, function()
@@ -399,15 +407,25 @@ local mount_panels = function(wrapper_win)
 			end)
 			return win, buf
 		end, function(buf)
-			return render.body.recreate_plain(menu_wrapper, buf, panel_w, q_h, q_row)
+			return render.body.recreate_plain(menu_wrapper, buf, q_config)
 		end)
 	end
 
+	-- The header sits on the column's left edge, under the top edge.
+	local header_config = config_for(
+		mw_cfg.width - 2 * inset,
+		placement.header_height,
+		placement.header_row,
+		inset,
+		"NW",
+		layout.POPPY_Z_INDEX,
+		false
+	)
 	ensure_panel("header_buf", "header_win", function()
-		return render.header.create(menu_wrapper)
+		return render.header.create(menu_wrapper, header_config)
 	end, function(buf)
-		return render.header.recreate(menu_wrapper, buf)
-	end, hh == 0)
+		return render.header.recreate(menu_wrapper, buf, header_config)
+	end, not spec.header)
 
 	-- First-show under autohide would otherwise be stale (kill-then-show).
 	local body_buf = active_body_buf()

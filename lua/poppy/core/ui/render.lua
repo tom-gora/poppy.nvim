@@ -29,45 +29,26 @@ local SEP_MARK = 3
 local header = {}
 
 ---@param menu_wrapper_win integer
+---@param config vim.api.keyset.win_config
 ---@return integer? win
 ---@return integer? buf
-header.create = function(menu_wrapper_win)
+header.create = function(menu_wrapper_win, config)
 	local buf = create_unmodifiable_buf()
-	return header.recreate(menu_wrapper_win, buf), buf
+	return header.recreate(menu_wrapper_win, buf, config), buf
 end
 
 ---@param menu_wrapper_win integer
----@param buf integer
+---@param config vim.api.keyset.win_config
 ---@return integer? win
-header.recreate = function(menu_wrapper_win, buf)
-	local wrapper_config = api.nvim_win_get_config(menu_wrapper_win)
+header.recreate = function(menu_wrapper_win, buf, config)
 	local insets = shared.get_insets()
 	local inset, inset_inv = insets.inset, insets.inset_inv
-	--  -2 if borders to account for borders columns
-	local width = wrapper_config.width - (2 * inset)
-	local col = inset
-	-- if no borders leave 1 line on top of visual offset
-	local row = inset_inv
-
-	-- Header: title bar above the sidebar; zindex +1 above menu_wrapper so it draws over the border.
-	---@type vim.api.keyset.win_config
-	local config = {
-		relative = "win",
-		width = width,
-		height = 2,
-		col = col,
-		row = row,
-		style = "minimal",
-		border = "none",
-		zindex = layout.POPPY_Z_INDEX,
-		focusable = false,
-		win = menu_wrapper_win,
-	}
 
 	local win = api.nvim_open_win(buf, false, config)
 	style.apply_panel_style(win)
 	shared.apply_win_marker(win)
 
+	local width = config.width
 	local title = layout.HEADER_TITLE
 	local title_w = fn.strdisplaywidth(title)
 	local title_col = math.max(0, math.floor((width - title_w) / 2))
@@ -137,23 +118,11 @@ local pick_icon_sign = function(category, is_active)
 end
 
 ---@param wrapper_win integer
----@param menu_width integer
+---@param config vim.api.keyset.win_config
 ---@param focusable boolean
----@param hint_height? integer
----@param row_override? integer
----@param height_override? integer Explicit body height; the dialog owns its own geometry.
 ---@return integer? win
 ---@return integer? buf
-body.create = function(
-	wrapper_win,
-	menu_width,
-	focusable,
-	hint_height,
-	row_override,
-	body_rows,
-	hints_on,
-	height_override
-)
+body.create = function(wrapper_win, config, focusable)
 	local buf = create_unmodifiable_buf()
 	api.nvim_clear_autocmds({ group = body_autocmd_group, buffer = buf })
 	shared.guard_insert_mode(buf)
@@ -183,85 +152,16 @@ body.create = function(
 			end,
 		})
 	end
-	return body.recreate(
-		wrapper_win,
-		buf,
-		menu_width,
-		focusable,
-		hint_height,
-		row_override,
-		body_rows,
-		hints_on,
-		height_override
-	),
-		buf
+	return body.recreate(wrapper_win, buf, config, focusable), buf
 end
 
 ---@param wrapper_win integer
 ---@param buf integer
----@param menu_width integer
+---@param config vim.api.keyset.win_config
 ---@param focusable boolean
----@param hint_height? integer
----@param row_override? integer
----@param body_rows? integer Row count of the spec; lets the body size to content when no header and no hints.
----@param hints_on? boolean When true, body adds 2 rows of breathing above the hints panel.
----@param height_override? integer Explicit body height. Callers that own their own geometry (the dialog) pass it in.
 ---@return integer? win
-body.recreate = function(
-	wrapper_win,
-	buf,
-	menu_width,
-	focusable,
-	hint_height,
-	row_override,
-	body_rows,
-	hints_on,
-	height_override
-)
-	local wrapper_config = api.nvim_win_get_config(wrapper_win)
-	local insets = shared.get_insets()
-	local inset, inset_inv = insets.inset, insets.inset_inv
-	local hint_offset = (hint_height and hint_height or 0)
-	local header_offset = layout.get_header_height(state.windows.opts)
-	local has_question = (state.windows.dialog and state.windows.dialog.body_buf ~= nil) and true or false
-	local has_header = shared.opts_field("title_header") == true
-	local has_hints = shared.opts_field("hints_footer") == true
-
-	-- When the spec has no header and no hints, size the body to actual content rows so
-	-- the panel doesn't render blank rows below the list.
-	local row
-	local available = wrapper_config.height - hint_offset
-	row = not has_header and inset_inv or header_offset - inset
-	local height = available - header_offset
-	if not has_header then
-		height = height - 1
-	end
-	-- if not has_hints and has_header then
-	-- 	height = heightdd
-	-- end
-	-- use overrides from dialog path plus adjust for border with inset
-	if has_question then
-		height = body_rows
-		row = row_override - inset
-	end
-	local width = menu_width
-	local col = wrapper_config.width
-
-	---@type vim.api.keyset.win_config
-	local config = {
-		relative = "win",
-		width = width,
-		height = height,
-		anchor = "NE",
-		col = col,
-		row = row,
-		style = "minimal",
-		border = "none",
-		zindex = layout.POPPY_Z_INDEX,
-		focusable = focusable == true,
-		win = wrapper_win,
-	}
-
+body.recreate = function(wrapper_win, buf, config, focusable)
+	config.focusable = focusable == true
 	local win = api.nvim_open_win(buf, false, config)
 	vim.wo[win].signcolumn = SIGN_COL_OPT
 	style.apply_body_style(win)
@@ -549,31 +449,9 @@ end
 
 ---@param wrapper_win integer
 ---@param buf integer
----@param width integer
----@param height integer
----@param row integer
+---@param config vim.api.keyset.win_config
 ---@return integer? win
-body.recreate_plain = function(wrapper_win, buf, width, height, row)
-	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local insets = shared.get_insets()
-	local inset = insets.inset
-	local h = math.max(1, height)
-	local header_offset = layout.get_header_height(state.windows.opts)
-	header_offset = header_offset == 0 and 0 or 1
-	local row_adjusted = row + h + 1 - header_offset
-	local config = {
-		relative = "win",
-		win = wrapper_win,
-		anchor = "SE",
-		row = row_adjusted,
-		col = wrapper_conf.width - inset,
-		width = width - inset,
-		height = h,
-		style = "minimal",
-		border = "none",
-		zindex = layout.POPPY_QUESTION_Z_INDEX,
-		focusable = false,
-	}
+body.recreate_plain = function(wrapper_win, buf, config)
 	local win = api.nvim_open_win(buf, false, config)
 	vim.wo[win].signcolumn = SIGN_COL_OPT
 	vim.wo[win].cursorline = false
@@ -583,14 +461,12 @@ body.recreate_plain = function(wrapper_win, buf, width, height, row)
 end
 
 ---@param wrapper_win integer
----@param width integer
----@param height integer
----@param row integer
+---@param config vim.api.keyset.win_config
 ---@return integer? win
 ---@return integer buf
-body.create_plain = function(wrapper_win, width, height, row)
+body.create_plain = function(wrapper_win, config)
 	local buf = create_unmodifiable_buf()
-	return body.recreate_plain(wrapper_win, buf, width, height, row), buf
+	return body.recreate_plain(wrapper_win, buf, config), buf
 end
 
 M.body = body
@@ -599,13 +475,12 @@ local hints_ns = api.nvim_create_namespace("poppy_hints_panel")
 local hints = {}
 
 ---@param wrapper_win integer
----@param opts? PoppyHintOpts
+---@param config vim.api.keyset.win_config
 ---@return integer? win
 ---@return integer? buf
-hints.create = function(wrapper_win, opts)
-	opts = opts or {}
+hints.create = function(wrapper_win, config)
 	local buf = create_unmodifiable_buf()
-	return hints.recreate(wrapper_win, buf, opts), buf
+	return hints.recreate(wrapper_win, buf, config), buf
 end
 
 ---@param parent_win integer
@@ -653,34 +528,9 @@ end
 
 ---@param wrapper_win integer
 ---@param buf integer
----@param opts? PoppyHintOpts
+---@param config vim.api.keyset.win_config
 ---@return integer? win
-hints.recreate = function(wrapper_win, buf, opts)
-	opts = opts or {}
-	local wrapper_config = api.nvim_win_get_config(wrapper_win)
-	local insets = shared.get_insets()
-	local inset, inset_inv = insets.inset, insets.inset_inv
-	local row = wrapper_config.height
-	local col = 0
-	local width = (opts.width or wrapper_config.width) - 2 * inset
-	local height = opts.height - inset
-
-	-- hints panel: key-binding legend below the sidebar body (or below landing body). SW anchor pins to parent's bottom row.
-	---@type vim.api.keyset.win_config
-	local config = {
-		relative = "win",
-		width = width,
-		height = height,
-		col = col,
-		row = row,
-		anchor = "SW",
-		style = "minimal",
-		border = "none",
-		zindex = layout.POPPY_Z_INDEX,
-		focusable = false,
-		win = wrapper_win,
-	}
-
+hints.recreate = function(wrapper_win, buf, config)
 	local win = api.nvim_open_win(buf, false, config)
 	-- Soft-wrap would duplicate the trailing cell onto a second visual row.
 	vim.wo[win].wrap = false
