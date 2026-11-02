@@ -27,8 +27,7 @@ M.below_floor = function()
 	return vim.o.columns < M.MIN_COLS or vim.o.lines < M.MIN_LINES
 end
 
--- Editor area height: the actual current-window editor rows, excluding tabline and
--- statusline (which nvim manages outside the editor grid).
+---Editor rows excluding tabline/statusline (which nvim manages outside the grid).
 ---@return integer
 M.editor_height = function()
 	return vim.fn.winheight(0)

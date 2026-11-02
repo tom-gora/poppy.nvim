@@ -1,8 +1,5 @@
--- Layout engine. One function returns row+height for every panel; view.lua
--- consumes the result and opens the windows. Borderless has 1 row of padding
--- at top and bottom; bordered has none (the border is the edge). The hints
--- panel draws its own separator as its first line; the body sits flush against
--- it. Spec swaps in and out per dialog, so resolve_spec is asked per call.
+-- Layout engine. resolve_spec takes a menu spec, compute returns rows+heights
+-- for view to mount.
 
 local shared = require("poppy.core.shared")
 

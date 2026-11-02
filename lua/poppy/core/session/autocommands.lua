@@ -81,16 +81,14 @@ M.setup = function(opts)
 					if dialog.trapped() then
 						return
 					end
-					-- Cmdline, location/quickfix lists, and preview windows are Neovim-owned
-					-- transient UI; closing on any of them yanks the session mid-flow.
+					-- Cmdline, loclist, quickfix, preview are Neovim-owned; closing on any of them
+					-- yanks the session mid-flow.
 					local kind = vim.fn.win_gettype(win)
 					if kind == "command" or kind == "loclist" or kind == "quickfix" or kind == "preview" then
 						return
 					end
-					-- Floating windows split into transient UI (pum, hover, notification,
-					-- diagnostic quickfix) and user floats (terminal, picker, chat, oil).
-					-- Transient ones live on ephemeral `nofile` buffers; user floats own a
-					-- real buffer or a terminal buffer. Skip only the former.
+					-- User floats (terminal, picker) own real buffers; transient floats (pum,
+					-- hover, notification) live on `nofile` — close only the latter.
 					if kind == "popup" then
 						local buftype = vim.bo[vim.api.nvim_win_get_buf(win)].buftype
 						if buftype == "nofile" then
@@ -123,7 +121,6 @@ M.setup = function(opts)
 	})
 end
 
--- Re-armed by every call to setup_float_sweep.
 ---@return nil
 M.setup_float_sweep = function()
 	api.nvim_create_autocmd("WinEnter", {
@@ -145,7 +142,6 @@ M.setup_float_sweep = function()
 	})
 end
 
----Re-arms on each replacement content window.
 ---@param win_id integer|nil
 ---@param menu_w? integer
 ---@return nil

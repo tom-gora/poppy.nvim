@@ -113,7 +113,6 @@ local init_or_reset_state = function()
 	state.poppies_runtime = {}
 end
 
--- Tearing down through manager.close() keeps one teardown path.
 local teardown_live_session = function()
 	if state.windows.opts and shared.session_is_open() then
 		manager.close()
@@ -160,7 +159,6 @@ M.setup = function(user_opts)
 	})
 end
 
--- Re-export manager API surface. Names mirrored in init.lua's lazy stub list.
 for _, name in ipairs({
 	"open",
 	"close",

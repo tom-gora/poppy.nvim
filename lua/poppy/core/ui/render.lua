@@ -22,7 +22,6 @@ local create_unmodifiable_buf = function()
 end
 
 local header_ns = api.nvim_create_namespace("poppy_header_panel")
--- Stable ids so re-renders replace rather than accumulate.
 local TITLE_MARK = 1
 local DOT_MARK = 2
 local SEP_MARK = 3
@@ -98,7 +97,6 @@ local cap_category = function(category)
 	return category:sub(1, 1):upper() .. category:sub(2)
 end
 
--- Active: red dot. Hidden: small dot. Never opened: nothing.
 local pick_sign = function(category, is_active, is_hidden)
 	if is_active then
 		return "PoppyDotActive"
@@ -126,7 +124,6 @@ body.create = function(wrapper_win, config, focusable)
 	local buf = create_unmodifiable_buf()
 	api.nvim_clear_autocmds({ group = body_autocmd_group, buffer = buf })
 	shared.guard_insert_mode(buf)
-	-- Window re-read because body is recreated on every mount.
 	api.nvim_create_autocmd("CursorMoved", {
 		buffer = buf,
 		group = body_autocmd_group,
@@ -141,7 +138,6 @@ body.create = function(wrapper_win, config, focusable)
 			end
 		end,
 	})
-	-- Buffer-scoped to menu only
 	if shared.opts_field("autohide_menu") then
 		api.nvim_create_autocmd("CursorHold", {
 			group = body_autocmd_group,
@@ -248,7 +244,7 @@ local fit_text = function(label, max_width)
 	return fn.strdisplaywidth(result .. "…") <= max_width and (result .. "…") or result
 end
 
----Wrap text to `width` on word boundaries. Returns line count (window options 'wrap'/'linebreak' are display-only).
+---`wrap`/`linebreak` window options are display-only and do not affect the returned count.
 ---@param text string
 ---@param width integer
 ---@return string[]
@@ -323,8 +319,6 @@ M.wrap_text = function(text, width)
 	return out
 end
 
--- Below: pure painter. Given an item set, write bytes into a buffer.
-
 ---Resolve a spec to a fitted row set.
 ---@param menu PoppyMenuSpec
 ---@param panel_width integer
@@ -342,7 +336,6 @@ M.rowset = function(menu, panel_width)
 		numbered = numbered,
 		rows = rows,
 	}
-	-- Landing leaves an extra cell of right padding so the longest row doesn't kiss the edge.
 	local trailing_reserve = state.windows.is_landing and 2 or 1
 	local budget = panel_width - M.measure_item(set.idx_width, "") - trailing_reserve
 	for i, row in ipairs(set.rows) do
@@ -396,7 +389,6 @@ local poppy_items = function(poppies, icons, menu_width)
 	return items
 end
 
--- Sign ids are row-derived, so a repaint replaces rather than accumulates.
 M.items_for_poppies = poppy_items
 
 ---@param buf integer
@@ -411,7 +403,6 @@ body.paint_items = function(buf, spec)
 	local placelist = {}
 
 	for display_idx, e in ipairs(spec.rows) do
-		-- Every row needs the leading cell so the text column stays fixed.
 		local num = spec.numbered and string.format("%" .. idx_width .. "d", display_idx) or ""
 		lines[display_idx] = "  " .. num .. (spec.numbered and " " or "") .. e.label
 		for mark_idx, name in ipairs(e.marks or {}) do
@@ -498,7 +489,6 @@ hints.create_bottom_right = function(parent_win, keys)
 	local row = math.max(0, win_conf.height) + 1
 	local col = math.max(0, win_conf.width) + 1
 
-	-- corner hint window: 1-line "<C-/> Menu" badge shown by autohide_menu.
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",

@@ -120,13 +120,12 @@ M.content.create = function(wrapper_win, list_panel_width)
 	local ext_nu = vim.o.number
 	local ext_rnu = vim.o.relativenumber
 
-	-- With autohide, the menu isn't on screen: skip the sidebar's reserved width.
-	local reserved = state.windows.menu_hidden and 0 or list_panel_width
+	local sidebar_reserve = state.windows.menu_hidden and 0 or list_panel_width
 
 	---@type vim.api.keyset.win_config
 	local config = {
 		relative = "win",
-		width = math.max(1, math.min(wrapper_conf.width - reserved - 2, wrapper_conf.width - 2)),
+		width = math.max(1, math.min(wrapper_conf.width - sidebar_reserve - 2, wrapper_conf.width - 2)),
 		height = wrapper_conf.height - 2,
 		anchor = "NW",
 		col = 0,
@@ -208,23 +207,22 @@ local ensure_panel = function(buf_key, win_key, create, recreate, skip)
 	return win, buf
 end
 
--- Widest hint line the sidebar can ever need; +1 for the hints separator's lead space.
-local legend_floor = function()
+local HINT_LINE_LEAD_CELL = 1
+local hint_line_floor = function()
 	local keys = shared.keys()
 	if not keys then
 		return layout.MIN_MENU_WIDTH
 	end
 	return math.max(
-		render.measure_hint_line(keys.select or shared.permanent_key("select"), "Select") + 1,
-		render.measure_hint_line(keys.kill or shared.permanent_key("kill"), "Kill") + 1,
-		render.measure_hint_line(keys.exit_menu or shared.permanent_key("exit_menu"), "Exit menu") + 1,
-		render.measure_hint_line(keys.poppy_action, "Toggle off") + 1
+		render.measure_hint_line(keys.select or shared.permanent_key("select"), "Select") + HINT_LINE_LEAD_CELL,
+		render.measure_hint_line(keys.kill or shared.permanent_key("kill"), "Kill") + HINT_LINE_LEAD_CELL,
+		render.measure_hint_line(keys.exit_menu or shared.permanent_key("exit_menu"), "Exit menu") + HINT_LINE_LEAD_CELL,
+		render.measure_hint_line(keys.poppy_action, "Toggle off") + HINT_LINE_LEAD_CELL
 	)
 end
 
 local warned_widths = {}
 
--- Centralised so mount_panels, set_visible, and refresh_menu_when_visible agree on one width.
 ---@param wrapper_width? integer
 ---@return integer
 local menu_width = function(wrapper_width)
@@ -247,7 +245,7 @@ local menu_width = function(wrapper_width)
 		w = clamped
 	end
 
-	local legend = legend_floor()
+	local legend = hint_line_floor()
 	if legend > w and legend > layout.MAX_MENU_WIDTH then
 		w = legend
 	end
@@ -259,14 +257,11 @@ local menu_width = function(wrapper_width)
 	return math.min(w, math.max(1, wrapper_width - reserved))
 end
 
--- Passed to compute_wrapper_dimensions so a narrow screen widens the wrapper instead of crushing the sidebar.
 M.min_wrapper_width = function()
 	return menu_width() + layout.MIN_CONTENT_WIDTH + 2
 end
 
----The buffer backing the body panel: the dialog's own while a question is up,
----otherwise the list's. Dialogs own their buffer so their keymaps and settings
----cannot leak into the list.
+---Dialogs own their buffer so their keymaps and settings cannot leak into the list.
 ---@return integer?
 local active_body_buf = function()
 	local dialog = state.windows.dialog
@@ -325,8 +320,6 @@ local mount_panels = function(wrapper_win)
 	end
 
 	local body_buf_key = (state.windows.dialog and state.windows.dialog.body_buf) and "dialog_body_buf" or "menu_buf"
-	-- Sidebar body is full-width and anchored to the right edge so the
-	-- sign column never touches the border.
 	local body_width = is_sidebar and mw_cfg.width or mw_cfg.width - 2 * inset
 	local body_config = config_for(
 		body_width,

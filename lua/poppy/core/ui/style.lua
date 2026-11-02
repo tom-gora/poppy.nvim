@@ -189,7 +189,6 @@ end
 
 ---@return nil
 M.setup = function()
-	-- A colorscheme change can land while the list holds focus, leaving our override installed.
 	restore_cursor_mode()
 
 	local nf = api.nvim_get_hl(0, { name = "NormalFloat" })
@@ -268,7 +267,6 @@ M.setup = function()
 
 	setup_cursor_autocmds()
 
-	-- ColorScheme fires restore_cursor_mode above; if focus is still in the list, re-apply.
 	reapply_menu_cursor()
 end
 
@@ -282,7 +280,6 @@ M.apply_panel_style = function(win)
 	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
 end
 
--- SignColumn pinned to the panel background so cursorline never bleeds into it.
 ---@param win integer
 ---@return nil
 M.apply_body_style = function(win)

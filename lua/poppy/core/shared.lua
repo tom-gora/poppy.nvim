@@ -152,8 +152,6 @@ end
 ---@type string[]
 M.NORM_TERM_MODES = { "n", "t" }
 
----First whitespace-delimited token of a string, or the first element of a string list.
----Nil when there is no token at all (empty or whitespace-only).
 ---@param command string|string[]|function|nil
 ---@return string?
 M.argv0 = function(command)
@@ -171,8 +169,6 @@ M.default_shell = function()
 	return os.getenv("SHELL") or "bash"
 end
 
----Resolve a `file` field to an absolute path. `raw` may be a string, a function, or nil.
----Returns empty string if the value is nil/empty/non-string.
 ---@param raw string|function|nil
 ---@return string
 M.expand_file_value = function(raw)
@@ -258,8 +254,6 @@ M.is_poppy_window = function(win)
 	return val == true
 end
 
----Keep insert mode out of a buffer that cannot be edited.
----Scoped to the buffer, so unrelated windows never trigger it.
 ---@param buf integer
 M.guard_insert_mode = function(buf)
 	local group = api.nvim_create_augroup("no_insert_mode_in_menus_guard_group", { clear = false })

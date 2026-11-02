@@ -39,7 +39,6 @@ local normalize = function(spec)
 	return out
 end
 
--- The four config fields a keymap entry may name. Anything else is a literal lhs.
 local KEY_FIELDS = { "poppy_action", "select", "kill", "exit_menu" }
 
 ---Resolve a keymap or hint entry's lhs. A named field resolves through the user's
@@ -112,7 +111,10 @@ M.bind = function(buf, keymaps)
 	return bound
 end
 
----The panel's CursorMoved guard pins the column; this only chooses the row.
+M.clear_lhs = function(buf)
+	bound_lhs[buf] = nil
+end
+
 ---@param win integer|nil
 ---@param row integer
 ---@return boolean moved
@@ -172,7 +174,6 @@ M.menu_header_lines = function(menu, panel_width)
 	return lines, #lines
 end
 
----Legend lines a menu renders, including the separator and preceeding blank when question.
 ---@param hints PoppyHint[]
 ---@return integer
 M.legend_height = function(hints)

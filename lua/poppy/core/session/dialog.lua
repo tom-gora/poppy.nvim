@@ -33,7 +33,6 @@ local label_for = function(name)
 	return vim.fn.fnamemodify(raw, ":t")
 end
 
--- Under autohide the panel is hidden between switches; unhide keeps its current row.
 local show_or_mount = function()
 	if shared.opts_field("autohide_menu") and state.windows.menu_hidden then
 		view.set_visible(true, state.windows.content_win)
@@ -55,10 +54,9 @@ local file_path_for = function(name)
 	return shared.expand_file_value(config.value)
 end
 
--- One binding only: poppy_action is trapped, so no kill/exit/toggle.
 ---@param name string
 ---@return table
-local spec_for = function(name)
+local spec_for_kill_confirm = function(name)
 	return {
 		id = "confirm",
 		focusable = true,
@@ -220,14 +218,19 @@ local watch_panels = function()
 	end
 end
 
----Create the dialog's own answers buffer. Transient: it is deleted when the dialog
----resolves, so its keymaps and settings leave with it.
 ---@return integer
 local create_body_buf = function()
 	local buf = api.nvim_create_buf(false, true)
 	vim.bo[buf].modifiable = false
 	vim.bo[buf].filetype = "poppy_dialog"
 	shared.guard_insert_mode(buf)
+	api.nvim_create_autocmd("BufWipeout", {
+		buffer = buf,
+		once = true,
+		callback = function()
+			menu_ui.clear_lhs(buf)
+		end,
+	})
 	return buf
 end
 
@@ -270,8 +273,6 @@ end
 ---after the spec override is installed.
 ---@return nil
 local present_dialog = function()
-	-- The startup dialog owns a narrow column of its own; the sidebar dialog leaves the
-	-- wrapper alone and renders in the sidebar column beside the content pane.
 	if state.windows.dialog and state.windows.dialog.kind == "missing_file" then
 		local layout = require("poppy.core.ui.layout")
 		local ww = state.windows.wrapper_win
@@ -298,7 +299,6 @@ local present_dialog = function()
 	watch_panels()
 end
 
----First call shows the kill-confirm dialog; the spec is reflowed in place for subsequent missing-file entries.
 ---@param name string
 ---@param resume fun() Carries out the interrupted close once answered.
 ---@return nil
@@ -308,11 +308,10 @@ M.open = function(name, resume)
 	end
 	local rt = state.runtime(name)
 	install_dialog(name, "kill_confirm", resume, rt and rt.bufnr)
-	menu_ui.set_override(spec_for(name))
+	menu_ui.set_override(spec_for_kill_confirm(name))
 	present_dialog()
 end
 
----Mount the missing-file question for the first entry; loop through the rest in place, then call on_complete.
 ---@param poppies string[] Names in declaration order.
 ---@param on_complete fun() Called once the queue drains and the dialog is dismissed.
 ---@return nil
@@ -344,8 +343,6 @@ local drop_question = function()
 	state.windows.menu_header_buf = nil
 end
 
----Release the dialog's transient answers buffer. The list's buffer is untouched:
----the dialog never borrowed it.
 ---@return nil
 local release_body_buf = function()
 	local buf = state.windows.dialog_body_buf
@@ -358,7 +355,6 @@ local release_body_buf = function()
 	end
 end
 
----Restores what the dialog displaced: menu visibility and focus on the buffer.
 local restore_content = function()
 	if not shared.session_is_open() then
 		return
@@ -368,7 +364,6 @@ local restore_content = function()
 		view.set_visible(false, state.windows.content_win)
 		shared.show_menu_hint()
 	end
-	-- Remount: dropping the question shrinks the body's allotted space and a repaint alone leaves it stranded.
 	if not (autohide and state.windows.menu_hidden) then
 		view.mount(state.windows.wrapper_win)
 	end
@@ -416,8 +411,8 @@ M.force_release = function()
 	state.windows.dialog = nil
 end
 
----Tear the dialog down and invoke `after`. `release_after` defaults true so the trap is cleared
----before M.open's drain re-entry; false keeps it through `after`'s teardown to prevent re-arming.
+---`release_after` defaults true so the trap clears before M.open's drain re-entry;
+---false keeps it through `after`'s teardown to prevent re-arming.
 ---@param after fun()
 ---@param release_after? boolean Default true.
 local finish_dialog = function(after, release_after)
