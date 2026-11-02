@@ -1,23 +1,8 @@
--- Panel layout engine.
---
--- One place decides where every panel sits. The rules come from the annotated
--- screenshots in _visual_guide/:
---
---   borderless: one row of space at the bottom only (the borderless "visual
---               border space"); bordered has no padding — the border is the edge
---   header:     always two rows (title + separator), never padded
---   question:   its own height, between the header and the body
---   body:       starts flush under the header, exactly as tall as its text
---   hints:      separator + one row per hint, pinned to the bottom of the
---               wrapper (above the bottom padding when borderless); no gap
---               row between body and the separator — the body sits flush
---               against it (see image 01)
---
--- Padding is a position offset, not extra content: the header starts at row 0
--- in both modes, and the wrapper's height is `stacked_panels + bottom_padding`.
---
--- The wrapper's height is the sum of what it stacks, so it cannot disagree with
--- the panels inside it.
+-- Layout engine. One function returns row+height for every panel; view.lua
+-- consumes the result and opens the windows. Borderless has 1 row of padding
+-- at top and bottom; bordered has none (the border is the edge). The hints
+-- panel draws its own separator as its first line; the body sits flush against
+-- it. Spec swaps in and out per dialog, so resolve_spec is asked per call.
 
 local shared = require("poppy.core.shared")
 
@@ -31,31 +16,22 @@ local M = {}
 ---@field body_rows integer
 ---@field hint_rows integer
 ---@field question_lines string[]
----@field width integer Panel width in columns.
----@field fill boolean When true the body takes all the space the hints and header leave, and the wrapper keeps the height it was given. The sidebar is a full-height column; the landing view is sized to its content.
+---@field fill boolean Sidebar: body fills leftover height; landing: body sizes to content.
 
 ---@class PoppyPanelsLayout
----@field width integer
----@field height integer
 ---@field padding integer
 ---@field header_height integer
 ---@field question_height integer
 ---@field body_height integer
----@field gap_height integer
 ---@field hints_height integer
 ---@field header_row integer
 ---@field question_row integer
 ---@field body_row integer
----@field gap_row integer
 ---@field hints_row integer
 
----Resolve the flags and measurements the engine needs.
----
----Every consumer reads these from here; nothing else re-derives them. The
----spec is asked per call because a dialog swaps the spec in and out.
 ---@param spec PoppyMenuSpec
 ---@param panel_width integer
----@param fill? boolean Sidebar: the body takes the leftover height.
+---@param fill? boolean
 ---@return PoppyPanelsSpec
 M.resolve_spec = function(spec, panel_width, fill)
 	local body_rows
@@ -78,35 +54,20 @@ M.resolve_spec = function(spec, panel_width, fill)
 		body_rows = math.max(1, body_rows),
 		hint_rows = #spec.hints,
 		question_lines = question_lines,
-		width = panel_width,
 		fill = fill == true,
 	}
 end
 
----Compute where every panel goes.
----
----`spec.fill` is the sidebar: the body takes every row the header and hints
----leave, and the height is whatever the caller gave. Otherwise the height is
----the sum of what is stacked, which is how the landing view fits its content.
+---Sidebar (fill=true) keeps the wrapper's height and fills the body with
+---leftover space; landing sizes the wrapper to fit its content.
 ---@param spec PoppyPanelsSpec
----@param height? integer Height to fill, for the sidebar.
+---@param height? integer Wrapper height; required when spec.fill is true.
 ---@return PoppyPanelsLayout
 M.compute = function(spec, height)
-	-- Borderless pads by one row on top AND bottom; bordered has no padding
-	-- (the border is the edge). The padding is a positional offset applied
-	-- on both ends, so `row` starts at `padding`.
 	local padding = spec.border and 0 or 1
-	local use_borders = shared.use_borders()
 
 	local header_height = spec.header and 2 or 0
 	local question_height = spec.question and #spec.question_lines or 0
-	-- No gap row between the body and the hints' separator. The hints panel
-	-- draws its own separator as its first line; the body sits flush against
-	-- it. A question panel's trailing blank provides visual breathing room
-	-- above the body when one is up.
-	local gap_height = 0
-	-- The separator is the hints panel's own first line, so it is part of the
-	-- panel rather than a row of its own.
 	local hints_height = spec.hints and (1 + spec.hint_rows) or 0
 
 	local row = padding
@@ -118,67 +79,39 @@ M.compute = function(spec, height)
 
 	local body_row = row
 
-	local gap_row
-	local hints_row
 	if spec.fill then
-		-- Sidebar (fill=true). The sidebar fills the wrapper window: header at
-		-- the top, body takes all available room down to the hints, hints flush
-		-- at the bottom (above the bottom padding for borderless).
-		--
-		-- `view.lua` opens the hints panel with anchor=SW and row=hints_row;
-		-- the SW corner lands at hints_row and the panel extends UP, occupying
-		-- rows `hints_row - hints_height + 1` to `hints_row`. To pin the hints'
-		-- bottom row to the wrapper's last visible row, hints_row is set so
-		-- hints_row = height - padding - 1 (bordered: padding=0 so hints_row =
-		-- height - 1; borderless: padding=1 so hints_row = height - 2).
-
-		hints_row = use_borders and height - padding - 2 or height - padding
-		gap_row = hints_row - gap_height
-		-- Body sits directly below the header (and any question) and fills
-		-- every row down to the one immediately above the hints' top.
+		local use_borders = shared.use_borders()
+		local hints_row = use_borders and height - padding - 2 or height - padding
 		local body_top = padding + header_height + question_height
-		body_height = hints_row - hints_height - body_top
+		local body_height = hints_row - hints_height - body_top
 		return {
-			width = spec.width,
-			height = height,
 			padding = padding,
 			header_height = header_height,
 			question_height = question_height,
 			body_height = math.max(1, body_height),
-			gap_height = gap_height,
 			hints_height = hints_height,
 			header_row = header_row,
 			question_row = question_row,
 			body_row = body_row,
-			gap_row = gap_row,
 			hints_row = hints_row,
 		}
 	end
 
 	row = row + spec.body_rows
-	gap_row = row
-	row = row + gap_height
-
-	-- Non-fill: hints' SW corner lands one row above the bottom padding so
-	-- the hints panel sits at the bottom of the wrapper (matching the design
-	-- rule from _visual_guide/).
-	hints_row = row + hints_height
+	local hints_row = row + hints_height
 	row = row + hints_height
 
 	return {
-		width = spec.width,
-		height = row + padding,
 		padding = padding,
 		header_height = header_height,
 		question_height = question_height,
 		body_height = spec.body_rows,
-		gap_height = gap_height,
 		hints_height = hints_height,
 		header_row = header_row,
 		question_row = question_row,
 		body_row = body_row,
-		gap_row = gap_row,
 		hints_row = hints_row,
+		height = row + padding,
 	}
 end
 

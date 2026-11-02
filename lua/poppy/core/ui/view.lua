@@ -37,7 +37,7 @@ M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)
 	local win = api.nvim_open_win(buf, false, {
 		relative = "win",
 		win = wrapper_win,
-		width = panel_w,
+		width = panel_w - 1,
 		height = panel_h,
 		col = wrapper_conf.width - panel_w,
 		row = 0,
@@ -49,14 +49,6 @@ M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)
 	style.apply_panel_style(win)
 	shared.apply_win_marker(win)
 	return win
-end
-
-M.menu_wrapper.ensure = function(buf, wrapper_win, panel_w, panel_h)
-	if buf and api.nvim_buf_is_valid(buf) then
-		return M.menu_wrapper.recreate(wrapper_win, buf, panel_w, panel_h), buf
-	end
-	local win, wbuf = M.menu_wrapper.create(wrapper_win, panel_w, panel_h)
-	return win, wbuf
 end
 
 ---@param buf integer
@@ -286,8 +278,6 @@ end
 
 M.active_body_buf = active_body_buf
 
--- Present panels stack from top, each contributing its height to everything below; absent ones
--- contribute nothing. Lets `title_header = false` and dialog question panels compose without per-case arithmetic.
 local mount_panels = function(wrapper_win)
 	local wc = api.nvim_win_get_config(wrapper_win)
 	local mw = menu_width(wc.width)
@@ -299,14 +289,11 @@ local mount_panels = function(wrapper_win)
 	local menu = menu_ui.current_spec()
 	local q_lines = menu_ui.menu_header_lines(menu, panel_w)
 
-	-- The sidebar is a full-height column beside the content pane; the landing
-	-- view is sized to fit its panels.
 	local fill = is_sidebar
 	local wrapper_h = wc.height
 	local spec = panels.resolve_spec(menu, panel_w, fill)
 	local placement = panels.compute(spec, wrapper_h)
 
-	-- menu_wrapper: quiet sizing container in borderless mode; in bordered mode it grows the rounded border.
 	ensure_panel("menu_wrapper_buf", "menu_wrapper_win", function()
 		return M.menu_wrapper.create(wrapper_win, panel_w, wrapper_h)
 	end, function(buf)
@@ -315,29 +302,20 @@ local mount_panels = function(wrapper_win)
 
 	local menu_wrapper = state.windows.menu_wrapper_win
 	if not menu_wrapper or not api.nvim_win_is_valid(menu_wrapper) then
-		-- Without a menu_wrapper the sub-panels have nothing to anchor to.
 		return
 	end
 
 	local mw_cfg = api.nvim_win_get_config(menu_wrapper)
-	local inset, inset_inv = shared.get_insets().inset, shared.get_insets().inset_inv
+	local inset = shared.get_insets().inset
 
-	---@param width integer
-	---@param height integer
-	---@param row integer
-	---@param col integer
-	---@param anchor "NW"|"NE"|"SW"|"SE"
-	---@param zindex integer
-	---@param focusable boolean
-	---@return vim.api.keyset.win_config
 	local function config_for(width, height, row, col, anchor, zindex, focusable)
 		return {
 			relative = "win",
 			win = menu_wrapper,
-			width = width,
+			width = width - 1,
 			height = height,
 			row = row,
-			col = col,
+			col = col + 1,
 			anchor = anchor,
 			style = "minimal",
 			border = "none",
@@ -346,12 +324,9 @@ local mount_panels = function(wrapper_win)
 		}
 	end
 
-	-- The body panel shows whichever surface is active. A dialog mounts its own
-	-- buffer; the list mounts the persistent one.
 	local body_buf_key = (state.windows.dialog and state.windows.dialog.body_buf) and "dialog_body_buf" or "menu_buf"
-	-- The sidebar's body is the full width of the column and hangs off its right
-	-- edge, so the sign column never touches the border. The landing view and the
-	-- dialog put it inside the column instead.
+	-- Sidebar body is full-width and anchored to the right edge so the
+	-- sign column never touches the border.
 	local body_width = is_sidebar and mw_cfg.width or mw_cfg.width - 2 * inset
 	local body_config = config_for(
 		body_width,
@@ -368,7 +343,6 @@ local mount_panels = function(wrapper_win)
 		return render.body.recreate(menu_wrapper, buf, body_config, cfg.focusable)
 	end)
 
-	-- The hints sit on the column's left edge, against its bottom.
 	local hints_config = config_for(
 		mw_cfg.width - 2 * inset,
 		placement.hints_height,
@@ -384,9 +358,8 @@ local mount_panels = function(wrapper_win)
 		return render.hints.recreate(menu_wrapper, buf, hints_config)
 	end, not spec.hints)
 
-	-- Question panel: unfocusable so the cursor stays in answers; wrap+linebreak as a safety net.
+	-- Drop a stale question panel from a prior dialog before mounting the new one.
 	if not spec.question and state.windows.menu_header_buf then
-		-- Stale question panel from a prior dialog or re-render.
 		shared.close_win_if_valid(state.windows.menu_header_win)
 		api.nvim_buf_delete(state.windows.menu_header_buf, { force = true })
 		state.windows.menu_header_win = nil
@@ -416,7 +389,6 @@ local mount_panels = function(wrapper_win)
 		end)
 	end
 
-	-- The header sits on the column's left edge, under the top edge.
 	local header_config = config_for(
 		mw_cfg.width - 2 * inset,
 		placement.header_height,
@@ -432,15 +404,12 @@ local mount_panels = function(wrapper_win)
 		return render.header.recreate(menu_wrapper, buf, header_config)
 	end, not spec.header)
 
-	-- First-show under autohide would otherwise be stale (kill-then-show).
 	local body_buf = active_body_buf()
 	if valid_buf(body_buf) then
-		local inset = shared.get_insets().inset
 		render.body.paint_items(body_buf, render.rowset(menu, panel_w - inset))
 		if valid_buf(state.windows.hints_buf) then
 			render.hints.write_spec(state.windows.hints_buf, shared.keys(), menu.hints, panel_w - inset)
 		end
-		-- Bind only on focusable bodies; get_keymap would still report bindings as claimed on an unfocusable one.
 		if cfg.focusable then
 			menu_ui.bind(body_buf, menu.keymaps)
 		end
