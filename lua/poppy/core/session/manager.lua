@@ -4,7 +4,7 @@ local M = {}
 
 local api = vim.api
 local state = require("poppy.core.session.state")
-local view = require("poppy.core.ui.view")
+local view = require("poppy.core.ui.mount")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 local menu = require("poppy.core.session.menu")
@@ -265,8 +265,7 @@ M.open = function(poppy_name)
 	if should_land then
 		landing_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
 		local spec = menu.spec_poppy_list(menu.LANDING)
-		local panels = require("poppy.core.ui.panels")
-		landing_h = panels.compute(panels.resolve_spec(spec, landing_w)).height
+		landing_h = layout.compute(layout.resolve_spec(spec, landing_w)).height
 	end
 
 	local win = open_wrapper(landing_w, landing_h)
@@ -294,7 +293,6 @@ end
 M.transition_to_content = function()
 	if state.windows.is_landing then
 		view.unmount()
-		local wc = api.nvim_win_get_config(state.windows.wrapper_win)
 		local full_width, full_height, full_row = layout.compute_wrapper_dimensions(
 			state.windows.opts,
 			vim.o.columns,
@@ -302,8 +300,7 @@ M.transition_to_content = function()
 			nil,
 			view.min_wrapper_width()
 		)
-		api.nvim_win_set_config(state.windows.wrapper_win, {
-			relative = wc.relative,
+		layout.resize(state.windows.wrapper_win, {
 			width = full_width,
 			height = full_height,
 			col = math.floor((vim.o.columns - full_width) / 2),
@@ -557,9 +554,8 @@ local recover_goto_landing = function()
 	shared.close_win_if_valid(state.windows.content_win)
 
 	local landing_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
-	local panels = require("poppy.core.ui.panels")
 	local landing_spec = menu.spec_poppy_list(menu.LANDING)
-	local landing_h = panels.compute(panels.resolve_spec(landing_spec, landing_w)).height
+	local landing_h = layout.compute(layout.resolve_spec(landing_spec, landing_w)).height
 	local _, _, landing_row = layout.compute_wrapper_dimensions(
 		state.windows.opts,
 		vim.o.columns,
@@ -568,9 +564,7 @@ local recover_goto_landing = function()
 		nil,
 		landing_h
 	)
-	local wc = api.nvim_win_get_config(state.windows.wrapper_win)
-	api.nvim_win_set_config(state.windows.wrapper_win, {
-		relative = wc.relative,
+	layout.resize(state.windows.wrapper_win, {
 		width = landing_w,
 		height = landing_h,
 		col = math.floor((vim.o.columns - landing_w) / 2),

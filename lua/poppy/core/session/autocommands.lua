@@ -4,7 +4,7 @@ local M = {}
 
 local api = vim.api
 local state = require("poppy.core.session.state")
-local view = require("poppy.core.ui.view")
+local view = require("poppy.core.ui.mount")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 local dialog = require("poppy.core.session.dialog")

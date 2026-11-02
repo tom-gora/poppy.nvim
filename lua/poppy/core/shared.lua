@@ -293,7 +293,7 @@ M.drop_poppy = function(name, reason)
 		M.notify_warn("dropped poppy '%s': %s", name, reason)
 	end
 	if M.session_is_open() then
-		local view = require("poppy.core.ui.view")
+		local view = require("poppy.core.ui.mount")
 		view.refresh_menu_when_visible()
 	end
 	return was_active

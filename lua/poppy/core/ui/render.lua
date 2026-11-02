@@ -4,7 +4,6 @@ local M = {}
 local api = vim.api
 local fn = vim.fn
 local state = require("poppy.core.session.state")
-local style = require("poppy.core.ui.style")
 local layout = require("poppy.core.ui.layout")
 local shared = require("poppy.core.shared")
 
@@ -13,41 +12,17 @@ local KEY_COL = 5
 local COL_GAP = "  "
 
 local SIGN_COL = 4
-local SIGN_COL_OPT = "yes:2"
-
-local create_unmodifiable_buf = function()
-	local buf = api.nvim_create_buf(false, true)
-	vim.bo[buf].modifiable = false
-	return buf
-end
 
 local header_ns = api.nvim_create_namespace("poppy_header_panel")
 local TITLE_MARK = 1
 local DOT_MARK = 2
 local SEP_MARK = 3
-local header = {}
 
----@param menu_wrapper_win integer
----@param config vim.api.keyset.win_config
----@return integer? win
----@return integer? buf
-header.create = function(menu_wrapper_win, config)
-	local buf = create_unmodifiable_buf()
-	return header.recreate(menu_wrapper_win, buf, config), buf
-end
-
----@param menu_wrapper_win integer
----@param config vim.api.keyset.win_config
----@return integer? win
-header.recreate = function(menu_wrapper_win, buf, config)
-	local insets = shared.get_insets()
-	local inset, inset_inv = insets.inset, insets.inset_inv
-
-	local win = api.nvim_open_win(buf, false, config)
-	style.apply_panel_style(win)
-	shared.apply_win_marker(win)
-
-	local width = config.width
+---Paint the header text + extmarks into an already-open header window.
+---@param _win integer
+---@param buf integer
+---@param width integer
+M.header_paint = function(_win, buf, width)
 	local title = layout.HEADER_TITLE
 	local title_w = fn.strdisplaywidth(title)
 	local title_col = math.max(0, math.floor((width - title_w) / 2))
@@ -77,10 +52,7 @@ header.recreate = function(menu_wrapper_win, buf, config)
 		hl_group = "PoppyRed",
 	}
 	api.nvim_buf_set_extmark(buf, header_ns, 0, dot_byte_col, vim.tbl_extend("force", dot_extmark, { id = DOT_MARK }))
-	return win
 end
-
-M.header = header
 
 local body_ns = api.nvim_create_namespace("poppy_body_panel")
 -- Own augroup: poppy_ui is cleared on every mount and would drop the cursor guard.
@@ -115,13 +87,10 @@ local pick_icon_sign = function(category, is_active)
 	return prefix .. cap_category(category)
 end
 
----@param wrapper_win integer
----@param config vim.api.keyset.win_config
----@param focusable boolean
----@return integer? win
----@return integer? buf
-body.create = function(wrapper_win, config, focusable)
-	local buf = create_unmodifiable_buf()
+---Attach CursorMoved/CursorHold guards to a body buffer. Idempotent on repeat
+---calls because the augroup is `clear = false` and the autocmds are buffer-scoped.
+---@param buf integer
+M.body_attach_guards = function(buf)
 	api.nvim_clear_autocmds({ group = body_autocmd_group, buffer = buf })
 	shared.guard_insert_mode(buf)
 	api.nvim_create_autocmd("CursorMoved", {
@@ -143,26 +112,10 @@ body.create = function(wrapper_win, config, focusable)
 			group = body_autocmd_group,
 			buffer = buf,
 			callback = function()
-				-- Lazy require: session.menu requires this module at load time.
 				require("poppy.core.session.menu").exit_menu()
 			end,
 		})
 	end
-	return body.recreate(wrapper_win, buf, config, focusable), buf
-end
-
----@param wrapper_win integer
----@param buf integer
----@param config vim.api.keyset.win_config
----@param focusable boolean
----@return integer? win
-body.recreate = function(wrapper_win, buf, config, focusable)
-	config.focusable = focusable == true
-	local win = api.nvim_open_win(buf, false, config)
-	vim.wo[win].signcolumn = SIGN_COL_OPT
-	style.apply_body_style(win)
-	shared.apply_win_marker(win)
-	return win
 end
 
 local category_hl = {
@@ -438,96 +391,28 @@ body.paint_items = function(buf, spec)
 	fn.sign_placelist(placelist)
 end
 
----@param wrapper_win integer
----@param buf integer
----@param config vim.api.keyset.win_config
----@return integer? win
-body.recreate_plain = function(wrapper_win, buf, config)
-	local win = api.nvim_open_win(buf, false, config)
-	vim.wo[win].signcolumn = SIGN_COL_OPT
-	vim.wo[win].cursorline = false
-	style.apply_panel_style(win)
-	shared.apply_win_marker(win)
-	return win
-end
-
----@param wrapper_win integer
----@param config vim.api.keyset.win_config
----@return integer? win
----@return integer buf
-body.create_plain = function(wrapper_win, config)
-	local buf = create_unmodifiable_buf()
-	return body.recreate_plain(wrapper_win, buf, config), buf
-end
-
 M.body = body
 
 local hints_ns = api.nvim_create_namespace("poppy_hints_panel")
 local hints = {}
-
----@param wrapper_win integer
----@param config vim.api.keyset.win_config
----@return integer? win
----@return integer? buf
-hints.create = function(wrapper_win, config)
-	local buf = create_unmodifiable_buf()
-	return hints.recreate(wrapper_win, buf, config), buf
-end
 
 ---@param parent_win integer
 ---@param keys PoppyKeys?
 ---@return integer? win
 ---@return integer? buf
 hints.create_bottom_right = function(parent_win, keys)
-	local buf = create_unmodifiable_buf()
 	if not keys then
+		local buf = api.nvim_create_buf(false, true)
 		return nil, buf
 	end
 
 	local text = " " .. keys.poppy_action .. " Menu "
-	local win_conf = api.nvim_win_get_config(parent_win)
-	local row = math.max(0, win_conf.height) + 1
-	local col = math.max(0, win_conf.width) + 1
-
-	---@type vim.api.keyset.win_config
-	local config = {
-		relative = "win",
-		width = #text,
-		height = 1,
-		col = col,
-		row = row,
-		anchor = "SE",
-		style = "minimal",
-		border = "none",
-		zindex = layout.POPPY_Z_INDEX + 1,
-		focusable = false,
-		win = parent_win,
-	}
-
-	local win = api.nvim_open_win(buf, false, config)
-	style.apply_hints_panel_style(win)
-
+	local desc = layout.menu_hint_badge_config(parent_win, text)
+	local win, buf = layout.open_scratch(desc, "hints")
 	shared.with_modifiable(buf, function()
 		api.nvim_buf_set_lines(buf, 0, -1, false, { text })
 	end)
-
-	shared.apply_win_marker(win)
-
 	return win, buf
-end
-
----@param wrapper_win integer
----@param buf integer
----@param config vim.api.keyset.win_config
----@return integer? win
-hints.recreate = function(wrapper_win, buf, config)
-	local win = api.nvim_open_win(buf, false, config)
-	-- Soft-wrap would duplicate the trailing cell onto a second visual row.
-	vim.wo[win].wrap = false
-	vim.wo[win].linebreak = false
-	style.apply_hints_panel_style(win)
-	shared.apply_win_marker(win)
-	return win
 end
 
 ---@param buf integer

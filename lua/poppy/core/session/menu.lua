@@ -249,7 +249,7 @@ end
 ---and only becomes focusable on toggle).
 ---@return boolean focused
 M.focus_body = function()
-	local body_buf = require("poppy.core.ui.view").active_body_buf()
+	local body_buf = require("poppy.core.ui.mount").active_body_buf()
 	M.bind(body_buf, M.current_spec().keymaps)
 	shared.close_menu_hint()
 	local win = state.windows.menu_win
@@ -268,7 +268,7 @@ M.focus_body = function()
 end
 
 M.toggle_menu = function()
-	local view = require("poppy.core.ui.view")
+	local view = require("poppy.core.ui.mount")
 	if state.windows.is_landing or not shared.session_is_open() then
 		return
 	end
@@ -293,7 +293,7 @@ M.toggle_menu = function()
 end
 
 M.exit_menu = function()
-	local view = require("poppy.core.ui.view")
+	local view = require("poppy.core.ui.mount")
 	if not view.is_menu_focused() or state.windows.is_landing then
 		return
 	end

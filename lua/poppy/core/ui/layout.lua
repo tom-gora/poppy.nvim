@@ -2,6 +2,33 @@ require("poppy._types")
 
 local M = {}
 
+local api = vim.api
+local fn = vim.fn
+local style = require("poppy.core.ui.style")
+local shared = require("poppy.core.shared")
+local state = require("poppy.core.session.state")
+
+---@class PoppyPanelsSpec
+---@field border boolean
+---@field header boolean
+---@field hints boolean
+---@field question boolean
+---@field body_rows integer
+---@field hint_rows integer
+---@field question_lines string[]
+---@field fill boolean Sidebar: body fills leftover height; landing: body sizes to content.
+
+---@class PoppyPanelsLayout
+---@field padding integer
+---@field header_height integer
+---@field question_height integer
+---@field body_height integer
+---@field hints_height integer
+---@field header_row integer
+---@field question_row integer
+---@field body_row integer
+---@field hints_row integer
+
 -- 48: under Neovim's default 50 (completion pum, hovers, notifications), above other plugin pickers.
 M.POPPY_Z_INDEX = 48
 -- Question panel outranks the answers list: same-z floats get restacked on focus, and
@@ -28,15 +55,26 @@ M.below_floor = function()
 end
 
 ---Editor rows excluding tabline/statusline (which nvim manages outside the grid).
+---The current window may be a poppy float with height 1 once mounted; walk back to
+---a real editor window instead so resizes during transition_to_content see the
+---actual editor area, not the focused float.
 ---@return integer
 M.editor_height = function()
-	return vim.fn.winheight(0)
+	local cur = api.nvim_get_current_win()
+	local cur_conf = api.nvim_win_get_config(cur)
+	if cur_conf.relative == "" then
+		return api.nvim_win_get_height(cur)
+	end
+	for _, w in ipairs(api.nvim_list_wins()) do
+		local c = api.nvim_win_get_config(w)
+		if c.relative == "" then
+			return api.nvim_win_get_height(w)
+		end
+	end
+	return vim.o.lines
 end
 
 local HEADER_HEIGHT = 3
-
-local fn = vim.fn
-local shared = require("poppy.core.shared")
 
 -- Drawn by render.header, measured by landing_min_width. One string, one place.
 M.HEADER_TITLE = "P◉PPY.NVIM"
@@ -184,6 +222,409 @@ M.compute_wrapper_dimensions = function(opts, vim_cols, vim_lines, content_width
 		row = math.floor((vim_lines - height) / 2)
 	end
 	return width, height, row
+end
+
+---@param spec PoppyMenuSpec
+---@param panel_width integer
+---@param fill? boolean
+---@return PoppyPanelsSpec
+M.resolve_spec = function(spec, panel_width, fill)
+	local body_rows
+	if type(spec.items) == "function" then
+		body_rows = #(spec.items(panel_width) or {})
+	else
+		body_rows = #(spec.rows or {})
+	end
+
+	local question_lines = {}
+	if spec.menu_header and #spec.menu_header > 0 then
+		question_lines = spec.menu_header
+	end
+
+	return {
+		border = shared.use_borders(),
+		header = shared.opts_field("title_header") ~= false,
+		hints = shared.opts_field("hints_footer") ~= false,
+		question = #question_lines > 0,
+		body_rows = math.max(1, body_rows),
+		hint_rows = #spec.hints,
+		question_lines = question_lines,
+		fill = fill == true,
+	}
+end
+
+---Sidebar (fill=true) keeps the wrapper's height and fills the body with
+---leftover space; landing sizes the wrapper to fit its content.
+---@param spec PoppyPanelsSpec
+---@param height? integer Wrapper height; required when spec.fill is true.
+---@return PoppyPanelsLayout
+M.compute = function(spec, height)
+	local padding = spec.border and 0 or 1
+
+	local header_height = spec.header and 2 or 0
+	local question_height = spec.question and #spec.question_lines or 0
+	local hints_height = spec.hints and (1 + spec.hint_rows) or 0
+
+	local row = padding
+	local header_row = row
+	row = row + header_height
+
+	local question_row = row
+	row = row + question_height
+
+	local body_row = row
+
+	if spec.fill then
+		local use_borders = shared.use_borders()
+		local hints_row = use_borders and height - padding - 2 or height - padding
+		local body_top = padding + header_height + question_height
+		local body_height = hints_row - hints_height - body_top
+		return {
+			padding = padding,
+			header_height = header_height,
+			question_height = question_height,
+			body_height = math.max(1, body_height),
+			hints_height = hints_height,
+			header_row = header_row,
+			question_row = question_row,
+			body_row = body_row,
+			hints_row = hints_row,
+		}
+	end
+
+	row = row + spec.body_rows
+	local hints_row = row + hints_height
+	row = row + hints_height
+
+	return {
+		padding = padding,
+		header_height = header_height,
+		question_height = question_height,
+		body_height = spec.body_rows,
+		hints_height = hints_height,
+		header_row = header_row,
+		question_row = question_row,
+		body_row = body_row,
+		hints_row = hints_row,
+		height = row + padding,
+	}
+end
+
+-- ─── Per-window configs ──────────────────────────────────────────────────────
+-- One function per window: returns { config, options }. options are applied to
+-- the window after nvim_open_win (signcolumn, cursorline, wrap, linebreak).
+-- Border decisions live here, not in view/mount orchestration.
+
+---@class WindowDesc
+---@field config vim.api.keyset.win_config
+---@field options table<string, any>
+
+---@param poppy_opts? PoppyMergedConfig
+---@param width_override? integer
+---@param height_override? integer
+---@param min_width? integer
+---@return WindowDesc
+M.wrapper_config = function(poppy_opts, width_override, height_override, min_width)
+	local width, height, row = M.compute_wrapper_dimensions(
+		poppy_opts,
+		vim.o.columns,
+		M.editor_height(),
+		width_override,
+		min_width,
+		height_override
+	)
+	return {
+		config = {
+			relative = "editor",
+			width = width,
+			height = height,
+			col = math.floor((vim.o.columns - width) / 2),
+			row = row,
+			style = "minimal",
+			border = "none",
+			zindex = M.POPPY_Z_INDEX,
+			focusable = false,
+		},
+		options = {},
+	}
+end
+
+---@param wrapper_win integer
+---@param panel_w integer
+---@param panel_h integer
+---@return WindowDesc
+M.menu_wrapper_config = function(wrapper_win, panel_w, panel_h)
+	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
+	local cfg = require("poppy.core.session.menu").current_cfg()
+	local is_sidebar = cfg.width_source == "menu"
+	if is_sidebar and shared.use_borders() then
+		panel_h = panel_h - 2
+	end
+	return {
+		config = {
+			relative = "win",
+			win = wrapper_win,
+			width = panel_w - 1,
+			height = panel_h,
+			col = wrapper_conf.width - panel_w,
+			row = 0,
+			style = "minimal",
+			border = state.windows.opts.border_style,
+			zindex = M.POPPY_Z_INDEX,
+			focusable = false,
+		},
+		options = {},
+	}
+end
+
+---@param wrapper_win integer
+---@param sidebar_reserve integer
+---@return WindowDesc
+M.content_config = function(wrapper_win, sidebar_reserve)
+	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
+	return {
+		config = {
+			relative = "win",
+			win = wrapper_win,
+			width = math.max(1, math.min(wrapper_conf.width - sidebar_reserve - 2, wrapper_conf.width - 2)),
+			height = wrapper_conf.height - 2,
+			anchor = "NW",
+			col = 0,
+			row = 0,
+			style = "minimal",
+			border = shared.use_borders() and state.windows.opts.border_style or "solid",
+			zindex = M.POPPY_Z_INDEX,
+			focusable = true,
+		},
+		options = {},
+	}
+end
+
+---@param menu_wrapper integer
+---@param width integer
+---@param height integer
+---@param row integer
+---@param col integer
+---@param anchor string
+---@param zindex integer
+---@param focusable boolean
+---@return WindowDesc
+M.body_config = function(menu_wrapper, width, height, row, col, anchor, zindex, focusable)
+	return {
+		config = {
+			relative = "win",
+			win = menu_wrapper,
+			width = width - 1,
+			height = height,
+			row = row,
+			col = col + 1,
+			anchor = anchor,
+			style = "minimal",
+			border = "none",
+			zindex = zindex,
+			focusable = focusable,
+		},
+		options = { signcolumn = "yes:2", cursorline = true },
+	}
+end
+
+---Question panel: same shape as body, but cursorline off and wrap on.
+---@param menu_wrapper integer
+---@param width integer
+---@param height integer
+---@param row integer
+---@param col integer
+---@param anchor string
+---@param zindex integer
+---@param focusable boolean
+---@return WindowDesc
+M.body_plain_config = function(menu_wrapper, width, height, row, col, anchor, zindex, focusable)
+	local d = M.body_config(menu_wrapper, width, height, row, col, anchor, zindex, focusable)
+	d.options.cursorline = false
+	d.options.wrap = true
+	d.options.linebreak = true
+	return d
+end
+
+---@param menu_wrapper integer
+---@param width integer
+---@param height integer
+---@param row integer
+---@param col integer
+---@param anchor string
+---@param zindex integer
+---@return WindowDesc
+M.header_config = function(menu_wrapper, width, height, row, col, anchor, zindex)
+	return {
+		config = {
+			relative = "win",
+			win = menu_wrapper,
+			width = width - 1,
+			height = height,
+			row = row,
+			col = col + 1,
+			anchor = anchor,
+			style = "minimal",
+			border = "none",
+			zindex = zindex,
+			focusable = false,
+		},
+		options = {},
+	}
+end
+
+---@param menu_wrapper integer
+---@param width integer
+---@param height integer
+---@param row integer
+---@param col integer
+---@param anchor string
+---@param zindex integer
+---@return WindowDesc
+M.hints_config = function(menu_wrapper, width, height, row, col, anchor, zindex)
+	-- Soft-wrap would duplicate the trailing cell onto a second visual row.
+	return {
+		config = {
+			relative = "win",
+			win = menu_wrapper,
+			width = width - 1,
+			height = height,
+			row = row,
+			col = col + 1,
+			anchor = anchor,
+			style = "minimal",
+			border = "none",
+			zindex = zindex,
+			focusable = false,
+		},
+		options = { wrap = false, linebreak = false },
+	}
+end
+
+---@param parent_win integer
+---@param text string
+---@return WindowDesc
+M.menu_hint_badge_config = function(parent_win, text)
+	local win_conf = api.nvim_win_get_config(parent_win)
+	return {
+		config = {
+			relative = "win",
+			width = #text,
+			height = 1,
+			col = math.max(0, win_conf.width) + 1,
+			row = math.max(0, win_conf.height) + 1,
+			anchor = "SE",
+			style = "minimal",
+			border = "none",
+			zindex = M.POPPY_Z_INDEX + 1,
+			focusable = false,
+			win = parent_win,
+		},
+		options = {},
+	}
+end
+
+-- ─── Open / close / resize ──────────────────────────────────────────────────
+-- Style label drives which style.apply_* is called after open. Single source
+-- of truth for "which style does this window get."
+
+---@param win integer?
+---@param style_label "panel"|"body"|"content"|"hints"|"border"|nil
+local function apply_style(win, style_label)
+	if not win or not api.nvim_win_is_valid(win) then
+		return
+	end
+	if style_label == "panel" then
+		style.apply_panel_style(win)
+	elseif style_label == "body" then
+		style.apply_body_style(win)
+	elseif style_label == "content" then
+		local ext_nu = vim.o.number
+		local ext_rnu = vim.o.relativenumber
+		style.apply_content_style(win, ext_nu, ext_rnu)
+	elseif style_label == "hints" then
+		style.apply_hints_panel_style(win)
+	elseif style_label == "border" then
+		style.apply_border_style(win)
+	end
+end
+
+local WIN_MARKER = "poppy_window"
+local function mark(win)
+	api.nvim_win_set_var(win, WIN_MARKER, true)
+end
+
+---@param buf integer
+---@param desc WindowDesc
+---@param style_label? "panel"|"body"|"content"|"hints"|"border"
+---@return integer? win
+M.open = function(buf, desc, style_label)
+	if not buf or not api.nvim_buf_is_valid(buf) then
+		return nil
+	end
+	local win = api.nvim_open_win(buf, false, desc.config)
+	for k, v in pairs(desc.options or {}) do
+		vim.wo[win][k] = v
+	end
+	apply_style(win, style_label)
+	mark(win)
+	return win
+end
+
+---@param buf integer
+---@param desc WindowDesc
+---@param style_label? string
+---@param enter? boolean Enter the window after open.
+---@return integer? win
+M.open_enter = function(buf, desc, style_label, enter)
+	if not buf or not api.nvim_buf_is_valid(buf) then
+		return nil
+	end
+	local win = api.nvim_open_win(buf, enter == true, desc.config)
+	for k, v in pairs(desc.options or {}) do
+		vim.wo[win][k] = v
+	end
+	apply_style(win, style_label)
+	mark(win)
+	return win
+end
+
+---Create a fresh unmodifiable scratch buffer and open a window on it.
+---@param desc WindowDesc
+---@param style_label? string
+---@param enter? boolean
+---@return integer? win
+---@return integer buf
+M.open_scratch = function(desc, style_label, enter)
+	local buf = api.nvim_create_buf(false, true)
+	vim.bo[buf].modifiable = false
+	local win = M.open_enter(buf, desc, style_label, enter)
+	return win, buf
+end
+
+---@param win integer?
+M.close = function(win)
+	if win and api.nvim_win_is_valid(win) then
+		api.nvim_win_close(win, true)
+	end
+end
+
+---@param win integer?
+---@param partial table Fields override the existing win_config; the rest is preserved.
+---@return nil
+M.resize = function(win, partial)
+	if not win or not api.nvim_win_is_valid(win) then
+		return
+	end
+	local wc = api.nvim_win_get_config(win)
+	-- tbl_extend("force", defaults, partial): partial overrides defaults on conflict.
+	api.nvim_win_set_config(win, vim.tbl_extend("force", {
+		relative = wc.relative,
+		col = wc.col,
+		row = wc.row,
+		win = wc.win,
+		anchor = wc.anchor,
+	}, partial))
 end
 
 return M

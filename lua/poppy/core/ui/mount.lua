@@ -7,7 +7,6 @@ local state = require("poppy.core.session.state")
 local layout = require("poppy.core.ui.layout")
 local style = require("poppy.core.ui.style")
 local render = require("poppy.core.ui.render")
-local panels = require("poppy.core.ui.panels")
 local menu_ui = require("poppy.core.session.menu")
 
 local shared = require("poppy.core.shared")
@@ -23,32 +22,12 @@ M.menu_wrapper = {}
 ---@return integer? buf
 M.menu_wrapper.create = function(wrapper_win, panel_w, panel_h)
 	local buf = api.nvim_create_buf(false, true)
-	return M.menu_wrapper.recreate(wrapper_win, buf, panel_w, panel_h), buf
+	local win = layout.open(buf, layout.menu_wrapper_config(wrapper_win, panel_w, panel_h), "panel")
+	return win, buf
 end
 
 M.menu_wrapper.recreate = function(wrapper_win, buf, panel_w, panel_h)
-	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local cfg = menu_ui.current_cfg()
-	local is_sidebar = cfg.width_source == "menu"
-	if is_sidebar and shared.use_borders() then
-		panel_h = panel_h - 2
-	end
-
-	local win = api.nvim_open_win(buf, false, {
-		relative = "win",
-		win = wrapper_win,
-		width = panel_w - 1,
-		height = panel_h,
-		col = wrapper_conf.width - panel_w,
-		row = 0,
-		style = "minimal",
-		border = state.windows.opts.border_style,
-		zindex = layout.POPPY_Z_INDEX,
-		focusable = false,
-	})
-	style.apply_panel_style(win)
-	shared.apply_win_marker(win)
-	return win
+	return layout.open(buf, layout.menu_wrapper_config(wrapper_win, panel_w, panel_h), "panel")
 end
 
 ---@param buf integer
@@ -57,30 +36,7 @@ end
 ---@param height_override? integer
 ---@return integer? win
 local wrapper_open_with = function(buf, poppy_opts, width_override, height_override)
-	local width, height, row = layout.compute_wrapper_dimensions(
-		poppy_opts,
-		vim.o.columns,
-		layout.editor_height(),
-		width_override,
-		M.min_wrapper_width(),
-		height_override
-	)
-	---@type vim.api.keyset.win_config
-	local config = {
-		relative = "editor",
-		width = width,
-		height = height,
-		col = math.floor((vim.o.columns - width) / 2),
-		row = row,
-		style = "minimal",
-		border = "none",
-		zindex = layout.POPPY_Z_INDEX,
-		focusable = false,
-	}
-	local win = api.nvim_open_win(buf, false, config)
-	style.apply_border_style(win)
-	shared.apply_win_marker(win)
-	return win
+	return layout.open(buf, layout.wrapper_config(poppy_opts, width_override, height_override, M.min_wrapper_width()), "border")
 end
 
 ---@param poppy_opts? PoppyMergedConfig
@@ -116,31 +72,9 @@ end
 ---@return integer? buf
 M.content.create = function(wrapper_win, list_panel_width)
 	local buf = api.nvim_create_buf(false, true)
-	local wrapper_conf = api.nvim_win_get_config(wrapper_win)
-	local ext_nu = vim.o.number
-	local ext_rnu = vim.o.relativenumber
-
 	local sidebar_reserve = state.windows.menu_hidden and 0 or list_panel_width
-
-	---@type vim.api.keyset.win_config
-	local config = {
-		relative = "win",
-		width = math.max(1, math.min(wrapper_conf.width - sidebar_reserve - 2, wrapper_conf.width - 2)),
-		height = wrapper_conf.height - 2,
-		anchor = "NW",
-		col = 0,
-		row = 0,
-		style = "minimal",
-		border = shared.use_borders() and state.windows.opts.border_style or "solid",
-		zindex = layout.POPPY_Z_INDEX,
-		focusable = true,
-		win = wrapper_win,
-	}
-
-	local win = api.nvim_open_win(buf, true, config)
-
-	style.apply_content_style(win, ext_nu, ext_rnu)
-	shared.apply_win_marker(win)
+	local desc = layout.content_config(wrapper_win, sidebar_reserve)
+	local win = layout.open_enter(buf, desc, "content", true)
 	return win, buf
 end
 
@@ -169,17 +103,10 @@ end
 ---@param row? integer
 ---@return nil
 local resize_content = function(win, width, height, row)
-	if not win or not api.nvim_win_is_valid(win) then
-		return
-	end
-	local win_conf = api.nvim_win_get_config(win)
-	api.nvim_win_set_config(win, {
-		relative = win_conf.relative,
+	layout.resize(win, {
 		width = width,
 		height = height,
-		col = win_conf.col,
-		row = row or win_conf.row,
-		win = win_conf.win,
+		row = row,
 	})
 end
 
@@ -286,13 +213,14 @@ local mount_panels = function(wrapper_win)
 
 	local fill = is_sidebar
 	local wrapper_h = wc.height
-	local spec = panels.resolve_spec(menu, panel_w, fill)
-	local placement = panels.compute(spec, wrapper_h)
+	local spec = layout.resolve_spec(menu, panel_w, fill)
+	local placement = layout.compute(spec, wrapper_h)
 
 	ensure_panel("menu_wrapper_buf", "menu_wrapper_win", function()
-		return M.menu_wrapper.create(wrapper_win, panel_w, wrapper_h)
+		local buf = api.nvim_create_buf(false, true)
+		return layout.open(buf, layout.menu_wrapper_config(wrapper_win, panel_w, wrapper_h), "panel"), buf
 	end, function(buf)
-		return M.menu_wrapper.recreate(wrapper_win, buf, panel_w, wrapper_h)
+		return layout.open(buf, layout.menu_wrapper_config(wrapper_win, panel_w, wrapper_h), "panel")
 	end)
 
 	local menu_wrapper = state.windows.menu_wrapper_win
@@ -303,25 +231,10 @@ local mount_panels = function(wrapper_win)
 	local mw_cfg = api.nvim_win_get_config(menu_wrapper)
 	local inset = shared.get_insets().inset
 
-	local function config_for(width, height, row, col, anchor, zindex, focusable)
-		return {
-			relative = "win",
-			win = menu_wrapper,
-			width = width - 1,
-			height = height,
-			row = row,
-			col = col + 1,
-			anchor = anchor,
-			style = "minimal",
-			border = "none",
-			zindex = zindex,
-			focusable = focusable,
-		}
-	end
-
 	local body_buf_key = (state.windows.dialog and state.windows.dialog.body_buf) and "dialog_body_buf" or "menu_buf"
 	local body_width = is_sidebar and mw_cfg.width or mw_cfg.width - 2 * inset
-	local body_config = config_for(
+	local body_desc = layout.body_config(
+		menu_wrapper,
 		body_width,
 		placement.body_height,
 		placement.body_row,
@@ -331,27 +244,29 @@ local mount_panels = function(wrapper_win)
 		cfg.focusable
 	)
 	ensure_panel(body_buf_key, "menu_win", function()
-		return render.body.create(menu_wrapper, body_config, cfg.focusable)
+		local buf = api.nvim_create_buf(false, true)
+		render.body_attach_guards(buf)
+		return layout.open(buf, body_desc, "body"), buf
 	end, function(buf)
-		return render.body.recreate(menu_wrapper, buf, body_config, cfg.focusable)
+		return layout.open(buf, body_desc, "body")
 	end)
 
-	local hints_config = config_for(
+	local hints_desc = layout.hints_config(
+		menu_wrapper,
 		mw_cfg.width - 2 * inset,
 		placement.hints_height,
 		placement.hints_row,
 		0,
 		"SW",
-		layout.POPPY_Z_INDEX,
-		false
+		layout.POPPY_Z_INDEX
 	)
 	ensure_panel("hints_buf", "hints_win", function()
-		return render.hints.create(menu_wrapper, hints_config)
+		local buf = api.nvim_create_buf(false, true)
+		return layout.open(buf, hints_desc, "hints"), buf
 	end, function(buf)
-		return render.hints.recreate(menu_wrapper, buf, hints_config)
+		return layout.open(buf, hints_desc, "hints")
 	end, not spec.hints)
 
-	-- Drop a stale question panel from a prior dialog before mounting the new one.
 	if not spec.question and state.windows.menu_header_buf then
 		shared.close_win_if_valid(state.windows.menu_header_win)
 		api.nvim_buf_delete(state.windows.menu_header_buf, { force = true })
@@ -360,7 +275,8 @@ local mount_panels = function(wrapper_win)
 	end
 
 	if spec.question then
-		local q_config = config_for(
+		local q_desc = layout.body_plain_config(
+			menu_wrapper,
 			mw_cfg.width - 2 * inset,
 			placement.question_height,
 			placement.question_row,
@@ -370,31 +286,35 @@ local mount_panels = function(wrapper_win)
 			false
 		)
 		ensure_panel("menu_header_buf", "menu_header_win", function()
-			local win, buf = render.body.create_plain(menu_wrapper, q_config)
-			vim.wo[win].wrap = true
-			vim.wo[win].linebreak = true
+			local buf = api.nvim_create_buf(false, true)
+			local win = layout.open(buf, q_desc, "panel")
 			shared.with_modifiable(buf, function()
 				api.nvim_buf_set_lines(buf, 0, -1, false, q_lines)
 			end)
 			return win, buf
 		end, function(buf)
-			return render.body.recreate_plain(menu_wrapper, buf, q_config)
+			return layout.open(buf, q_desc, "panel")
 		end)
 	end
 
-	local header_config = config_for(
+	local header_desc = layout.header_config(
+		menu_wrapper,
 		mw_cfg.width - 2 * inset,
 		placement.header_height,
 		placement.header_row,
 		inset,
 		"NW",
-		layout.POPPY_Z_INDEX,
-		false
+		layout.POPPY_Z_INDEX
 	)
 	ensure_panel("header_buf", "header_win", function()
-		return render.header.create(menu_wrapper, header_config)
+		local buf = api.nvim_create_buf(false, true)
+		local win = layout.open(buf, header_desc, "panel")
+		render.header_paint(win, buf, header_desc.config.width)
+		return win, buf
 	end, function(buf)
-		return render.header.recreate(menu_wrapper, buf, header_config)
+		local win = layout.open(buf, header_desc, "panel")
+		render.header_paint(win, buf, header_desc.config.width)
+		return win
 	end, not spec.header)
 
 	local body_buf = active_body_buf()

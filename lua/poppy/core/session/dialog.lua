@@ -4,7 +4,7 @@ local M = {}
 
 local api = vim.api
 local state = require("poppy.core.session.state")
-local view = require("poppy.core.ui.view")
+local view = require("poppy.core.ui.mount")
 local menu_ui = require("poppy.core.session.menu")
 local shared = require("poppy.core.shared")
 
@@ -279,11 +279,9 @@ local present_dialog = function()
 		if ww and vim.api.nvim_win_is_valid(ww) then
 			local wc = vim.api.nvim_win_get_config(ww)
 			local column_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
-			local panels = require("poppy.core.ui.panels")
-			local column_h = panels.compute(panels.resolve_spec(menu_ui.current_spec(), column_w)).height
+			local column_h = layout.compute(layout.resolve_spec(menu_ui.current_spec(), column_w)).height
 			if wc.width ~= column_w or wc.height ~= column_h then
-				vim.api.nvim_win_set_config(ww, {
-					relative = wc.relative,
+				layout.resize(ww, {
 					width = column_w,
 					height = column_h,
 					col = math.floor((vim.o.columns - column_w) / 2),
