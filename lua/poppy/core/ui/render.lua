@@ -23,10 +23,14 @@ local SEP_MARK = 3
 ---@param buf integer
 ---@param width integer
 M.header_paint = function(_win, buf, width)
+	local use_borders = shared.use_borders()
+
 	local title = layout.HEADER_TITLE
 	local title_w = fn.strdisplaywidth(title)
 	local title_col = math.max(0, math.floor((width - title_w) / 2))
-	local sep = "  " .. string.rep("─", width - 4) .. "  "
+	local lead_whitespace = use_borders and " " or "  "
+	local count = use_borders and 3 or 4
+	local sep = lead_whitespace .. string.rep("─", width - count) .. "  "
 	local title_line = string.rep(" ", title_col) .. title
 
 	shared.with_modifiable(buf, function()
@@ -425,7 +429,8 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 		return
 	end
 	local inset = shared.get_insets().inset
-	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - (4 - inset))) .. "  "
+	-- to balance signcul and left padding of body 3-char wide space on each side
+	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - 6)) .. "  " -- to balance signcul and left padding of body 3-wide per side
 
 	local lines = { sep }
 
