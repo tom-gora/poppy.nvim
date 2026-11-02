@@ -132,16 +132,16 @@ local define_poppy_signs = function()
 end
 
 -- Padded to 2 cells like the category icons so two stacked signs keep signcolumn=SIGN_COL.
-local CONFIRM_SIGNS = {
-	{ name = "PoppyConfirmYes", text = "Y" },
-	{ name = "PoppyConfirmNo", text = "N" },
-	{ name = "PoppyConfirmSave", text = "S" },
-	{ name = "PoppyConfirmDiscard", text = "D" },
-	{ name = "PoppyConfirmCancel", text = "X" },
+local ANSWER_SIGNS = {
+	{ name = "PoppyAnswerYes", text = "Y" },
+	{ name = "PoppyAnswerNo", text = "N" },
+	{ name = "PoppyAnswerSave", text = "S" },
+	{ name = "PoppyAnswerDiscard", text = "D" },
+	{ name = "PoppyAnswerCancel", text = "X" },
 }
 
-local define_confirm_signs = function()
-	for _, s in ipairs(CONFIRM_SIGNS) do
+local define_answer_signs = function()
+	for _, s in ipairs(ANSWER_SIGNS) do
 		local w = fn.strdisplaywidth(s.text)
 		pcall(fn.sign_define, s.name, {
 			text = w >= 2 and s.text or s.text .. string.rep(" ", 2 - w),
@@ -254,7 +254,7 @@ M.setup = function()
 	api.nvim_set_hl(0, "PoppyActiveDot", { link = "Normal" })
 
 	define_poppy_signs()
-	define_confirm_signs()
+	define_answer_signs()
 	M.define_icon_signs(state.windows.opts and state.windows.opts.icons)
 
 	api.nvim_create_augroup("poppy_style", { clear = true })

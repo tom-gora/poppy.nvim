@@ -173,7 +173,12 @@ end
 ---@return string
 M.expand_file_value = function(raw)
 	if type(raw) == "function" then
-		raw = raw()
+		local ok, result = pcall(raw)
+		if not ok then
+			M.notify_warn("file function errored: %s", tostring(result))
+			return ""
+		end
+		raw = result
 	end
 	if type(raw) ~= "string" or raw == "" then
 		return ""

@@ -75,7 +75,7 @@ M.run = function(poppy_name, poppy_opts, parent_win)
 
 	local file_path = shared.expand_file_value(poppy_opts.value)
 	if file_path == "" then
-		shared.notify_warn("poppy '%s' file value resolved to empty at open; dropping", poppy_name)
+		shared.drop_poppy(poppy_name, "file value resolved to empty at open")
 		return false
 	end
 

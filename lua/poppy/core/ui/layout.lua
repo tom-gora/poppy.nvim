@@ -276,9 +276,10 @@ M.compute = function(spec, height)
 
 	if spec.fill then
 		local use_borders = shared.use_borders()
+		local is_dialog = state.windows.dialog and state.windows.dialog.kind == "kill_confirm"
 		local hints_row = use_borders and height - padding - 2 or height - padding
-		local body_top = padding + header_height + question_height
-		local body_height = hints_row - hints_height - body_top
+		local body_row_gap = is_dialog and body_row + 1 or body_row
+		local body_height = hints_row - hints_height - body_row_gap
 		return {
 			padding = padding,
 			header_height = header_height,
@@ -287,7 +288,7 @@ M.compute = function(spec, height)
 			hints_height = hints_height,
 			header_row = header_row,
 			question_row = question_row,
-			body_row = body_row,
+			body_row = body_row_gap,
 			hints_row = hints_row,
 		}
 	end
@@ -417,7 +418,7 @@ M.body_config = function(menu_wrapper, width, height, row, col, anchor, zindex, 
 			width = width - 1,
 			height = height,
 			row = row,
-			col = col + 1,
+			col = col,
 			anchor = anchor,
 			style = "minimal",
 			border = "none",
@@ -618,13 +619,16 @@ M.resize = function(win, partial)
 	end
 	local wc = api.nvim_win_get_config(win)
 	-- tbl_extend("force", defaults, partial): partial overrides defaults on conflict.
-	api.nvim_win_set_config(win, vim.tbl_extend("force", {
-		relative = wc.relative,
-		col = wc.col,
-		row = wc.row,
-		win = wc.win,
-		anchor = wc.anchor,
-	}, partial))
+	api.nvim_win_set_config(
+		win,
+		vim.tbl_extend("force", {
+			relative = wc.relative,
+			col = wc.col,
+			row = wc.row,
+			win = wc.win,
+			anchor = wc.anchor,
+		}, partial)
+	)
 end
 
 return M

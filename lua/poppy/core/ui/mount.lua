@@ -36,7 +36,11 @@ end
 ---@param height_override? integer
 ---@return integer? win
 local wrapper_open_with = function(buf, poppy_opts, width_override, height_override)
-	return layout.open(buf, layout.wrapper_config(poppy_opts, width_override, height_override, M.min_wrapper_width()), "border")
+	return layout.open(
+		buf,
+		layout.wrapper_config(poppy_opts, width_override, height_override, M.min_wrapper_width()),
+		"border"
+	)
 end
 
 ---@param poppy_opts? PoppyMergedConfig
@@ -228,17 +232,24 @@ local mount_panels = function(wrapper_win)
 		return
 	end
 
+	local use_borders = shared.use_borders()
+
 	local mw_cfg = api.nvim_win_get_config(menu_wrapper)
 	local inset = shared.get_insets().inset
 
 	local body_buf_key = (state.windows.dialog and state.windows.dialog.body_buf) and "dialog_body_buf" or "menu_buf"
 	local body_width = is_sidebar and mw_cfg.width or mw_cfg.width - 2 * inset
+	local col = is_sidebar and mw_cfg.width or inset - 1
+	-- adjust for non-standard but imho best looking paddings
+	if not use_borders and not is_sidebar then
+		col = col + 1
+	end
 	local body_desc = layout.body_config(
 		menu_wrapper,
 		body_width,
 		placement.body_height,
 		placement.body_row,
-		is_sidebar and mw_cfg.width or inset,
+		col,
 		is_sidebar and "NE" or "NW",
 		layout.POPPY_Z_INDEX,
 		cfg.focusable

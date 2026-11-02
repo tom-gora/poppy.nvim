@@ -68,9 +68,9 @@ local spec_for_kill_confirm = function(name)
 			"",
 		},
 		rows = {
-			{ label = "Save", marks = { "PoppyDotNone", "PoppyConfirmSave" } },
-			{ label = "Discard", marks = { "PoppyDotNone", "PoppyConfirmDiscard" } },
-			{ label = "Go back", marks = { "PoppyDotNone", "PoppyConfirmCancel" } },
+			{ label = "Save", marks = { "PoppyDotNone", "PoppyAnswerSave" } },
+			{ label = "Discard", marks = { "PoppyDotNone", "PoppyAnswerDiscard" } },
+			{ label = "Go back", marks = { "PoppyDotNone", "PoppyAnswerCancel" } },
 		},
 		hints = {
 			{ "select", "Select" },
@@ -134,8 +134,8 @@ local spec_for_missing = function(name)
 			"",
 		},
 		rows = {
-			{ label = "Yes", marks = { "PoppyDotNone", "PoppyConfirmYes" } },
-			{ label = "No", marks = { "PoppyDotNone", "PoppyConfirmNo" } },
+			{ label = "Yes", marks = { "PoppyDotNone", "PoppyAnswerYes" } },
+			{ label = "No", marks = { "PoppyDotNone", "PoppyAnswerNo" } },
 		},
 		hints = {
 			{ "select", "Select" },
@@ -454,7 +454,9 @@ local resolve_missing_file = function(dialog, outcome)
 		local name = dialog.name
 		if outcome == OUTCOME_CREATE then
 			local expanded = file_path_for(name)
-			if expanded ~= "" then
+			if expanded == "" then
+				drop_poppy(name, "poppy '" .. name .. "' has no resolvable file path")
+			else
 				local ok, err = require("poppy.core.modes.file").create_file_with_parents(expanded)
 				if not ok then
 					drop_poppy(name, "could not create " .. expanded .. ": " .. tostring(err))
@@ -491,10 +493,16 @@ local resolve_kill_confirm = function(dialog, outcome)
 		return
 	end
 
+	if not dialog.buf or not api.nvim_buf_is_valid(dialog.buf) then
+		shared.notify_warn("poppy '%s' buffer is gone; nothing to save", dialog.name)
+		finish_dialog(restore_content)
+		return
+	end
+
 	-- Jumping to another window and writing are textlock-forbidden from inside a mapping.
 	vim.schedule(function()
 		shared.try_focus_win(state.windows.content_win)
-		if dialog.buf and api.nvim_buf_is_valid(dialog.buf) then
+		if api.nvim_buf_is_valid(dialog.buf) then
 			pcall(api.nvim_buf_call, dialog.buf, function()
 				vim.cmd("write")
 			end)

@@ -535,9 +535,10 @@ local recover_pick_fallback = function()
 			return state.windows.last_poppy_name
 		end
 	end
-	for name, rt in pairs(state.poppies_runtime) do
-		if rt.hidden then
-			return name
+	for _, configured in ipairs(state.poppies_configured) do
+		local rt = state.runtime(configured.name)
+		if rt and rt.hidden then
+			return configured.name
 		end
 	end
 	return nil
