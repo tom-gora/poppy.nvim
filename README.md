@@ -13,20 +13,36 @@ A bit of an extended personal introduction:
 In my personal config I had for a long time some circular bindings to access important floating ui windows super-quickly. I.E:
 
 ```lua
--- Repeatedly cycle display > enter > close lsp hovers with just K
--- not having to jump to q or do <C-w>
-	vim.keymap.set("n", "<S-K>", function()
-		if vim.w.lsp_floating_bufnr ~= nil or vim.w["textDocument/hover"] ~= nil then
-			vim.cmd("quit")
-			return
-		end
-		vim.lsp.buf.hover()
-	end, { silent = true, noremap = true })
+
+--[[ Repeatedly cycle display > enter > close lsp hovers with just K,
+not having to jump to q or do <C-w> ]]--
+
+vim.keymap.set("n", "<S-K>", function()
+    if vim.w.lsp_floating_bufnr ~= nil or vim.w["textDocument/hover"] ~= nil then
+        vim.cmd("quit")
+        return
+    end
+    vim.lsp.buf.hover()
+end, { silent = true, noremap = true })
 
 
 -- Same idea but for lsp diagnostic floats
 
--- TODO: add the lsp bind after tidying up the shit hack wiht global pollution in _G. I am using now :D
+vim.keymap.set("n", "<S-L>", function()
+    if vim.w.diag_float then
+        vim.api.nvim_win_close(0, true)
+        return
+    end
+    local _, win = vim.diagnostic.open_float({ focusable = true })
+    if win then
+        vim.api.nvim_win_set_var(win, "diag_float", true)
+        return
+    end
+    -- dumb fallback perform a motion move
+    if not vim.w.diag_float then
+        vim.cmd("normal! " .. (vim.v.count > 0 and vim.v.count or 2) .. "l")
+    end
+end, { noremap = true, silent = true })
 
 ```
 
