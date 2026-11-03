@@ -1,5 +1,11 @@
 # poppy.nvim
 
+<br> 
+
+![LOGO](assets/logo.png)
+
+<br> 
+
 A neovim popup scratchpad manager. Simple setup, as natural feel as possible and internal custom box of mechanisms that suit the custom made workflow.
 
 ## Screenshots:
