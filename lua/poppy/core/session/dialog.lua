@@ -388,7 +388,7 @@ local drop_poppy = function(name, reason)
 	if not configured then
 		return
 	end
-	local path = configured.config.value
+	local path = expanded_path_for(name)
 	shared.drop_poppy(name, reason or ("poppy '" .. name .. "' not created: " .. tostring(path)))
 end
 
