@@ -318,11 +318,7 @@ M.compute = function(spec, height)
 	}
 end
 
--- ─── Per-window configs ──────────────────────────────────────────────────────
--- One function per window: returns { config, options }. options are applied to
--- the window after nvim_open_win (signcolumn, cursorline, wrap, linebreak).
--- Border decisions live here, not in view/mount orchestration.
-
+-- Per-window configs. Border decisions live here, not in view/mount orchestration.
 ---@class WindowDesc
 ---@field config vim.api.keyset.win_config
 ---@field options table<string, any>
@@ -538,7 +534,7 @@ end
 
 ---@param win integer?
 ---@param style_label "panel"|"body"|"content"|"hints"|"border"|nil
-local function apply_style(win, style_label)
+local apply_style = function(win, style_label)
 	if not win or not api.nvim_win_is_valid(win) then
 		return
 	end
@@ -558,7 +554,7 @@ local function apply_style(win, style_label)
 end
 
 local WIN_MARKER = "poppy_window"
-local function mark(win)
+local mark = function(win)
 	api.nvim_win_set_var(win, WIN_MARKER, true)
 end
 

@@ -276,9 +276,7 @@ M.wrap_text = function(text, width)
 	return out
 end
 
--- Neovim's 'wrap'+'linebreak' soft-wraps at 'breakat' chars (default: . , : ; ! ? @ * # & _ / -),
--- then at spaces, then hard-cuts as last resort. The window does the rendering; we only need
--- the row count for sizing, since the window has no API to ask "how many display rows".
+-- Mirrors Neovim's 'wrap'+'linebreak': 'breakat' chars, then spaces, then hard cut.
 local BREAKAT = {}
 for c in (".,:;!?@*#&_/-"):gmatch(".") do BREAKAT[c] = true end
 
@@ -482,8 +480,7 @@ hints.write_spec = function(buf, keys, spec, wrapper_width)
 		return
 	end
 	local inset = shared.get_insets().inset
-	-- to balance signcul and left padding of body 3-char wide space on each side
-	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - 6)) .. "  " -- to balance signcul and left padding of body 3-wide per side
+	local sep = "  " .. string.rep("─", math.max(0, wrapper_width - 6)) .. "  "
 
 	local lines = { sep }
 

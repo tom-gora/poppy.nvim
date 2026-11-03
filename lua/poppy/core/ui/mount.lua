@@ -248,7 +248,6 @@ local mount_panels = function(wrapper_win)
 	local body_buf_key = (state.windows.dialog and state.windows.dialog.body_buf) and "dialog_body_buf" or "menu_buf"
 	local body_width = is_sidebar and mw_cfg.width or mw_cfg.width - 2 * inset
 	local col = is_sidebar and mw_cfg.width or inset - 1
-	-- adjust for non-standard but imho best looking paddings
 	if not use_borders and not is_sidebar then
 		col = col + 1
 	end

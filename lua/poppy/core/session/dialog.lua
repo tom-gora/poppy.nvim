@@ -41,9 +41,7 @@ local show_or_mount = function()
 	end
 end
 
----For display. String configs show what the user wrote (~, relative paths, etc.).
----Function configs have no declared string, so the expanded value is shown.
----@return string
+---@return string declared when string, expanded when function
 local display_path_for = function(name)
 	local configured = state.poppy_configured(name)
 	if not configured or configured.config.mode ~= "file" then
@@ -56,9 +54,7 @@ local display_path_for = function(name)
 	return shared.expand_file_value(value)
 end
 
----For filesystem operations. Resolves `~` and environment so filereadable and
----create_file_with_parents see the real path.
----@return string
+---@return string expanded absolute path
 local expanded_path_for = function(name)
 	local configured = state.poppy_configured(name)
 	if not configured or configured.config.mode ~= "file" then
@@ -341,7 +337,8 @@ M.open_missing_file = function(poppies, on_complete)
 	present_dialog()
 end
 
--- Must run before the next mount: recovery resolves by switching (refreshes body) or landing (remounts), and either way the panel would survive as a reference to a closed window.
+-- Drops the question panel before the next mount so recovery (switch or landing) doesn't
+-- leave a stale reference to a closed window.
 local drop_question = function()
 	local win, buf = state.windows.menu_header_win, state.windows.menu_header_buf
 	if win and api.nvim_win_is_valid(win) then
@@ -399,9 +396,7 @@ local advance_missing_file_queue = function(dialog)
 	local next_name = poppies[dialog.index]
 	menu_ui.clear_override()
 	menu_ui.set_override(spec_for_missing(next_name))
-	-- Same buffer for the next question in the row: one continuous dialog flow.
 	dialog.body_buf = state.windows.dialog_body_buf
-	-- Clear old WinClosed watchers: closing old panels would re-enter M.resolve on stale state.
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 	present_dialog()
 	dialog.name = next_name
