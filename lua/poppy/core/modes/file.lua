@@ -46,6 +46,13 @@ local attach = function(poppy_name, bufnr, parent_win, title)
 		win = parent_win,
 		title = title,
 	}
+	local watch = require("poppy.core.session.watch")
+	if not watch._watchers[poppy_name] then
+		local path = shared.expand_file_value(api.nvim_buf_get_name(bufnr))
+		if path ~= "" then
+			watch.add(poppy_name, path)
+		end
+	end
 end
 
 -- :edit gives a real file buffer (filetype, checktime, normal load path); a hand-built buffer

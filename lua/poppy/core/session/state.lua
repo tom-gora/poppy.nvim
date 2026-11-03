@@ -29,6 +29,7 @@ local M = {}
 --- teardown routes are inert while set, and any forced close of the dialog's panels resolves the question.
 ---@field recovering boolean True while a recovery routine is mid-flight; WinClosed watcher bails when set.
 ---@field retrying_after_failure boolean Guards switch_by_name against infinite recover() recursion on a second failure.
+---@field editor_focused boolean Tracked by watch.setup_focus_tracking; gates immediate vs deferred vanish notifications.
 
 ---@return PoppyState
 M.default_state = function()
@@ -58,6 +59,7 @@ M.default_state = function()
 		recovering = false,
 		retrying_after_failure = false,
 		dialog = nil,
+		editor_focused = true,
 	}
 end
 

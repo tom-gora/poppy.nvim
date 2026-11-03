@@ -461,6 +461,8 @@ local resolve_missing_file = function(dialog, outcome)
 				if not ok then
 					drop_poppy(name, "could not create " .. expanded .. ": " .. tostring(err))
 					shared.notify_warn("poppy '%s' not created: %s", name, tostring(err))
+				else
+					require("poppy.core.session.watch").add(name, expanded)
 				end
 			end
 		elseif outcome == OUTCOME_DROP then

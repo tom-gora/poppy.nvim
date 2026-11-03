@@ -3,6 +3,7 @@ require("poppy._types")
 local M = {}
 
 local api = vim.api
+local fn = vim.fn
 local state = require("poppy.core.session.state")
 local view = require("poppy.core.ui.mount")
 local shared = require("poppy.core.shared")
@@ -10,6 +11,7 @@ local config = require("poppy.config")
 local autocommands = require("poppy.core.session.autocommands")
 local menu = require("poppy.core.session.menu")
 local manager = require("poppy.core.session.manager")
+local watch = require("poppy.core.session.watch")
 
 local CATEGORY_ORDER = { exec = 0, file = 1, shell = 2 }
 
@@ -108,6 +110,7 @@ local init_or_reset_state = function()
 	if dialog.trapped() then
 		dialog.force_release()
 	end
+	watch.close_all()
 	state.windows = state.default_state()
 	state.poppies_configured = {}
 	state.poppies_runtime = {}
@@ -149,6 +152,14 @@ M.setup = function(user_opts)
 			config = sorted_entry.config,
 		}
 	end
+	for _, entry in ipairs(state.poppies_configured) do
+		if entry.config.mode == "file" then
+			local path = shared.expand_file_value(entry.config.value)
+			if path ~= "" and fn.filereadable(path) == 1 then
+				watch.add(entry.name, path)
+			end
+		end
+	end
 	setup_global_key()
 	autocommands.setup(state.windows.opts)
 	setup_command(state.windows.opts, {
@@ -157,6 +168,7 @@ M.setup = function(user_opts)
 		close = manager.close,
 		toggle_menu = menu.toggle_menu,
 	})
+	watch.setup_focus_tracking()
 end
 
 for _, name in ipairs({
