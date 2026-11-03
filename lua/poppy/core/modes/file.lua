@@ -90,7 +90,7 @@ M.run = function(poppy_name, poppy_opts, parent_win)
 
 	---@param reason string
 	---@return false
-	local fail = function(reason)
+	local drop_and_fail = function(reason)
 		shared.drop_poppy(poppy_name, reason)
 		return false
 	end
@@ -100,7 +100,7 @@ M.run = function(poppy_name, poppy_opts, parent_win)
 		local ok, err = M.create_file_with_parents(file_path)
 		if not ok then
 			shared.notify_warn("poppy '%s' could not create %s: %s", poppy_name, file_path, tostring(err))
-			return fail("create failed at open")
+			return drop_and_fail("create failed at open")
 		end
 		file_missing = false
 	end
@@ -117,7 +117,7 @@ M.run = function(poppy_name, poppy_opts, parent_win)
 	else
 		bufnr = open_file(parent_win, file_path)
 		if not bufnr then
-			return fail("edit failed at open")
+			return drop_and_fail("edit failed at open")
 		end
 	end
 

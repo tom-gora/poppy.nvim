@@ -251,7 +251,7 @@ M.open = function(poppy_name)
 			return state.windows.wrapper_win
 		end
 		if poppy_name == nil then
-			-- Bare open on a live session: "show me the list". Partial teardown keeps live poppies.
+			-- Bare open on a live session: tear down so the next M.open re-picks the last poppy.
 			cleanup_partial()
 			state.set_current_poppy_name(nil)
 			M.open()

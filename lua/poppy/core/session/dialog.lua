@@ -380,7 +380,7 @@ end
 
 ---@param name string
 ---@param reason? string
-local drop_poppy = function(name, reason)
+local drop_missing_poppy = function(name, reason)
 	local configured = state.poppy_configured(name)
 	if not configured then
 		return
@@ -427,9 +427,8 @@ local finish_dialog = function(after, release_after)
 	pcall(api.nvim_clear_autocmds, { group = DIALOG_GROUP })
 	drop_question()
 	release_body_buf()
-	-- Closing the dialog drops focus back to the editor window. The recovery that
-	-- follows is what puts poppy back, so the session must not be torn down in
-	-- between: hold the recovering gate across the whole teardown.
+	-- Hold the recovering gate across the whole teardown so the dialog's recovery
+	-- can run before the session tears down.
 	state.windows.recovering = true
 	if release_after then
 		state.windows.dialog = nil
@@ -459,17 +458,17 @@ end
 ---@param outcome string One of the OUTCOME_* values.
 local resolve_missing_file = function(dialog, outcome)
 	local poppy_dropped = false
-	local handle_one = function()
+	local handle_missing_file = function()
 		local name = dialog.name
 		if outcome == OUTCOME_CREATE then
 			local expanded = expanded_path_for(name)
 			if expanded == "" then
-				drop_poppy(name, "poppy '" .. name .. "' has no resolvable file path")
+				drop_missing_poppy(name, "poppy '" .. name .. "' has no resolvable file path")
 				poppy_dropped = true
 			else
 				local ok, err = require("poppy.core.modes.file").create_file_with_parents(expanded)
 				if not ok then
-					drop_poppy(name, "could not create " .. expanded .. ": " .. tostring(err))
+					drop_missing_poppy(name, "could not create " .. expanded .. ": " .. tostring(err))
 					shared.notify_warn("poppy '%s' not created: %s", name, tostring(err))
 					poppy_dropped = true
 				else
@@ -477,7 +476,7 @@ local resolve_missing_file = function(dialog, outcome)
 				end
 			end
 		elseif outcome == OUTCOME_DROP then
-			drop_poppy(name)
+			drop_missing_poppy(name)
 			poppy_dropped = true
 		end
 		dialog.index = dialog.index + 1
@@ -488,7 +487,7 @@ local resolve_missing_file = function(dialog, outcome)
 		return true
 	end
 
-	if handle_one() then
+	if handle_missing_file() then
 		return
 	end
 	if poppy_dropped then

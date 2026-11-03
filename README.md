@@ -1,41 +1,36 @@
 # poppy.nvim
 
-A neovim popup scratchads manager for a small set of named "poppies" (TUIs, files, shells, repls...) you reach for constantly. Custom ui build to allow constrol over tools without setting up a bind per each. Every tool or file remains static during session a- declared once in config to keep it simple and still powerful enough. One binding, one menu. Access, toggle on, enter the managament menu and toggle off in one easy repeatable cycle.
+A neovim popup scratchpad manager. Declare a small set of named "poppies" (TUIs, files, shells) once in `setup`; one binding (`<C-/>` by default) toggles a sidebar+content UI. The sidebar lists configured poppies with category icons, state dots, and numeric indices; the content pane shows the active one. A centred landing picker appears when no poppy is active. Two dialogs interrupt the flow: kill-confirm on unsaved edits, missing-file prompt on non-existent file poppies. Buffers are kept alive between switches for fast re-open.
 
 ## Installation
 
-```
-```
-
 ```lua
--- native
-vim.pack.add({
-    "https://git.tomgora.online/tomeczku/poppy.nvim",
-})
-
-require("poppy").setup({
-    --config
-})
-
--- lazy
-{
-    "https://git.tomgora.online/tomeczku/poppy.nvim",
-    lazy = false,
-    config = true,
-},
-
-```
-
-```lua
+-- Neovim 0.12+ (built-in vim.pack)
+vim.pack.add({ "https://git.tomgora.online/tomeczku/poppy.nvim" })
 require("poppy").setup({
     poppies = {
-        lazygit = { exec = "lazygit", title = "LazyGit" },
+        lazygit = { exec = "lazygit",  title = "LazyGit" },
         todos   = { file = "~/Documents/TODO.md", title = "Todos" },
         scratch = { shell = "default", title = "Terminal" },
     },
 })
 
+-- lazy.nvim
+{
+    "https://git.tomgora.online/tomeczku/poppy.nvim",
+    lazy = false,
+    priority = 1000,
+    opts = {
+        poppies = {
+            lazygit = { exec = "lazygit",  title = "LazyGit" },
+            todos   = { file = "~/Documents/TODO.md", title = "Todos" },
+            scratch = { shell = "default", title = "Terminal" },
+        },
+    },
+},
 ```
+
+`vim.pack.add` is the built-in option since Neovim 0.12. `lazy.nvim` users can drop the `require("poppy").setup(...)` line — lazy calls it for you via `opts`.
 
 ## Configuration
 
@@ -45,25 +40,26 @@ require("poppy").setup({
         poppy_action = "<C-/>",  -- remap if it doesn't work in your terminal (see "Key bindings" below)
         select       = "<CR>",
         kill         = "d",
+        exit_menu    = "h",
     },
-    icons                  = { exec = "🛠", shell = "$", file = "🗋" },
-    autohide_menu          = false,   -- hide sidebar after selecting; corner hint shows the binding
-    title_header           = true,
-    hints_footer           = true,
-    close_on_focus_lost    = true,    -- close when focus returns to a normal editor window
-                                       -- (cmdline, loclist, quickfix, preview, and transient
-                                       --  nofile popups such as hovers and diagnostic floats
-                                       --  do not trigger it)
-    close_other_floats_on_open = true, -- close other floating windows when poppy opens
-    assume_multiplexer     = false,   -- set true inside tmux/screen when <C-/> never reaches nvim
-    border                 = "rounded", -- "none" | "single" | "double" | "rounded" | "shadow" | border spec
-    menu_width             = 25,
-    win_height             = 0.75,    -- ratio (0.2..1.0), absolute cells (>1), or function
-    win_width              = 0.8,
-    win_location           = "center", -- "center" | "top" | "bottom"
+    icons                     = { exec = "🛠", shell = "$", file = "🗋" },
+    autohide_menu             = false,   -- hide sidebar after selecting; corner hint shows the binding
+    title_header              = true,
+    hints_footer              = true,
+    close_on_focus_lost       = true,    -- close when focus returns to a normal editor window
+                                           -- (cmdline, loclist, quickfix, preview, and transient
+                                           --  nofile popups such as hovers and diagnostic floats
+                                           --  do not trigger it)
+    close_other_floats_on_open = true,   -- close other floating windows when poppy opens
+    assume_multiplexer        = false,   -- set true inside tmux/screen when <C-/> never reaches nvim
+    border                    = "rounded", -- "none" | "single" | "double" | "rounded" | "shadow" | border spec
+    menu_width                = 25,
+    win_height                = 0.75,    -- ratio (0.2..1.0), absolute cells (>1), or function
+    win_width                 = 0.8,
+    win_location              = "center", -- "center" | "top" | "bottom"
 
     poppies = {
-        lazygit = { exec = "lazygit", title = "LazyGit" },
+        lazygit = { exec = "lazygit",  title = "LazyGit" },
         todos   = { file = "~/Documents/TODO.md", title = "Todos" },
         scratch = { shell = "default", title = "Terminal" },
     },
@@ -75,44 +71,30 @@ require("poppy").setup({
 | Key | Type | Behavior |
 | --- | --- | --- |
 | `exec` | `string\|string[]\|function` | Spawns a terminal buffer running the command. Command must be on `$PATH`. |
-| `file` | `string\|function` | Opens the file at provided path as a txt buffer. If missing a dialog is displayed with option to create it. |
-| `shell` | `string\|function` | Spawns a terminal buffer with the shell. Set to `"default"` to use `$SHELL` variable. |
+| `file` | `string\|function` | Opens the file at the given path. If the path does not exist when opening, a dialog asks whether to create it (and its parent directories) or drop that poppy. |
+| `shell` | `string\|function` | Spawns a terminal buffer with the shell. Set to `"default"` to use `$SHELL`. |
 
-`exec`/`file`/`shell` keys are validates during setup and must be declared and correct to work. `title` is optional. The default is file basename or command name.
+`exec`/`file`/`shell` are validated at setup and must be declared exactly once per poppy. `title` is optional and defaults to the file basename or command name.
 
 ### Borders
 
-`border` takes `"none"`, `"single"`, `"double"`, `"rounded"`, `"shadow"`, or the border table of chars. `"none"` (and `"solid"`) means custom borderless design. If not defined poppy will try to use `winborder` with the borderless style as last fallback.
+`border` takes `"none"`, `"single"`, `"double"`, `"rounded"`, `"shadow"`, or a border table of chars. `"none"` (and `"solid"`) use poppy's borderless design. If `border` is not set, poppy falls back to `vim.opt.winborder`; if that is empty or invalid, it uses borderless.
 
 ### Key bindings
 
-\<-- TODO: Section on why cycle design and on sticking to native first
-Idea: act something like mini.files with "l" to accept and "h" to exit menu which are affected by configuration but even more native completion-like \<C-y> and \<C-e> are permabound in menu buffer and \<C-x> serves as default kill action
-
-BTW: BIG REGRESSION TO RESOLVE!
--->
-
-`keys.poppy_action` is the one binding you press constantly, so it deserves a moment
-of attention. Inside tmux or screen, some terminals drop `<C-/>` (or any Ctrl
-combination whose underlying byte is consumed by the multiplexer) before it reaches
-nvim — the keymap is then bound but never fires. If that happens to you, either:
+`keys.poppy_action` is the one binding you press constantly, so it deserves a moment of attention. Inside tmux or screen, some terminals drop `<C-/>` (or any Ctrl combination whose underlying byte is consumed by the multiplexer) before it reaches nvim — the keymap is bound but never fires. If that happens to you, either:
 
 - bind a key your terminal forwards cleanly (`<C-_>`, `<C-\>`, etc.), or
 - set `assume_multiplexer = true` and poppy will rebind `<C-/>` to `<C-_>` automatically when `$TMUX`/`$STY` are set.
 
-On modern terminals (kitty/wezterm/foot with `extkeys`, ghostty) inside tmux, `<C-/>`
-usually works as-is — `assume_multiplexer` is only needed when it doesn't.
+On modern terminals (kitty, wezterm, foot with `extkeys`, ghostty) inside tmux, `<C-/>` usually works as-is — `assume_multiplexer` is only needed when it doesn't.
 
 ### Dialogs
 
-Two questions can interrupt an open. Both are answered before the UI settles, and
-several missing files are resolved one after another:
+Two questions can interrupt an open. Both are answered before the UI settles, and several missing files are resolved one after another:
 
-- **Missing file** — a `file` poppy points at a path that does not exist. `Yes` creates
-  it along with its parent directories, `No` drops that poppy.
-- **Unsaved changes** — you kill a poppy whose buffer is modified. `Save` writes it,
-  `Discard` drops the changes, `Go back` cancels the kill. Terminals are exempt: their
-  `modified` flag never flips.
+- **Missing file** — a `file` poppy points at a path that does not exist. `Yes` creates it along with its parent directories, `No` drops that poppy.
+- **Unsaved changes** — you kill a poppy whose buffer is modified. `Save` writes it, `Discard` drops the changes, `Go back` cancels the kill. Terminals are exempt: their `modified` flag never flips.
 
 ### Unsaved edits and missing files
 
@@ -131,8 +113,9 @@ Buffers stay loaded between switches (`bufhidden = "hide"`). On re-open: a clean
 
 Tab-completion knows the configured poppy names.
 
-Poppy refuses to open in a terminal smaller than 57x10 and says so; resize and toggle
-it back on.
+`open` with no name reopens the last poppy (if its runtime is still alive) or lands on the picker. With a name, it switches directly.
+
+Poppy refuses to open in a terminal smaller than 57×5 cells and says so; resize and toggle it back on.
 
 ## Lua API
 
@@ -158,22 +141,16 @@ require("poppy").get_poppy_by_index(1..N)
 require("poppy").get_current_poppy()
 require("poppy").get_current_poppy_name()
 require("poppy").is_open()
-
--- Less commonly needed
-require("poppy").recover()             -- re-pick a fallback poppy or land on the picker
-require("poppy").transition_to_content() -- grow the wrapper from landing to sidebar+content
 ```
 
 `setup` may be re-called; a second call tears down any live session before re-initializing.
 
-`kill_by_name` / `kill_by_index` act on a poppy that has been opened. A configured but
-never-opened poppy has no session to kill and is left alone.
+`kill_by_name` / `kill_by_index` act on a poppy that has been opened. A configured but never-opened poppy has no session to kill and is left alone.
 
 ## How it works
 
-`lua/poppy/core/session/state.lua` holds the mutable state. `session/manager.lua` is the orchestrator (open/close/toggle, switch/kill, recovery); `session/init.lua` is the public API entry that wires the `:Poppy` command, global keymap, and re-exports the manager's API. `session/{menu,dialog,keymaps,autocommands}.lua` own the user-facing surface. `ui/{layout,render,view,style}.lua` own the windows and chrome. `modes/{term,file}.lua` are the per-poppy backends. `_types.lua` holds the LuaCATS annotations.
+`lua/poppy/core/session/state.lua` holds the mutable state. `session/manager.lua` is the orchestrator (open/close/toggle, switch/kill, recovery); `session/init.lua` is the public API entry that wires the `:Poppy` command, global keymap, and re-exports the manager's API. `session/{menu,dialog,keymaps,autocommands,watch}.lua` own the user-facing surface. `ui/{layout,mount,render,style}.lua` own the windows and chrome. `modes/{term,file}.lua` are the per-poppy backends. `_types.lua` holds the LuaCATS annotations.
 
 ## License
 
 Public domain; see [UNLICENSE](./UNLICENSE).
-
