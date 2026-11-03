@@ -276,6 +276,59 @@ M.wrap_text = function(text, width)
 	return out
 end
 
+-- Neovim's 'wrap'+'linebreak' soft-wraps at 'breakat' chars (default: . , : ; ! ? @ * # & _ / -),
+-- then at spaces, then hard-cuts as last resort. The window does the rendering; we only need
+-- the row count for sizing, since the window has no API to ask "how many display rows".
+local BREAKAT = {}
+for c in (".,:;!?@*#&_/-"):gmatch(".") do BREAKAT[c] = true end
+
+---@param line string
+---@param width integer
+---@return integer rows
+local soft_wrap_rows = function(line, width)
+	if width < 1 then return 1 end
+	if fn.strdisplaywidth(line) <= width then return 1 end
+	local rows, cur, curw = 0, "", 0
+	local i = 1
+	while i <= #line do
+		local ch = line:sub(i, i)
+		local cw = fn.strdisplaywidth(ch)
+		if curw + cw > width then
+			rows = rows + 1
+			local break_at
+			for j = #cur, 1, -1 do
+				local c = cur:sub(j, j)
+				if c == " " or BREAKAT[c] then
+					break_at = j
+					break
+				end
+			end
+			if break_at then
+				cur = cur:sub(break_at + 1)
+				curw = fn.strdisplaywidth(cur)
+			else
+				cur, curw = "", 0
+			end
+		end
+		cur = cur .. ch
+		curw = curw + cw
+		i = i + 1
+	end
+	if cur ~= "" then rows = rows + 1 end
+	return rows
+end
+
+---@param lines string[]
+---@param width integer
+---@return integer rows
+M.soft_wrap_height = function(lines, width)
+	local rows = 0
+	for _, l in ipairs(lines) do
+		rows = rows + soft_wrap_rows(l, width)
+	end
+	return rows
+end
+
 ---Resolve a spec to a fitted row set.
 ---@param menu PoppyMenuSpec
 ---@param panel_width integer

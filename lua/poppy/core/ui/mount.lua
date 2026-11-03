@@ -312,7 +312,11 @@ local mount_panels = function(wrapper_win)
 			end)
 			return win, buf
 		end, function(buf)
-			return layout.open(buf, q_desc, "panel")
+			local win = layout.open(buf, q_desc, "panel")
+			shared.with_modifiable(buf, function()
+				api.nvim_buf_set_lines(buf, 0, -1, false, q_lines)
+			end)
+			return win
 		end)
 	end
 

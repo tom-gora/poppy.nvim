@@ -169,9 +169,13 @@ M.menu_header_lines = function(menu, panel_width)
 		return {}, 0
 	end
 	local text_width = math.max(1, panel_width - render.measure_item(1, ""))
-	local joined = table.concat(src, "\n")
-	local lines = render.wrap_text(joined, text_width)
-	return lines, #lines
+	local lines = {}
+	for _, para in ipairs(src) do
+		for _, l in ipairs(vim.split(para, "\n", { plain = true })) do
+			lines[#lines + 1] = l
+		end
+	end
+	return lines, render.soft_wrap_height(lines, text_width)
 end
 
 ---Session required lazily at call time to keep the cycle open.

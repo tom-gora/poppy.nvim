@@ -41,17 +41,30 @@ local show_or_mount = function()
 	end
 end
 
----@return string Absolute path of the poppy's file, or empty if not file-mode.
-local file_path_for = function(name)
+---For display. String configs show what the user wrote (~, relative paths, etc.).
+---Function configs have no declared string, so the expanded value is shown.
+---@return string
+local display_path_for = function(name)
 	local configured = state.poppy_configured(name)
-	if not configured then
+	if not configured or configured.config.mode ~= "file" then
 		return ""
 	end
-	local config = configured.config
-	if config.mode ~= "file" then
+	local value = configured.config.value
+	if type(value) == "string" then
+		return value
+	end
+	return shared.expand_file_value(value)
+end
+
+---For filesystem operations. Resolves `~` and environment so filereadable and
+---create_file_with_parents see the real path.
+---@return string
+local expanded_path_for = function(name)
+	local configured = state.poppy_configured(name)
+	if not configured or configured.config.mode ~= "file" then
 		return ""
 	end
-	return shared.expand_file_value(config.value)
+	return shared.expand_file_value(configured.config.value)
 end
 
 ---@param name string
@@ -112,7 +125,7 @@ end
 ---@param name string
 ---@return boolean
 M.needs_file_decision = function(name)
-	local path = file_path_for(name)
+	local path = expanded_path_for(name)
 	return path ~= "" and vim.fn.filereadable(path) ~= 1
 end
 
@@ -120,7 +133,7 @@ end
 ---@param name string
 ---@return table
 local spec_for_missing = function(name)
-	local path = file_path_for(name)
+	local path = display_path_for(name)
 	return {
 		id = "missing_file",
 		focusable = true,
@@ -454,7 +467,7 @@ local resolve_missing_file = function(dialog, outcome)
 	local handle_one = function()
 		local name = dialog.name
 		if outcome == OUTCOME_CREATE then
-			local expanded = file_path_for(name)
+			local expanded = expanded_path_for(name)
 			if expanded == "" then
 				drop_poppy(name, "poppy '" .. name .. "' has no resolvable file path")
 				poppy_dropped = true

@@ -236,9 +236,15 @@ M.resolve_spec = function(spec, panel_width, fill)
 		body_rows = #(spec.rows or {})
 	end
 
+	local render = require("poppy.core.ui.render")
+	local text_width = math.max(1, panel_width - render.measure_item(1, ""))
 	local question_lines = {}
 	if spec.menu_header and #spec.menu_header > 0 then
-		question_lines = spec.menu_header
+		for _, para in ipairs(spec.menu_header) do
+			for _, l in ipairs(vim.split(para, "\n", { plain = true })) do
+				question_lines[#question_lines + 1] = l
+			end
+		end
 	end
 
 	return {
@@ -249,6 +255,7 @@ M.resolve_spec = function(spec, panel_width, fill)
 		body_rows = math.max(1, body_rows),
 		hint_rows = #spec.hints,
 		question_lines = question_lines,
+		question_height = render.soft_wrap_height(question_lines, text_width),
 		fill = fill == true,
 	}
 end
@@ -262,7 +269,7 @@ M.compute = function(spec, height)
 	local padding = spec.border and 0 or 1
 
 	local header_height = spec.header and 2 or 0
-	local question_height = spec.question and #spec.question_lines or 0
+	local question_height = spec.question and (spec.question_height or #spec.question_lines) or 0
 	local hints_height = spec.hints and (1 + spec.hint_rows) or 0
 
 	local row = padding
