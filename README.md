@@ -26,6 +26,8 @@ In my personal config I had for a long time some circular bindings to access imp
 
 -- Same idea but for lsp diagnostic floats
 
+-- TODO: add the lsp bind after tidying up the shit hack wiht global pollution in _G. I am using now :D
+
 ```
 
 This is the first of the 3 sources of inspiration for the one bind-to-rule-them-all scratchpad manager.
