@@ -2,7 +2,8 @@
 
 A neovim popup scratchpad manager. Simple setup, as natural feel as possible and internal custom box of mechanisms that suit the custom made workflow.
 
-Screenshots:
+## Screenshots:
+
 \<-- TODO: Add Screenshots -->
 
 ## Inspiration, motivation and other human-brain-made-slop
@@ -46,6 +47,10 @@ Speaking on this sidebar selector. You might be asking:
 Well the API surface is provided. For pickers there are like 5 options minimum at any time plus new custom vibecoded solutions. Wire your own if you want to telescope your poppies, I am not supporting every user scenario under the sun especially that personal code generation became so cheap and easy with AI these days.
 
 If you read this, I salute you. Now back to the (mostly) automated transmission.
+
+## AI Disclosure
+
+\<-- TODO: Add Disclosure -->
 
 ## Installation
 
