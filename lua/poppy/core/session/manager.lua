@@ -95,6 +95,13 @@ local teardown_panels = function()
 			shared.close_win_if_valid(win)
 		end
 
+		-- Sweep floats orphaned by an earlier path: no state handle points at them.
+		for _, win in ipairs(api.nvim_list_wins()) do
+			if api.nvim_win_is_valid(win) and shared.is_poppy_window(win) then
+				shared.close_win_if_valid(win)
+			end
+		end
+
 		state.windows.recovering = false
 
 		-- File poppies reuse content_buf as their live file buffer; the in_use set keeps
@@ -291,26 +298,27 @@ M.open = function(poppy_name)
 end
 
 M.transition_to_content = function()
-	if state.windows.is_landing then
+	local full_width, full_height, full_row = layout.compute_wrapper_dimensions(
+		state.windows.opts,
+		vim.o.columns,
+		layout.editor_height(),
+		nil,
+		view.min_wrapper_width()
+	)
+	local wrapper_width = api.nvim_win_get_width(state.windows.wrapper_win)
+	if wrapper_width < full_width then
 		view.unmount()
-		local full_width, full_height, full_row = layout.compute_wrapper_dimensions(
-			state.windows.opts,
-			vim.o.columns,
-			layout.editor_height(),
-			nil,
-			view.min_wrapper_width()
-		)
 		layout.resize(state.windows.wrapper_win, {
 			width = full_width,
 			height = full_height,
 			col = math.floor((vim.o.columns - full_width) / 2),
 			row = full_row,
 		})
-		state.windows.is_landing = false
 	end
+	state.windows.is_landing = false
 	-- Clamp against the wrapper, not the raw config: sidebar is the binding constraint
 	-- on a narrow wrapper and content.create's subtraction would otherwise go negative.
-	local wrapper_width = api.nvim_win_get_width(state.windows.wrapper_win)
+	wrapper_width = api.nvim_win_get_width(state.windows.wrapper_win)
 	local panel_width = view.menu_width(wrapper_width)
 	local c_win, c_buf = view.content.create(state.windows.wrapper_win, panel_width)
 	view.mount(state.windows.wrapper_win)
@@ -368,6 +376,9 @@ end
 ---@param poppy_name string
 ---@return nil
 M.switch_by_name = function(poppy_name)
+	if not is_known_poppy(poppy_name) then
+		return
+	end
 	if poppy_name == state.windows.current_poppy_name then
 		return
 	end
@@ -376,7 +387,7 @@ M.switch_by_name = function(poppy_name)
 	end
 
 	local configured = state.poppy_configured(poppy_name)
-	if not is_known_poppy(poppy_name) or not configured then
+	if not configured then
 		return
 	end
 
@@ -599,6 +610,17 @@ M.recover = function()
 			shared.notify_error("recover failed: %s", tostring(err))
 		end
 	end)
+end
+
+---@return nil
+M.goto_landing = function()
+	if not shared.session_is_open() then
+		return
+	end
+	state.set_current_poppy_name(nil)
+	state.windows.recovering = true
+	recover_goto_landing()
+	state.windows.recovering = false
 end
 
 ---@param configured {name: string, config: PoppyResolvedConfig}

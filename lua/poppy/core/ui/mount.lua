@@ -56,6 +56,13 @@ end
 
 M.wrapper.recreate = wrapper_open_with
 
+---@param win integer|nil
+local close_superseded_wrapper = function(win)
+	if win and api.nvim_win_is_valid(win) then
+		api.nvim_win_close(win, true)
+	end
+end
+
 ---@param buf integer|nil
 ---@param poppy_opts? PoppyMergedConfig
 ---@param width_override? integer
@@ -63,6 +70,7 @@ M.wrapper.recreate = wrapper_open_with
 ---@return integer? win
 ---@return integer? buf
 M.wrapper.ensure = function(buf, poppy_opts, width_override, height_override)
+	close_superseded_wrapper(state.windows.wrapper_win)
 	if buf and api.nvim_buf_is_valid(buf) then
 		return M.wrapper.recreate(buf, poppy_opts, width_override, height_override), buf
 	end

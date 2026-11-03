@@ -174,13 +174,6 @@ M.menu_header_lines = function(menu, panel_width)
 	return lines, #lines
 end
 
----@param hints PoppyHint[]
----@return integer
-M.legend_height = function(hints)
-	local is_missing_file_dialog = state.windows.dialog and state.windows.dialog.kind == "missing_file"
-	return #hints
-end
-
 ---Session required lazily at call time to keep the cycle open.
 ---@type table
 local session = nil

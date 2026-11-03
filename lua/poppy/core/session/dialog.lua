@@ -450,23 +450,27 @@ end
 ---@param dialog PoppyMissingFileDialog
 ---@param outcome string One of the OUTCOME_* values.
 local resolve_missing_file = function(dialog, outcome)
+	local poppy_dropped = false
 	local handle_one = function()
 		local name = dialog.name
 		if outcome == OUTCOME_CREATE then
 			local expanded = file_path_for(name)
 			if expanded == "" then
 				drop_poppy(name, "poppy '" .. name .. "' has no resolvable file path")
+				poppy_dropped = true
 			else
 				local ok, err = require("poppy.core.modes.file").create_file_with_parents(expanded)
 				if not ok then
 					drop_poppy(name, "could not create " .. expanded .. ": " .. tostring(err))
 					shared.notify_warn("poppy '%s' not created: %s", name, tostring(err))
+					poppy_dropped = true
 				else
 					require("poppy.core.session.watch").add(name, expanded)
 				end
 			end
 		elseif outcome == OUTCOME_DROP then
 			drop_poppy(name)
+			poppy_dropped = true
 		end
 		dialog.index = dialog.index + 1
 		if dialog.index > #dialog.poppies then
@@ -477,6 +481,12 @@ local resolve_missing_file = function(dialog, outcome)
 	end
 
 	if handle_one() then
+		return
+	end
+	if poppy_dropped then
+		finish_dialog(function()
+			require("poppy.core.session.manager").goto_landing()
+		end)
 		return
 	end
 	finish_dialog(dialog.resume)

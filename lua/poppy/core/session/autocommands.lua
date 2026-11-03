@@ -129,12 +129,12 @@ M.setup_float_sweep = function()
 		callback = function()
 			vim.schedule(function()
 				for _, w in ipairs(api.nvim_list_wins()) do
-					local ft = vim.bo.filetype[api.nvim_win_get_buf(w)]
+					local ft = vim.bo[api.nvim_win_get_buf(w)].filetype
 					if
 						api.nvim_win_is_valid(w)
-						and not ft == "pager"
-						and not ft == "notify"
-						and not ft == "noice"
+						and ft ~= "pager"
+						and ft ~= "notify"
+						and ft ~= "noice"
 						and not shared.is_poppy_window(w)
 						and api.nvim_win_get_config(w).relative ~= ""
 					then
