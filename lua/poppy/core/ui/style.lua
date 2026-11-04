@@ -99,7 +99,7 @@ local setup_cursor_autocmds = function()
 	})
 end
 
-local PANEL_BG_DARKEN_FACTOR = -0.35
+local PANEL_BG_DARKEN_FACTOR = -0.4
 
 ---@param color integer
 ---@param factor number
@@ -124,7 +124,7 @@ local define_poppy_signs = function()
 		{ name = "PoppyDotFileH", text = "•", texthl = "PoppyFileHidden" },
 		{ name = "PoppyDotExecH", text = "•", texthl = "PoppyExecHidden" },
 		{ name = "PoppyDotShellH", text = "•", texthl = "PoppyShellHidden" },
-		{ name = "PoppyDotNone", text = " ", texthl = "NormalPoppyUIPanel" },
+		{ name = "PoppyDotNone", text = " ", texthl = "PoppyNormalPanel" },
 	}
 	for _, s in ipairs(signs) do
 		pcall(fn.sign_define, s.name, s)
@@ -193,15 +193,15 @@ M.setup = function()
 
 	local nf = api.nvim_get_hl(0, { name = "NormalFloat", link = false })
 	if nf.bg then
-		api.nvim_set_hl(0, "NormalPoppyUIPanel", {
+		api.nvim_set_hl(0, "PoppyNormalPanel", {
 			bg = adjust_brightness(nf.bg, PANEL_BG_DARKEN_FACTOR),
 			fg = nf.fg,
 		})
 	else
-		api.nvim_set_hl(0, "NormalPoppyUIPanel", { link = "NormalFloat" })
+		api.nvim_set_hl(0, "PoppyNormalPanel", { link = "NormalFloat", force = true })
 	end
-	api.nvim_set_hl(0, "NormalPoppyContent", { link = "NormalFloat" })
-	local panel_hl = api.nvim_get_hl(0, { name = "NormalPoppyUIPanel", link = false })
+	api.nvim_set_hl(0, "PoppyNormalContent", { link = "NormalFloat" })
+	local panel_hl = api.nvim_get_hl(0, { name = "PoppyNormalPanel", link = false })
 	local err = api.nvim_get_hl(0, { name = "ErrorMsg", link = false })
 	api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = panel_hl.bg })
 
@@ -210,7 +210,8 @@ M.setup = function()
 
 	local fb = api.nvim_get_hl(0, { name = "FloatBorder", link = false })
 	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg or str.fg, bg = panel_hl.bg })
-	api.nvim_set_hl(0, "NormalPoppyContentBorder", { fg = fb.fg or str.fg, bg = nf.bg })
+	api.nvim_set_hl(0, "PoppyContentBorder", { fg = fb.fg or str.fg, bg = nf.bg })
+	api.nvim_set_hl(0, "PoppyBorderPanel", { fg = str.fg, bg = panel_hl.bg })
 
 	local comment = api.nvim_get_hl(0, { name = "Comment", link = false })
 	api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = nf.bg })
@@ -273,12 +274,18 @@ end
 
 ---@param win integer
 M.apply_hints_panel_style = function(win)
-	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
+	set_winhl_deferred(
+		win,
+		"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,SignColumn:PoppyNormalPanel"
+	)
 end
 
 ---@param win integer
 M.apply_panel_style = function(win)
-	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel")
+	set_winhl_deferred(
+		win,
+		"NormalNC:PoppyNormalPanel,Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,SignColumn:PoppyNormalPanel,FloatBorder:PoppyBorderPanel"
+	)
 end
 
 ---@param win integer
@@ -290,7 +297,7 @@ M.apply_body_style = function(win)
 		end
 		api.nvim_set_option_value(
 			"winhl",
-			"Normal:NormalPoppyUIPanel,SignColumn:NormalPoppyUIPanel,CursorLine:PoppyCursorLine",
+			"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,SignColumn:PoppyNormalPanel,CursorLine:PoppyCursorLine",
 			{ scope = "local", win = win }
 		)
 		api.nvim_set_option_value("cursorline", true, { win = win })
@@ -307,7 +314,7 @@ M.apply_content_style = function(win, ext_number, ext_relativenumber)
 		end
 		api.nvim_set_option_value(
 			"winhl",
-			"Normal:NormalPoppyContent,SignColumn:NormalPoppyContent,FloatBorder:NormalPoppyContentBorder,LineNr:PoppyLineNr,LineNrAbove:PoppyLineNrAbove,LineNrBelow:PoppyLineNrBelow,CursorLineNr:PoppyCursorLineNr",
+			"Normal:PoppyNormalContent,EndOfBuffer:PoppyNormalContent,NonText:PoppyNormalContent,Whitespace:PoppyNormalContent,SignColumn:PoppyNormalContent,FloatBorder:PoppyContentBorder,LineNr:PoppyLineNr,LineNrAbove:PoppyLineNrAbove,LineNrBelow:PoppyLineNrBelow,CursorLineNr:PoppyCursorLineNr",
 			{ scope = "local", win = win }
 		)
 
@@ -325,7 +332,10 @@ end
 
 ---@param win integer
 M.apply_border_style = function(win)
-	set_winhl_deferred(win, "Normal:NormalPoppyUIPanel,FloatBorder:PoppyBorder")
+	set_winhl_deferred(
+		win,
+		"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,FloatBorder:PoppyBorder"
+	)
 end
 
 return M

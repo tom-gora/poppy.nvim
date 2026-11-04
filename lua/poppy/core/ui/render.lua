@@ -39,7 +39,7 @@ M.header_paint = function(_win, buf, width)
 	end)
 
 	---@type vim.api.keyset.set_extmark
-	local title_extmark = { end_col = #title_line, hl_group = "NormalPoppyUIPanel" }
+	local title_extmark = { end_col = #title_line, hl_group = "PoppyNormalPanel" }
 	api.nvim_buf_set_extmark(buf, header_ns, 1, 0, vim.tbl_extend("force", title_extmark, { id = TITLE_MARK }))
 
 	---@type vim.api.keyset.set_extmark
