@@ -60,7 +60,7 @@ Third large inspiration were [ oil.nvim ](https://github.com/stevearc/oil.nvim/i
 
 You can tell by now probably that the plugin is a bit opinioneted and its design is arguably a result of a bit of overthinking. However, all this is aiming to make it FEEL simple. Scratchpads are a concept that is meant to be simple and quick. If I want a heavily configured TUI swiss army knife / tank tool to do serious extended work I will just open another terminal/multiplexer pane.
 
-Last bonus "anti-inspiration" was [toggleterm.nvim](https://github.com/akinsho/toggleterm.nvim) it is an old and good project but, oh how I hated it. Custom Api, super-fine-grained control. Hook for every single one of 50 opts and you can or redefine all of them per "Terminal" object. I used it back when I started neovim when `lunar` was a thing, `astrovim` was still a new project and nvchad wasn't even in the field yet, I believe. It is a powerful tool, but one might say it is heavily overengineered for a plugin managing transient terminal spawns.
+Finally, my bonus "anti-inspiration" was [toggleterm.nvim](https://github.com/akinsho/toggleterm.nvim) plugin. It is an excellent established project but I had a big problem with it and existing similar solutions. In my opinion, the issue is too heavily involved sprawling config and being heavily overengineered for a plugin managing transient terminal spawns for quick access. I wanted something simple.
 
 Poppy needs as little opts as possible? What to open and how. Defaults to to shipped icons and even title has a fallback detection so you do not even need to name your poppy.
 
