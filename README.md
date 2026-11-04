@@ -20,8 +20,10 @@ In my personal config I had for a long time some circular bindings to access imp
 
 ```lua
 
---[[ Repeatedly cycle display > enter > close lsp hovers with just K,
-not having to jump to q or do <C-w> ]]--
+--[[ 
+    Repeatedly cycle display > enter > close lsp hovers with just K,
+    not having to jump to q or do <C-w> 
+]]--
 
 vim.keymap.set("n", "<S-K>", function()
     if vim.w.lsp_floating_bufnr ~= nil or vim.w["textDocument/hover"] ~= nil then
@@ -83,9 +85,11 @@ If you read this, I salute you. Now back to the (mostly) automated transmission.
 vim.pack.add({ "https://git.tomgora.online/tomeczku/poppy.nvim" })
 require("poppy").setup({
     poppies = {
-        -- declaring some poppy entries is required for the plugin to work
-        -- poppy doesn't ship anything default here that might go in conflict
-        -- with the system environment or unintentionally litter files on the fs
+        --[[
+            declaring some poppy entries is required for the plugin to work
+            poppy doesn't ship anything default here that might go in conflict
+            with the system environment or unintentionally litter files on the fs 
+        ]]--
 
         lazygit = { exec = "lazygit",  title = "LazyGit" },
         todos   = { file = "~/Documents/TODO.md", title = "Todos" },
@@ -114,38 +118,48 @@ require("poppy").setup({
 -- defaults:
 require("poppy").setup({
     keys = {
-        poppy_action = "<C-/>",  -- remap if it doesn't work in your terminal or just have a different idea
+        poppy_action = "<C-/>",             -- remap if it doesn't work in your terminal
+                                            -- or just have a different idea
         select       = "l",
         kill         = "d",
         exit_menu    = "h",
     },
-    icons                      = { exec = "🛠", shell = "$", file = "🗋" }, -- unicode as safer defaults, can be nerdfont glyphs
-    autohide_menu              = false,     -- hide sidebar after selecting or after inactivity timeout
+    icons                      = { exec = "🛠", shell = "$", file = "🗋" },
+                                            -- ╰- unicode as safer defaults, can be nerdfont glyphs
+
+    autohide_menu              = false,     -- hide sidebar after selecting or after 
+                                            -- period of cursor  inactivity 
+
     title_header               = true,      -- show or hide decorative chome
     hints_footer               = true,      -- show or hide informative chome
-    close_on_focus_lost        = true,      -- close when focus leaves poppy
-                                            -- (cmdline, loclist, quickfix, preview, and nofile popups 
-                                            -- such as hovers and diagnostic floats ignored)
-    close_other_floats_on_open = true,      -- close other floating windows when poppy opens (notifications skipped)
-    assume_multiplexer         = false,     -- set true inside tmux/screen when <C-/> never reaches nvim
+    close_on_focus_lost        = true,      --[[ close when focus leaves poppy
+                                               (cmdline, loclist, quickfix, preview, and nofile bufs 
+                                               such as hovers and diagnostic floats ignored) ]]--
+
+    close_other_floats_on_open = true,      -- close other floating windows when poppy opens
+    assume_multiplexer         = false,     -- set true inside tmux/screen when 
+                                            -- if defaults <C-/> not passed to nvim correctly
     border                     = "rounded", -- "none" | "single" | "double" | "rounded" | "shadow" | border spec
     menu_width                 = 25,
-    win_height                 = 0.75,      -- ratio (0.2..1.0), absolute cells (>1), or function
+    win_height                 = 0.75,      -- ratio (> 0.2 > 1.0), absolute cells (>1), or function
     win_width                  = 0.8,
-    win_location               = "center",  -- "center" | "top" | "bottom"
-                                            -- Horiontally always in the middle, choose if you prefer to stick to top, bottom or remain default centered depending on what region your neck finds easier to target your eyeballs at.
+    win_location               = "center",  --[[ "center" | "top" | "bottom"
+                                               Horiontally always in the middle,
+                                               choose if you prefer to stick to top, bottom or remain
+                                               default centered depending on what region 
+                                               your neck finds easier to target your eyeballs at. ]]--
 
-    poppies = {
-        -- minimal example, not defaults.
-        -- You have to declare your own
-        lazygit = { exec = "lazygit" },
-        todos   = { file = "~/Documents/TODO.md" },
+    poppies = {                             -- minimal example, not defaults.
+        lazygit = { exec = "lazygit" },     -- You have to declare your own
+        todos   = { file = "~/.TODO.md" },
         scratch = { shell = "default" },
     },
 })
 ```
 
 ### Poppy modes
+
+Each defined poppy can be of the 3 following types:
 
 | Key | Type | Behavior |
 | --- | --- | --- |
@@ -157,7 +171,7 @@ require("poppy").setup({
 
 ### Borders
 
-`border` takes `"none"`, `"single"`, `"double"`, `"rounded"`, `"shadow"`, or a border table of chars. `"none"` (and `"solid"`) use poppy's borderless design. If `border` is not set — the default — poppy falls back to `vim.opt.winborder`; if that is empty or invalid, it uses borderless.
+`border` takes `"none"`, `"single"`, `"double"`, `"rounded"`, `"shadow"`, or a border table of chars. `"none"` and `"solid"` fold into premade poppy's borderless design making use of both to create looks and paddings. If `border` is not set poppy attempts to falls back to `vim.opt.winborder` first, finally it will use this borderless style as default.
 
 ### Key bindings
 
