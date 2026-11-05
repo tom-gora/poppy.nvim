@@ -290,11 +290,19 @@ local present_dialog = function()
 			local column_w = layout.landing_width(state.windows.opts, state.poppies_configured, vim.o.columns)
 			local column_h = layout.compute(layout.resolve_spec(menu_ui.current_spec(), column_w)).height
 			if wc.width ~= column_w or wc.height ~= column_h then
+				local _, _, column_row = layout.compute_wrapper_dimensions(
+					state.windows.opts,
+					vim.o.columns,
+					layout.editor_height(),
+					column_w,
+					nil,
+					column_h
+				)
 				layout.resize(ww, {
 					width = column_w,
 					height = column_h,
 					col = math.floor((vim.o.columns - column_w) / 2),
-					row = math.floor((layout.editor_height() - column_h) / 2),
+					row = column_row,
 				})
 			end
 		end
