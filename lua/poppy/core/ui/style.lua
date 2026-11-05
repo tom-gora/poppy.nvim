@@ -99,7 +99,7 @@ local setup_cursor_autocmds = function()
 	})
 end
 
-local PANEL_BG_DARKEN_FACTOR = -0.4
+local PANEL_BG_DARKEN_FACTOR = 0.1
 
 ---@param color integer
 ---@param factor number
@@ -192,30 +192,40 @@ M.setup = function()
 	restore_cursor_mode()
 
 	local nf = api.nvim_get_hl(0, { name = "NormalFloat", link = false })
+	local fb = api.nvim_get_hl(0, { name = "FloatBorder", link = false })
+	local str = api.nvim_get_hl(0, { name = "Label", link = false })
+	local use_borders = require("poppy.core.shared").use_borders()
+	local bg_content = adjust_brightness(nf.bg, PANEL_BG_DARKEN_FACTOR)
+	local bg_panel = adjust_brightness(nf.bg, (PANEL_BG_DARKEN_FACTOR * 3) * -1)
+	if use_borders then
+		goto continue
+	end
 	if nf.bg then
+		api.nvim_set_hl(0, "PoppyNormalContent", {
+			bg = bg_content,
+			fg = nf.fg,
+			update = true,
+		})
+		api.nvim_set_hl(0, "PoppyBorderContent", { fg = fb.fg or str.fg, bg = bg_content })
 		api.nvim_set_hl(0, "PoppyNormalPanel", {
-			bg = adjust_brightness(nf.bg, PANEL_BG_DARKEN_FACTOR),
+			bg = bg_panel,
 			fg = nf.fg,
 		})
-	else
+		api.nvim_set_hl(0, "PoppyBorderPanel", { fg = fb.fg, bg = bg_panel })
+	else -- fallback
 		api.nvim_set_hl(0, "PoppyNormalPanel", { link = "NormalFloat", force = true })
+		api.nvim_set_hl(0, "PoppyNormalContent", { link = "NormalFloat", force = true })
+		api.nvim_set_hl(0, "PoppyBorderPanel", { link = "FloatBorder", force = true })
+		api.nvim_set_hl(0, "PoppyBorderContent", { link = "FloatBorder", force = true })
 	end
-	api.nvim_set_hl(0, "PoppyNormalContent", { link = "NormalFloat" })
-	local panel_hl = api.nvim_get_hl(0, { name = "PoppyNormalPanel", link = false })
+	::continue::
+	api.nvim_set_hl(0, "PoppyCursorLine", { link = "Cursorline", force = true })
 	local err = api.nvim_get_hl(0, { name = "ErrorMsg", link = false })
-	api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = panel_hl.bg })
-
-	local str = api.nvim_get_hl(0, { name = "Label", link = false })
-	api.nvim_set_hl(0, "PoppyBorder", { fg = str.fg, bg = nf.bg })
-
-	local fb = api.nvim_get_hl(0, { name = "FloatBorder", link = false })
-	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg or str.fg, bg = panel_hl.bg })
-	api.nvim_set_hl(0, "PoppyContentBorder", { fg = fb.fg or str.fg, bg = nf.bg })
-	api.nvim_set_hl(0, "PoppyBorderPanel", { fg = str.fg, bg = panel_hl.bg })
+	api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = not use_borders and bg_panel or "none" })
+	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg, bg = not use_borders and bg_panel or "none" })
 
 	local comment = api.nvim_get_hl(0, { name = "Comment", link = false })
-	api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = nf.bg })
-	api.nvim_set_hl(0, "PoppyActive", { link = "IncSearch" })
+	api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = not use_borders and bg_panel or "none" })
 
 	local type_hl = api.nvim_get_hl(0, { name = "Type", link = false })
 	local string_hl = api.nvim_get_hl(0, { name = "String", link = false })
@@ -225,22 +235,17 @@ M.setup = function()
 	local lnra = api.nvim_get_hl(0, { name = "LineNrAbove", link = false })
 	local lnrb = api.nvim_get_hl(0, { name = "LineNrBelow", link = false })
 
-	-- Cursorline sourced from the theme so it matches the terminal.
-	-- nvim 0.13 has a native cursorlinehl; on 0.12 this goes through winhl.
-	local cline = api.nvim_get_hl(0, { name = "CursorLine", link = false })
-	api.nvim_set_hl(0, "PoppyCursorLine", { fg = cline.fg, bg = cline.bg })
-
 	-- Rows use the raw category colour; state lives in the signcolumn, not the text.
 	local CATEGORY = { { "File", type_hl }, { "Exec", string_hl }, { "Shell", func_hl } }
 
 	for _, entry in ipairs(CATEGORY) do
-		local cap, hl = entry[1], entry[2]
-		api.nvim_set_hl(0, "Poppy" .. cap, { fg = hl.fg })
-		api.nvim_set_hl(0, "PoppyCurrentRow" .. cap, { fg = hl.fg })
+		local cat, hl = entry[1], entry[2]
+		api.nvim_set_hl(0, "Poppy" .. cat, { fg = hl.fg })
+		api.nvim_set_hl(0, "PoppyCurrentRow" .. cat, { fg = hl.fg, bold = true })
 		if hl.fg then
-			api.nvim_set_hl(0, "Poppy" .. cap .. "Hidden", { fg = hl.fg })
+			api.nvim_set_hl(0, "Poppy" .. cat .. "Hidden", { fg = hl.fg, bold = false, force = true })
 		else
-			api.nvim_set_hl(0, "Poppy" .. cap .. "Hidden", { link = "Comment" })
+			api.nvim_set_hl(0, "Poppy" .. cat .. "Hidden", { link = "Comment" }) -- fallback
 		end
 	end
 
@@ -250,10 +255,8 @@ M.setup = function()
 		{ "PoppyLineNrAbove", lnra },
 		{ "PoppyLineNrBelow", lnrb },
 	}) do
-		api.nvim_set_hl(0, entry[1], { fg = entry[2].fg, bg = nf.bg })
+		api.nvim_set_hl(0, entry[1], { fg = entry[2].fg, bg = "none" })
 	end
-
-	api.nvim_set_hl(0, "PoppyActiveDot", { link = "Normal" })
 
 	define_poppy_signs()
 	define_answer_signs()
@@ -261,7 +264,7 @@ M.setup = function()
 
 	api.nvim_create_augroup("poppy_style", { clear = true })
 	api.nvim_create_autocmd("ColorScheme", {
-		group = "poppy_style",
+		group = api.nvim_create_augroup("poppy_style", { clear = true }),
 		callback = function()
 			M.setup()
 		end,
@@ -312,11 +315,6 @@ M.apply_content_style = function(win, ext_number, ext_relativenumber)
 		if not api.nvim_win_is_valid(win) then
 			return
 		end
-		api.nvim_set_option_value(
-			"winhl",
-			"Normal:PoppyNormalContent,EndOfBuffer:PoppyNormalContent,NonText:PoppyNormalContent,Whitespace:PoppyNormalContent,SignColumn:PoppyNormalContent,FloatBorder:PoppyContentBorder,LineNr:PoppyLineNr,LineNrAbove:PoppyLineNrAbove,LineNrBelow:PoppyLineNrBelow,CursorLineNr:PoppyCursorLineNr",
-			{ scope = "local", win = win }
-		)
 
 		local buf = api.nvim_win_get_buf(win)
 		if api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
@@ -327,6 +325,11 @@ M.apply_content_style = function(win, ext_number, ext_relativenumber)
 		api.nvim_set_option_value("signcolumn", "yes", win_opts)
 		api.nvim_set_option_value("number", ext_number, win_opts)
 		api.nvim_set_option_value("relativenumber", ext_relativenumber, win_opts)
+		api.nvim_set_option_value(
+			"winhl",
+			"Normal:PoppyNormalContent,EndOfBuffer:PoppyNormalContent,NonText:PoppyNormalContent,Whitespace:PoppyNormalContent,SignColumn:PoppyNormalContent,FloatBorder:PoppyBorderContent,LineNr:PoppyLineNr,LineNrAbove:PoppyLineNrAbove,LineNrBelow:PoppyLineNrBelow,CursorLineNr:PoppyCursorLineNr",
+			{ scope = "local", win = win }
+		)
 	end)
 end
 

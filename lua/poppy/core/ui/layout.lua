@@ -535,7 +535,8 @@ end
 ---@param win integer?
 ---@param style_label "panel"|"body"|"content"|"hints"|"border"|nil
 local apply_style = function(win, style_label)
-	if not win or not api.nvim_win_is_valid(win) then
+	local use_borders = shared.use_borders()
+	if use_borders or not win or not api.nvim_win_is_valid(win) then
 		return
 	end
 	if style_label == "panel" then
