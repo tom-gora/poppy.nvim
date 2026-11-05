@@ -197,7 +197,8 @@ M.setup = function()
 	local str = api.nvim_get_hl(0, { name = "Label", link = false })
 	local use_borders = shared.use_borders()
 	local bg_content = adjust_brightness(nf.bg, PANEL_BG_DARKEN_FACTOR)
-	local bg_panel = adjust_brightness(nf.bg, (PANEL_BG_DARKEN_FACTOR * 3) * -1)
+	local bg_panel = adjust_brightness(nf.bg, (PANEL_BG_DARKEN_FACTOR * 3.5) * -1)
+	-- skip shading if using borders as surface dlimiting
 	if use_borders then
 		goto continue
 	end
@@ -208,9 +209,10 @@ M.setup = function()
 			update = true,
 		})
 		api.nvim_set_hl(0, "PoppyBorderContent", { fg = fb.fg or str.fg, bg = bg_content })
+
 		api.nvim_set_hl(0, "PoppyNormalPanel", {
-			bg = bg_panel,
 			fg = nf.fg,
+			bg = bg_panel,
 		})
 		api.nvim_set_hl(0, "PoppyBorderPanel", { fg = fb.fg, bg = bg_panel })
 	else -- fallback
@@ -222,13 +224,14 @@ M.setup = function()
 	::continue::
 	api.nvim_set_hl(0, "PoppyCursorLine", { link = "Cursorline", force = true })
 	local err = api.nvim_get_hl(0, { name = "ErrorMsg", link = false })
-	api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = not use_borders and bg_panel or "none" })
-	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg, bg = not use_borders and bg_panel or "none" })
+	api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = "none", update = true })
+	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg, bg = "none", update = true })
+	api.nvim_set_hl(0, "SignColumn", { bg = "none", update = true })
 
 	local comment = api.nvim_get_hl(0, { name = "Comment", link = false })
-	api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = not use_borders and bg_panel or "none" })
+	api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = "none", update = true })
 
-	local type_hl = api.nvim_get_hl(0, { name = "Type", link = false })
+	local type_hl = api.nvim_get_hl(0, { name = "Constant", link = false })
 	local string_hl = api.nvim_get_hl(0, { name = "String", link = false })
 	local func_hl = api.nvim_get_hl(0, { name = "Function", link = false })
 	local lnr = api.nvim_get_hl(0, { name = "LineNr", link = false })
@@ -284,7 +287,7 @@ M.apply_hints_panel_style = function(win)
 	end
 	set_winhl_deferred(
 		win,
-		"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,SignColumn:PoppyNormalPanel"
+		"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel"
 	)
 end
 
@@ -296,7 +299,7 @@ M.apply_panel_style = function(win)
 	end
 	set_winhl_deferred(
 		win,
-		"NormalNC:PoppyNormalPanel,Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,SignColumn:PoppyNormalPanel,FloatBorder:PoppyBorderPanel"
+		"NormalNC:PoppyNormalPanel,Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,FloatBorder:PoppyBorderPanel"
 	)
 end
 
@@ -313,7 +316,7 @@ M.apply_body_style = function(win)
 		end
 		api.nvim_set_option_value(
 			"winhl",
-			"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,SignColumn:PoppyNormalPanel,CursorLine:PoppyCursorLine",
+			"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,CursorLine:PoppyCursorLine",
 			{ scope = "local", win = win }
 		)
 		::continue::
@@ -339,7 +342,7 @@ M.apply_content_style = function(win, ext_number, ext_relativenumber)
 		end
 		api.nvim_set_option_value(
 			"winhl",
-			"Normal:PoppyNormalContent,EndOfBuffer:PoppyNormalContent,NonText:PoppyNormalContent,Whitespace:PoppyNormalContent,SignColumn:PoppyNormalContent,FloatBorder:PoppyBorderContent,LineNr:PoppyLineNr,LineNrAbove:PoppyLineNrAbove,LineNrBelow:PoppyLineNrBelow,CursorLineNr:PoppyCursorLineNr",
+			"Normal:PoppyNormalContent,EndOfBuffer:PoppyNormalContent,NonText:PoppyNormalContent,Whitespace:PoppyNormalContent,FloatBorder:PoppyBorderContent,LineNr:PoppyLineNr,LineNrAbove:PoppyLineNrAbove,LineNrBelow:PoppyLineNrBelow,CursorLineNr:PoppyCursorLineNr",
 			{ scope = "local", win = win }
 		)
 		::continue::
