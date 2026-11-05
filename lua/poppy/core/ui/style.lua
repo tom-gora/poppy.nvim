@@ -5,6 +5,7 @@ local M = {}
 local api = vim.api
 local fn = vim.fn
 local state = require("poppy.core.session.state")
+local shared = require("poppy.core.shared")
 
 -- 'guicursor' is global only; nvim rejects { win = ... }, and { scope = "local" } silently
 -- writes through to the global. A missed restore would leave a static block cursor in every window.
@@ -194,7 +195,7 @@ M.setup = function()
 	local nf = api.nvim_get_hl(0, { name = "NormalFloat", link = false })
 	local fb = api.nvim_get_hl(0, { name = "FloatBorder", link = false })
 	local str = api.nvim_get_hl(0, { name = "Label", link = false })
-	local use_borders = require("poppy.core.shared").use_borders()
+	local use_borders = shared.use_borders()
 	local bg_content = adjust_brightness(nf.bg, PANEL_BG_DARKEN_FACTOR)
 	local bg_panel = adjust_brightness(nf.bg, (PANEL_BG_DARKEN_FACTOR * 3) * -1)
 	if use_borders then
@@ -277,6 +278,10 @@ end
 
 ---@param win integer
 M.apply_hints_panel_style = function(win)
+	local use_borders = shared.use_borders()
+	if use_borders then
+		return
+	end
 	set_winhl_deferred(
 		win,
 		"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,SignColumn:PoppyNormalPanel"
@@ -285,6 +290,10 @@ end
 
 ---@param win integer
 M.apply_panel_style = function(win)
+	local use_borders = shared.use_borders()
+	if use_borders then
+		return
+	end
 	set_winhl_deferred(
 		win,
 		"NormalNC:PoppyNormalPanel,Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,SignColumn:PoppyNormalPanel,FloatBorder:PoppyBorderPanel"
@@ -298,11 +307,16 @@ M.apply_body_style = function(win)
 		if not api.nvim_win_is_valid(win) then
 			return
 		end
+		local use_borders = shared.use_borders()
+		if use_borders then
+			goto continue
+		end
 		api.nvim_set_option_value(
 			"winhl",
 			"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,SignColumn:PoppyNormalPanel,CursorLine:PoppyCursorLine",
 			{ scope = "local", win = win }
 		)
+		::continue::
 		api.nvim_set_option_value("cursorline", true, { win = win })
 	end)
 end
@@ -315,26 +329,34 @@ M.apply_content_style = function(win, ext_number, ext_relativenumber)
 		if not api.nvim_win_is_valid(win) then
 			return
 		end
-
 		local buf = api.nvim_win_get_buf(win)
 		if api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
 			return
 		end
-		local win_opts = { win = win }
-		api.nvim_set_option_value("cursorline", true, win_opts)
-		api.nvim_set_option_value("signcolumn", "yes", win_opts)
-		api.nvim_set_option_value("number", ext_number, win_opts)
-		api.nvim_set_option_value("relativenumber", ext_relativenumber, win_opts)
+		local use_borders = shared.use_borders()
+		if use_borders then
+			goto continue
+		end
 		api.nvim_set_option_value(
 			"winhl",
 			"Normal:PoppyNormalContent,EndOfBuffer:PoppyNormalContent,NonText:PoppyNormalContent,Whitespace:PoppyNormalContent,SignColumn:PoppyNormalContent,FloatBorder:PoppyBorderContent,LineNr:PoppyLineNr,LineNrAbove:PoppyLineNrAbove,LineNrBelow:PoppyLineNrBelow,CursorLineNr:PoppyCursorLineNr",
 			{ scope = "local", win = win }
 		)
+		::continue::
+		local win_opts = { win = win }
+		api.nvim_set_option_value("cursorline", true, win_opts)
+		api.nvim_set_option_value("signcolumn", "yes", win_opts)
+		api.nvim_set_option_value("number", ext_number, win_opts)
+		api.nvim_set_option_value("relativenumber", ext_relativenumber, win_opts)
 	end)
 end
 
 ---@param win integer
 M.apply_border_style = function(win)
+	local use_borders = shared.use_borders()
+	if use_borders then
+		return
+	end
 	set_winhl_deferred(
 		win,
 		"Normal:PoppyNormalPanel,EndOfBuffer:PoppyNormalPanel,NonText:PoppyNormalPanel,Whitespace:PoppyNormalPanel,FloatBorder:PoppyBorder"

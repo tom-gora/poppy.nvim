@@ -29,6 +29,9 @@ local state = require("poppy.core.session.state")
 ---@field body_row integer
 ---@field hints_row integer
 
+local NUMBER = vim.o.number
+local RELATIVENUMBER = vim.o.relativenumber
+
 -- 48: under Neovim's default 50 (completion pum, hovers, notifications), above other plugin pickers.
 M.POPPY_Z_INDEX = 48
 -- Question panel outranks the answers list: same-z floats get restacked on focus, and
@@ -535,18 +538,12 @@ end
 ---@param win integer?
 ---@param style_label "panel"|"body"|"content"|"hints"|"border"|nil
 local apply_style = function(win, style_label)
-	local use_borders = shared.use_borders()
-	if use_borders or not win or not api.nvim_win_is_valid(win) then
-		return
-	end
 	if style_label == "panel" then
 		style.apply_panel_style(win)
 	elseif style_label == "body" then
 		style.apply_body_style(win)
 	elseif style_label == "content" then
-		local ext_nu = vim.o.number
-		local ext_rnu = vim.o.relativenumber
-		style.apply_content_style(win, ext_nu, ext_rnu)
+		style.apply_content_style(win, NUMBER, RELATIVENUMBER)
 	elseif style_label == "hints" then
 		style.apply_hints_panel_style(win)
 	elseif style_label == "border" then
