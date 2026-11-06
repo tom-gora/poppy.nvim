@@ -255,6 +255,8 @@ M.merge = function(user_opts)
 		{ "close_other_floats_on_open", "boolean" },
 		{ "assume_multiplexer", "boolean" },
 		{ "menu_width", { "number", "function" } },
+		{ "win_width", { "number", "function" } },
+		{ "win_height", { "number", "function" } },
 	}
 	for _, v in ipairs(validators) do
 		local key, expected = v[1], v[2]

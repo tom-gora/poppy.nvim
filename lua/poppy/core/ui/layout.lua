@@ -50,7 +50,7 @@ M.MIN_CONTENT_WIDTH = 35
 -- content floor and their gutter; height only has to fit the single-row picker, and
 -- header/hints can be turned off in anything tighter.
 M.MIN_COLS = M.MIN_MENU_WIDTH + M.MIN_CONTENT_WIDTH + 2
-M.MIN_LINES = 5
+M.MIN_LINES = 12
 
 ---@return boolean
 M.below_floor = function()

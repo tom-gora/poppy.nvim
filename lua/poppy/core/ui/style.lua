@@ -100,7 +100,19 @@ local setup_cursor_autocmds = function()
 	})
 end
 
-local PANEL_BG_DARKEN_FACTOR = 0.1
+---@return "light"|"dark"
+local get_bg_variant = function()
+	local hl = vim.api.nvim_get_hl(0, { name = "Normal" })
+	if not hl or not hl.bg then
+		return vim.o.background
+	end
+	local bg_dec = hl.bg
+	local r = math.floor(bg_dec / 65536) / 255
+	local g = math.floor((bg_dec % 65536) / 256) / 255
+	local b = (bg_dec % 256) / 255
+	local luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+	return luminance > 0.5 and "light" or "dark"
+end
 
 ---@param color integer
 ---@param factor number
@@ -192,21 +204,29 @@ end
 M.setup = function()
 	restore_cursor_mode()
 
+	-- normalize and guard bg even if theme does not set vim.o.background
+	local lum = get_bg_variant()
+	local content_adjust_factor = (lum == "dark") and 0.05 or -0.05
+	local panel_adjust_factor = (lum == "dark") and -0.05 or 0.1
+
 	local nf = api.nvim_get_hl(0, { name = "NormalFloat", link = false })
 	local fb = api.nvim_get_hl(0, { name = "FloatBorder", link = false })
 	local str = api.nvim_get_hl(0, { name = "Label", link = false })
 	local use_borders = shared.use_borders()
-	local bg_content = adjust_brightness(nf.bg, PANEL_BG_DARKEN_FACTOR)
-	local bg_panel = adjust_brightness(nf.bg, (PANEL_BG_DARKEN_FACTOR * 3.5) * -1)
 	-- skip shading if using borders as surface dlimiting
 	if use_borders then
 		goto continue
 	end
+	-- Shading is computed here, not above: adjust_brightness needs a real bg, and the
+	-- fallback branch below handles the case where NormalFloat carries none.
 	if nf.bg then
+		local bg_content = adjust_brightness(nf.bg, content_adjust_factor)
+		local multiply_factor = (lum == "dark") and 3.5 or 5.5
+		local bg_panel = adjust_brightness(nf.bg, panel_adjust_factor * multiply_factor)
+
 		api.nvim_set_hl(0, "PoppyNormalContent", {
 			bg = bg_content,
 			fg = nf.fg,
-			update = true,
 		})
 		api.nvim_set_hl(0, "PoppyBorderContent", { fg = fb.fg or str.fg, bg = bg_content })
 
@@ -222,14 +242,14 @@ M.setup = function()
 		api.nvim_set_hl(0, "PoppyBorderContent", { link = "FloatBorder", force = true })
 	end
 	::continue::
-	api.nvim_set_hl(0, "PoppyCursorLine", { link = "Cursorline", force = true })
+	api.nvim_set_hl(0, "PoppyCursorLine", { link = (lum == "dark") and "Cursorline" or "DiffAdd", force = true })
 	local err = api.nvim_get_hl(0, { name = "ErrorMsg", link = false })
-	api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = "none", update = true })
-	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg, bg = "none", update = true })
-	api.nvim_set_hl(0, "SignColumn", { bg = "none", update = true })
+	api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = "none" })
+	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg, bg = "none" })
+	api.nvim_set_hl(0, "SignColumn", { bg = "none" })
 
 	local comment = api.nvim_get_hl(0, { name = "Comment", link = false })
-	api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = "none", update = true })
+	api.nvim_set_hl(0, "PoppyInactive", { fg = comment.fg, bg = "none" })
 
 	local type_hl = api.nvim_get_hl(0, { name = "Constant", link = false })
 	local string_hl = api.nvim_get_hl(0, { name = "String", link = false })
@@ -333,9 +353,6 @@ M.apply_content_style = function(win, ext_number, ext_relativenumber)
 			return
 		end
 		local buf = api.nvim_win_get_buf(win)
-		if api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
-			return
-		end
 		local use_borders = shared.use_borders()
 		if use_borders then
 			goto continue
@@ -346,6 +363,9 @@ M.apply_content_style = function(win, ext_number, ext_relativenumber)
 			{ scope = "local", win = win }
 		)
 		::continue::
+		if api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
+			return
+		end
 		local win_opts = { win = win }
 		api.nvim_set_option_value("cursorline", true, win_opts)
 		api.nvim_set_option_value("signcolumn", "yes", win_opts)
