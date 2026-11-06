@@ -9,7 +9,7 @@ local shared = require("poppy.core.shared")
 
 -- 'guicursor' is global only; nvim rejects { win = ... }, and { scope = "local" } silently
 -- writes through to the global. A missed restore would leave a static block cursor in every window.
-local LIST_CURSOR = "a:block-blinkon0"
+local LIST_CURSOR = "a:block-blinkon0-PoppyCursor"
 
 -- M.setup() re-runs on every ColorScheme and setup() call. Clearing `overridden` while still
 -- owning the global would discard the user's saved value.
@@ -242,8 +242,9 @@ M.setup = function()
 		api.nvim_set_hl(0, "PoppyBorderContent", { link = "FloatBorder", force = true })
 	end
 	::continue::
-	api.nvim_set_hl(0, "PoppyCursorLine", { link = (lum == "dark") and "Cursorline" or "DiffAdd", force = true })
-	local err = api.nvim_get_hl(0, { name = "ErrorMsg", link = false })
+	api.nvim_set_hl(0, "PoppyCursor", { link = "Cursor", force = true })
+	api.nvim_set_hl(0, "PoppyCursorLine", { link = "CursorLine", force = true })
+	local err = api.nvim_get_hl(0, { name = "DiagnosticError", link = false })
 	api.nvim_set_hl(0, "PoppyRed", { fg = err.fg, bg = "none" })
 	api.nvim_set_hl(0, "PoppySeparator", { fg = fb.fg, bg = "none" })
 	api.nvim_set_hl(0, "SignColumn", { bg = "none" })
