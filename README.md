@@ -10,7 +10,27 @@ A neovim popup scratchpad manager. Simple setup, as natural feel as possible and
 
 ## Screenshots:
 
-\<-- TODO: Add Screenshots -->
+- Landing menu exmaples in light and dark catpuccin variants. Bordered and borderless pane mode. Pick oil-style by line, or with displayed index and operator pending mode.
+
+![landing view light and dark theme example](./assets/screenshots/landing_dark_light.png)
+
+- Example of .md useful quickly accessible files
+
+![todos example menu hidden captpuccin](./assets/screenshots/todos_menu_hidden_catpuccin_mocha.png)
+
+![todos example menu out captpuccin](./assets/screenshots/todos_menu_out_catpuccin_mocha.png)
+
+![journal example menu out gruvbox](./assets/screenshots/journal_mocha.png)
+
+- `btop` and `ncspot` process example
+
+![process example btop](./assets/screenshots/btop_solarized.png)
+
+![process example ncspot](./assets/screenshots/ncspot_tokyo-night.png)
+
+- Shell scratch term example
+
+![scratch terminal exampke](./assets/screenshots/cloc_everforest-light.png)
 
 ## Inspiration, motivation and other human-brain-made-slop
 
@@ -43,7 +63,7 @@ vim.keymap.set("n", "<S-L>", function()
     end
     local _, win = vim.diagnostic.open_float({ focusable = true })
     if win then
-        vim.api.nvim_win_set_var(win, "diag_float", true)
+        vim.api.nvim_win_set_var(win, "    Btop                   ", true)
         return
     end
     -- dumb fallback perform a motion move
