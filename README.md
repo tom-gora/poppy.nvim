@@ -14,15 +14,15 @@ A neovim scratchpad popups manager. Simple setup, custom navigation, workflow an
 
 ## Screenshots:
 
-Landing menu exmaples in light and dark cattpuccin variants. Bordered and borderless pane mode. Pick oil-style by line, or with displayed index and operator pending mode.
+Landing menu examples in light and dark cattpuccin variants. Bordered and borderless pane mode. Pick oil-style by line, or with displayed index and operator pending mode.
 
 ![landing view light and dark theme example](./assets/screenshots/landing_dark_light.png)
 
 - Example of .md useful quickly accessible files. Total poppy ui width configurable.
 
-![todos example menu hidden captpuccin](./assets/screenshots/todos_menu_hidden_catpuccin_mocha.png)
+![todos example menu hidden cattpuccin](./assets/screenshots/todos_menu_hidden_catpuccin_mocha.png)
 
-![todos example menu out captpuccin](./assets/screenshots/todos_menu_out_catpuccin_mocha.png)
+![todos example menu out cattpuccin](./assets/screenshots/todos_menu_out_catpuccin_mocha.png)
 
 ![journal example menu out gruvbox](./assets/screenshots/journal_gruv.png)
 
@@ -79,7 +79,7 @@ end, { noremap = true, silent = true })
 
 ```
 
-This is the flow that I like (one bind to do one thing and and hit it multiple times to change state). It is the first of the 3 sources of inspiration for the one bind-to-rule-them-all scratchpad manager.
+This is the flow that I like (one bind to do one thing and hit it multiple times to change state). It is the first of the 3 sources of inspiration for the one bind-to-rule-them-all scratchpad manager.
 
 Another significant inspiration was [SUMMON.NVIM](https://github.com/salkhalil/summon.nvim) by salhalin that briefly lived then apparently died, but I liked the idea of declaratively setting just a couple tools OR files to access in a simple unified form. What I did not like in this and practically all other plugins is you have to declare a binding for each "thingy" you setup and then remember all your bindings, or worse, find confortable binds that are still AVAILABLE in your config.
 
@@ -87,7 +87,7 @@ Third large inspiration were [ oil.nvim ](https://github.com/stevearc/oil.nvim/i
 
 You can tell by now probably that the plugin is a bit opinioneted and its design is arguably a result of a bit of overthinking. However, all this is aiming to make it FEEL simple. Scratchpads are a concept that is meant to be simple and quick. If I want a heavily configured TUI swiss army knife / tank tool to do serious extended work I will just open another terminal/multiplexer pane.
 
-Finally, my bonus "anti-inspiration" was [toggleterm.nvim](https://github.com/akinsho/toggleterm.nvim) plugin. It is an excellent established project but I had a big problem with it and existing similar solutions. In my opinion, the issue is too heavily involved sprawling config and being heavily overengineered for a plugin managing transient terminal spawns for quick access. I wanted something significantly more simple but still capable for my every day worflows.
+Finally, my bonus "anti-inspiration" was [toggleterm.nvim](https://github.com/akinsho/toggleterm.nvim) plugin. It is an excellent established project but I had a big problem with it and existing similar solutions. In my opinion, the issue is too heavily involved sprawling config and being heavily overengineered for a plugin managing transient terminal spawns for quick access. I wanted something significantly more simple but still capable for my every day workflows.
 
 To function `Poppy.nvim` needs as little opts as possible. Using keys and values declare how to open something and what it is i.e `exec = "btop"`, and that is it. Defaults to shipped icons and even title has a fallback detection so you can configure additional details like that, but you do not even need to.
 
@@ -101,7 +101,7 @@ If you read this, I thank you and salute you. More standard documentation below:
 
 ## AI Disclosure
 
-This project has heavily relied on AI openweight models to be developed mostly in terms of writing boilerplate while under heavy direction guiding, small steps, no AGENTS doc, but rather deliberate architecture and conversation driven iteration. Beginning from `excalidraw-ed` early mocks instead of textual guides, through manual inspection and supporting agents where logic failed (especially constructing custom TUI layout for `borderless` style and custom workflow. Things like paddings, offsets from scratch with Neovim primitives, with little docs and no standards like frameworks are an area of absolute LLM failure.) To me it is both a small useful tool I needed and an exercise of finding out if a project can be developed consciously and thougthfully with the use of AI through iteration and use of human insights and knowledge rather than throwing money at a problem and letting agents run wild. On a small scale. You be the judge.
+This project has heavily relied on AI openweight models to be developed mostly in terms of writing boilerplate while under heavy direction guiding, small steps, no AGENTS doc, but rather deliberate architecture and conversation driven iteration. Beginning from `excalidraw-ed` early mocks instead of textual guides, through manual inspection and supporting agents where logic failed (especially constructing custom TUI layout for `borderless` style and custom workflow. Things like paddings, offsets from scratch with Neovim primitives, with little docs and no standards like frameworks are an area of absolute LLM failure.) To me it is both a small useful tool I needed and an exercise of finding out if a project can be developed consciously and thoughtfully with the use of AI through iteration and use of human insights and knowledge rather than throwing money at a problem and letting agents run wild. On a small scale. You be the judge.
 
 ![one of the early mocks](./assets/screenshots/early_mock.png)
 
