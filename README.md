@@ -38,7 +38,7 @@ Landing menu examples in light and dark cattpuccin variants. Bordered and border
 
 ## Inspiration, motivation etc.
 
-A bit of an extended personal introduction:
+A bit of an extended introduction:
 
 In my personal config I had for a long time some circular bindings to access important floating ui windows super-quickly. I.E:
 
@@ -83,7 +83,7 @@ This is the flow that I like (one bind to do one thing and hit it multiple times
 
 Another significant inspiration was [SUMMON.NVIM](https://github.com/salkhalil/summon.nvim) by salhalin that briefly lived then apparently died, but I liked the idea of declaratively setting just a couple tools OR files to access in a simple unified form. What I did not like in this and practically all other plugins is you have to declare a binding for each "thingy" you setup and then remember all your bindings, or worse, find confortable binds that are still AVAILABLE in your config.
 
-Third large inspiration were [ oil.nvim ](https://github.com/stevearc/oil.nvim/issues) and [ mini.files ](https://github.com/nvim-mini/mini.files) for just using a buffer navigated with `j/k` as sort of a picker and perform actions with simple binds acting on a *LINE*. I find it so elegant, simple and native. No mental switching buffer navigation paradigm to another. Even to "native" `<C-n> and <C-p>`, square brackets and so on I find so clunky and unified that to every supporter of "just use defaults" I want to reply "are the defaults good? If I can't do `hjkl` in vim then it is a failure of navigation design.
+Third large inspiration were [ oil.nvim ](https://github.com/stevearc/oil.nvim/issues) and [ mini.files ](https://github.com/nvim-mini/mini.files) for just using a buffer navigated with `j/k` as sort of a picker and perform actions with simple binds acting on a *LINE*. I find it so elegant, simple and native. No mental switching buffer navigation paradigm to another. Even to "native" `<C-n> and <C-p>`, square brackets and so on I find quite clunky that to every supporter of "just use defaults" I want to reply "are the defaults good? If I can't do `hjkl` in vim then it is a failure of navigation design.
 
 You can tell by now probably that the plugin is a bit opinioneted and its design is arguably a result of a bit of overthinking. However, all this is aiming to make it FEEL simple. Scratchpads are a concept that is meant to be simple and quick. If I want a heavily configured TUI swiss army knife / tank tool to do serious extended work I will just open another terminal/multiplexer pane.
 
@@ -229,7 +229,7 @@ Buffers stay loaded in the background when you switch between poppies, or toggle
 
 ## Usage
 
-`keys.poppy_action` opens the manager's "landing view" picker if no poppies ; press it again to toggle off. If you have running poppies it will, open with the last active poppy window focused for work already, press again to focus the menu in a "sidebar" form, then the third press will cycle back to the "toggled off" state. From the sidebar: `select` switches the running visible poppy content, `kill` terminates a running instance of poppy, `exit_menu` returns focus to the content pane. The big red dot indicates the currently running and focused poppy. If there are running unfocused instances they are marked with a small subtler dot in the signcolumn of the picker window.
+`keys.poppy_action` opens the manager's "landing view" picker if no poppies ; press it again to toggle off. If you have running poppies it will, open with the last active poppy window focused for work already, press again to focus the menu in a "sidebar" form, then the third press will cycle back to the "toggled off" state. From the sidebar: `select` switches the running visible poppy content, `kill` terminates a running instance of poppy, `exit_menu` returns focus to the content pane. The big red dot (or a different color depending on the theme, it follows your DiagnosticError highlight foreground) indicates the currently running and focused poppy. If there are running unfocused instances they are marked with a small subtler dot in the signcolumn of the picker window.
 
 ```
 :Poppy                 " toggle
